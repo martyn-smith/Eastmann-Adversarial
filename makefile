@@ -1,21 +1,24 @@
 #all: TE results
 
 TE:
-	gfortran temain.f95; ./a.out; ./to_csv.sh
+	gfortran -g3 -o debug.out -fbacktrace -ffpe-trap=invalid,zero,overflow,underflow -fdefault-real-8 -fimplicit-none -Wconversion -std=f2003 temain.f95;
+	gfortran -std=f2003 -fdefault-real-8 temain.f95;
+	./a.out; 
+	./to_csv.sh
 
 results:
 	@echo "making output folder"
 	if [! -d '../../datasets/$date +"%d%m%C"' ]; then
 	mkdir ../../datasets/$(date +"%d%m%C"  	# Control will enter here if $DIRECTORY exists.
 	fi
-	for file in 'out.dat' 'fout.dat' 'inpt.dat'
-	do
-	echo "reformatting"
-	#replace leading spaces
-	sed -i 's/^ */"/g' $file
-	#replace middle spaces
-	sed -i 's/  /","/g' $file
-	#replace trailing
-	sed -i 's/$/"/g' $file
-	done
 	mv *.dat ../../datasets/$(date +"%d%m%C")
+
+multiresults:
+	for i in {1..64}
+	do
+	./a.out;
+	./to_csv.sh;
+	rm fout.dat;
+	mv out.dat out$i.dat;
+	mv inpt.dat inpt$i.dat;
+	done

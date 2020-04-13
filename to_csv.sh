@@ -1,4 +1,4 @@
-for file in 'out.dat' 'fout.dat' 'inpt.dat'
+for file in 'out.dat' 'fout.dat' 'inpt.dat' 'dvec.dat'
 do
 #replace leading spaces
 sed -i 's/^ */"/g' $file
