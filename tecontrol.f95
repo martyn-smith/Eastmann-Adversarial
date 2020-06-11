@@ -80,7 +80,7 @@ subroutine contrlinit
     gain(9)=4.1
     taui(9)=81.9
 
-end
+end subroutine contrlinit
 
 subroutine contrl
     save 
@@ -204,4 +204,4 @@ subroutine contrl
 !     write(6,*) dummy,bdummy
 !    istart=1
     return
-end
+end subroutine contrl

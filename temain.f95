@@ -141,7 +141,7 @@ subroutine outputinit
                  "reaction_kinetics  ", "reactor_cool_stick  ", "condensor_cool_stick  ", &
                  "unknown", "unknown", "unknown", "unknown", "unknown", &
                  "Reactor Integrity", "DDoS 1", "D feed DDoS", "Noise 1"
-end
+end subroutine outputinit
 
 subroutine output(time)
     save icount
@@ -173,7 +173,7 @@ subroutine output(time)
 103 format(13e23.15)
 104 format(e23.15, 24i3)
     return
-end
+end subroutine output
 !
 !===============================================================================
 !
@@ -187,7 +187,7 @@ subroutine intgtr(nn, time, delta_t, state, derivative)
         state(i) = state(i) + derivative(i) * delta_t
     end do
     return
-end
+end subroutine intgtr
 
 subroutine filter_xmeas(time)
     !       filter measurements
@@ -209,7 +209,7 @@ subroutine filter_xmeas(time)
             fxmeas(k)=xmeas(k)
         end do 
     end if
-end
+end subroutine filter_xmeas
 
 subroutine set_idvs
     
@@ -227,12 +227,13 @@ subroutine set_idvs
     end do
     if (init) then
         do i=1,size(idv)
-            if (rand1() > aggression) idv(i) = 1
+            call random_number(rand1)
+            if (rand1 > aggression) idv(i) = 1
         end do
     else
-        init = .TRUE.
+        !init = .TRUE.
     end if
-end
+end subroutine set_idvs
 
 real(kind=8) function rand1()
 !   see numerical recipes in fortran, p.196
@@ -267,4 +268,4 @@ real(kind=8) function rand1()
     rand1=r(j)
     r(j)=(ix1+ix2*rm2)*rm1
     return
-end
+end function rand1
