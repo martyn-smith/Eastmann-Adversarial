@@ -1,10 +1,11 @@
 #all: TE results
 
 TE:
-	gfortran -g3 -o debug.out -fbacktrace -fdefault-real-8 -ffpe-trap=invalid,zero,overflow,underflow -fimplicit-none -Wconversion -std=f2003 temain.f95;
+	#gfortran -c teconstants.f95;
+	gfortran -g3 -o debug.out -fbacktrace -fdefault-real-8 -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none -Wconversion -Wuninitialized -std=f2003 temain.f95;
 	gfortran -fdefault-real-8 -std=f2003 temain.f95;
 	./a.out; 
-	./to_csv.sh
+	#./to_csv.sh
 
 results:
 	@echo "making output folder"

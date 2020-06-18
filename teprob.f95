@@ -14,80 +14,67 @@
 !    industrial challenge problems in process control,paper #24a
 !    chicago,illinois,november 14,1990
 !
-!  subroutines:
+!  Model of the TE (Tennessee Eastmann) challenge reactor.
 !
-!    tefunc - function evaluator to be called by integrator
-!    teinit - initialization
-!    tesubi - utility subroutines, i=1,2,..,8
+!  The Plant takes four inputs, A, C, D, E, and produces two outputs,
+!  G and H.
 !
+!  Primary reactions:
 !
-!  the process simulation has 50 states (nn=50).  if the user wishes to 
-!  integrate additional states, nn must be increased accordingly in the calling
-!  program.  the additional states should be appended to the end of the state 
-!  vector, e.g. state(51),...  the additional derivatives should be appended to 
-!  the end of the derivative vector, e.g. derivative(51),...  to initialize the new states 
-!  and to calculate derivatives for them, we suggest creating new function 
-!  evaluator and initialization routines as follows.
+!  A(g) + C(g) + D(g) -> G(l)
+!  A(g) + D(g) + E(g) -> H(l)
 !
-!          c-----------------------------------------------
-!          c
-!                subroutine func(nn,time,state,derivative)
-!          c
-!                integer nn
-!                real(kind=8) time, state(nn), derivative(nn)
-!          c
-!          c  call the function evaluator for the process
-!          c 
-!                call tefunc(nn,time,state,derivative)
-!          c
-!          c  calculate derivatives for additional states
-!          c
-!                derivative(51) = ....
-!                derivative(52) = ....
-!                   .
-!                   .
-!                   .
-!                derivative(nn) = ....
-!          c
-!                return
-!                end
-!          c
-!          c-----------------------------------------------
-!          c
-!                subroutine init(nn,time,state,derivative)
-!          c
-!                integer nn
-!                real(kind=8) time, state(nn), derivative(nn)
-!          c
-!          c  call the initialization for the process
-!          c 
-!                call teinit(nn,time,state,derivative)
-!          c
-!          c  initialize additional states
-!          c
-!                state(51) = ....
-!                state(52) = ....
-!                   .
-!                   .
-!                   .
-!                state(nn) = ....
-!          c
-!                return
-!                end
-!          c
-!          c-----------------------------------------------
+!  Byproduct reactions:
 !
-!  differences between the code and its description in the paper:
+!  A(g) + E(g) -> F(l)
+!  3D(g) -> 2F(l)
 !
-!  1.  subroutine teinit has time in the argument list.  teinit sets time
-!      to zero.
+!  All are exothermic, reversible, and first-order
+!  (rates follow an Arrhenius relation.)
 !
-!  2.  there are 8 utility subroutines (tesubi) rather than 5.
+!  Product flow is: 
+!  a,d,e ->                                  c ->
+!     reactor -> condensor -> separator -> stripper -> product
+!           <- compressor <- purge <-
+!           <---------------------------------
+
+! High-level overview of run():
+
+! 1 ) set IDVs
+! 2 ) set wlk values
+! 3 ) set Reactor ES, stream[3] properties (the latter by calling sub8)
+! 4 ) load some state into Vessels
+! 5 ) calculate XL from UCL
+! 6 ) sub2?
+! 7 ) sub4? 
+! 8 ) set VL
+! 9 ) calculate Pressure of A,B,C
+! 10) calculate Pressure of D,E,F,G,H
+! 11) calculate XVs from PPs
+! 12) calculate whatever RRs are 
+! 13) ditto delta_xr, XMWs
+! 14) Set temps
+! 15) set_heat on streams()
+! 16) calculate flows
+! 17) calculate flms
+! 18) calculate flow mass fracs
+! 19) calculate flow concs
+! 20) temp and heat conservation
+! 21) underflow
+! 22) XMEAS update
+! 23) errors (based on GROUND TRUTH - change to XMEAS)
+! 24) Separator Energy Balance?
+! 25) VCVs, whatever they are 
+! 26) update derivatives
+
+! ############################################################################### 
 !
-!  3.  process disturbances 14 through 20 do not need to be used in
-!      conjunction  with another 
-!      disturbance as stated in the paper.  all disturbances can
-!      be used alone or in any combination.
+! Four core loops:
+
+!     Reactor.T <- Coolant flow
+!     Reactor.level <- E feed flow
+!     Separator.level <- Condensor Coolant flow
+!     Stripper.level <- Stripper liquid efflux valve
 !
 !  manipulated variables
 !
@@ -159,11 +146,16 @@
 !        sampling frequency = 0.25 hr
 !        dead time = 0.25 hr
 !        mole %
-!    xmeas(37)   component d   
-!    xmeas(38)   component e   
-!    xmeas(39)   component f   
-!    xmeas(40)   component g   
-!    xmeas(41)   component h   
+!    xmeas(37)   component d
+!    xmeas(38)   component e
+!    xmeas(39)   component f
+!    xmeas(40)   component g
+!    xmeas(41)   component h
+!
+!    extras
+!
+!    xmeas(42)   g/h ratio
+!    xmeas(43)   TODO: cost
 !
 !  process disturbances
 !
@@ -195,8 +187,109 @@
 !
 !===============================================================================
 
-subroutine teinit(nn, time, state, derivative)
-!
+module constants
+    real, parameter :: r_gas = 8.314472
+    real, parameter :: r_gas_kcal = 1.987e-3
+    real, parameter :: avp(8) = [0.0, 0.0, 0.0, 15.92, 16.35, 16.35, 16.43, 17.21]
+    real, parameter :: bvp(8) = [0.0, 0.0, 0.0, -1444.0, -2114.0, -2114.0, -2748.0, -3318.0]
+    real, parameter :: cvp(8) = [0.0, 0.0, 0.0, 259.0, 265.5, 265.5, 232.9, 249.6]
+    real, parameter :: ad(8) = [1.0, 1.0, 1.0, 23.3, 33.9, 32.8, 49.9, 50.5]
+    real, parameter :: bd(8) = [0.0, 0.0, 0.0, -0.0700, -0.0957, -0.0995, -0.0191, -0.0541]
+    real, parameter :: cd(8) = [0.0, 0.0, 0.0, -0.0002, -0.000152, -0.000233, -0.000425, -0.000150]
+    real, parameter :: ah(8) = [1.0e-6, 1.0e-6, 1.0e-6, 0.96e-6, 0.573e-6, 0.652e-6, 0.515e-6, 0.471e-6]
+    real, parameter :: bh(8) = [0., 0., 0., 8.70e-9, 2.41e-9, 2.18e-9, 5.65e-10, 8.70e-10]
+    real, parameter :: ch(8) = [0., 0., 0., 4.81e-11, 1.82e-11, 1.94e-11, 3.82e-12, 2.62e-12]
+    real, parameter :: av(8) = [1.0e-6, 1.0e-6, 1.0e-6, 86.7e-6, 160.0e-6, 160.0e-6, 225.0e-6, 209.0e-6]
+    real, parameter :: ag(8) = [3.411e-6, 0.3799e-6, 0.2491e-6, 0.3567e-6, 0.3463e-6, 0.393e-6, 0.17e-6, 0.150e-6]
+    real, parameter :: bg(8) = [7.18e-10, 1.08e-9, 1.36e-11, 8.51e-10, 8.96e-10, 1.02e-9, 0., 0.]
+    real, parameter :: cg(8) = [6.0e-13, -3.98e-13, -3.93e-14, -3.12e-13, -3.27e-13,-3.12e-13, 0., 0.]
+    real, parameter :: xmw(8) = [2.0, 25.4, 28.0, 32.0, 46.0, 48.0, 62.0, 76.0]
+end module constants
+
+module types
+    use iso_c_binding
+    type Vessel
+        sequence
+        real(kind=8) :: utl, utv, &    ! total molar amounts in liquid and gas phase
+                        et, es, &      ! total and liquid phase heat?
+                        tc, tk, &      ! temps (C and K)
+                        density, &          ! ??
+                        vt, vl, vv, &  ! total, liquid and vapour volumes
+                        pt, &          ! total pressure
+                        qu, hw ! ?? ?? ?? ??
+        real(kind=8), dimension(8) :: ucl, ucv, & ! molar components amounts in liquid and gas phase
+                                      xl, xv, &      ! concentrations in liquid and gas phase
+                                      pp             ! partial pressure
+        !contains
+        !   procedure, pass :: set_temperature
+    end type Vessel
+    contains
+        subroutine set_temperature(this)
+!           replaces tesub2
+            integer, parameter :: ity = 0
+            integer :: i
+!            character :: mode
+!            real(kind=8), intent(in) :: h, z(8)
+            real(kind=8) :: dh, dT, err, h_test, T_in
+            type(vessel) :: this
+
+            T_in = this%tc
+            do i=1,100 !label 250
+                call set_stream_heat(this%xl, this%tc, h_test, ity)
+                err = h_test - this%es
+                call calc_delta_h(this%xl, this%tc, dh, ity)
+                dT = -err/dh
+                this%tc = this%tc + dT !main mutator of T
+                if(abs(dT) < 1.e-12) then
+                    this%tk = this%tc + 273.15
+                    return
+                end if
+            end do
+!           this appears to be correct..? i.e. T is reset if error never converges.
+            this%tc = T_in 
+            this%tk = this%tc + 273.15
+            return
+        end subroutine set_temperature
+
+        subroutine set_pressures(this)
+            use constants
+            integer :: i
+            real(kind=8), parameter :: rg = 998.9
+            type(vessel) :: this
+
+            do i=1,3 !label 1110 - for R and S only
+                this%pp(i) = this%ucv(i) * rg * this%tk / this%vv
+            end do
+            do i=4,8 !label 1120 - for R and S only
+                this%pp(i) = this%xl(i) * exp(avp(i) + bvp(i)/(this%tc+cvp(i))) !Antoine eq.
+            end do
+            this%pt = sum(this%pp)
+            do i=1,8 !label 1130
+                this%xv(i) = this%pp(i) / this%pt
+            end do
+            this%utv = this%pt * this%vv/rg/this%tk
+            do i=4,8 !label 1140
+                this%ucv(i) = this%utv * this%xv(i)
+            end do
+        end subroutine set_pressures
+
+        subroutine set_density(this) 
+!           was tesub4
+            use constants
+            integer :: i
+            real(kind=8) :: v
+            type(vessel), intent(inout) :: this
+        
+            v=0.
+            do i=1,8
+                v = v + this%xl(i) * xmw(i) / (ad(i) + (bd(i)+cd(i) * this%tc) * this%tc)
+            end do
+            this%density = 1.0/v
+            return
+        end subroutine set_density
+end module types
+
+subroutine teinit(state, nn, derivative, time)
 !   initialization
 !
 !   inputs:
@@ -206,32 +299,13 @@ subroutine teinit(nn, time, state, derivative)
 !     time = current time(hrs)
 !     state = current state values
 !     derivative = current derivative values
-
-!   common block
-    real(kind=8) :: &
-    avp,bvp,cvp, &
-    ah,bh,ch, &
-    ag,bg,cg, &
-    av, &
-    ad,bd,cd, &
-    xmw
-    common /const/ &
-    avp(8),bvp(8),cvp(8), &
-    ah(8),bh(8),ch(8), &
-    ag(8),bg(8),cg(8), &
-    av(8), &
-    ad(8),bd(8),cd(8), &
-    xmw(8)
+    use types
+    use constants
 
     integer :: ivst
     real(kind=8) :: &
-    uclr, ucvr, utlr, utvr, xlr, xvr, etr, esr, tcr, tkr, dlr, vlr, &
-    vvr, vtr, ptr, ppr, fwr, twr, qur, hwr, &
-    crxr, rr, rh, uar, &
-    ucls, ucvs, utls, utvs, xls, xvs, ets, ess, tcs, tks, dls, vls, &
-    vvs, vts, pts, pps, fws, tws, qus, hws, &
-    uclc, utlc, xlc, etc, esc, tcc, dlc, vlc, vtc, quc, &
-    ucvv, utvv, xvv, etv, esv, tcv, tkv, vtv, ptv, &
+    twr, tws, fwr, fws, uar, &
+    delta_xr, reaction_rate, reaction_heat, &
     vcv, vrng, vtau, &
     ftm, fcm, xst, xmws, hst, tst, sfr, &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
@@ -241,20 +315,17 @@ subroutine teinit(nn, time, state, derivative)
 !   Seperator properties (20)
 !   Stripper properties? (10)
 !   Condensor properties? (9)
+    type(vessel) :: r, c, s, v
     common /teproc/ &
-    uclr(8), ucvr(8), utlr, utvr, xlr(8), xvr(8), etr, esr, tcr, tkr, dlr, vlr, &
-    vvr, vtr, ptr, ppr(8), fwr, twr, qur, hwr, &
-    crxr(8), rr(4), rh, uar, &
-    ucls(8), ucvs(8), utls, utvs, xls(8), xvs(8), ets, ess, tcs, tks, dls, vls, &
-    vvs, vts, pts, pps(8), fws, tws, qus, hws, &
-    uclc(8), utlc, xlc(8), etc, esc, tcc, dlc, vlc, vtc, quc, &
-    ucvv(8), utvv, xvv(8), etv, esv, tcv, tkv, vtv, ptv, &
+    r, c, s, v, &
+    twr, tws, fwr, fws, uar, &
+    delta_xr(8), reaction_rate(4), reaction_heat, &
 !   XMV
     vcv(12), vrng(12), vtau(12), &
 !   stream and component properties
     ftm(13), fcm(8,13), xst(8,13), xmws(13), hst(13), tst(13), sfr(8), &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    htr(3), agsp, xdel(41), xns(41), &
+    htr(2), agsp, xdel(41), xns(41), &
     t_gas, t_prod, vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
@@ -270,41 +341,26 @@ subroutine teinit(nn, time, state, derivative)
     common /wlk/ &
     adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
     hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
-
-    real(kind=8) :: g
-    common /randsd/ g
 !   common block
 
-    integer :: i, nn
-    real(kind=8) :: state(nn), derivative(nn), time
+    integer, intent(in) :: nn
+    integer :: i
+    real :: delta_t
+    real(kind=8), intent(out) :: state(nn), derivative(nn), time
+!   type(vessel) :: R, C, S, V
 
 !   fortran to python headers
 !   f2py intent(in) nn, time, state, derivative
 !   f2py intent(out) state, derivative
 
-    avp = [0.0, 0.0, 0.0, 15.92, 16.35, 16.35, 16.43, 17.21]
-    bvp = [0.0, 0.0, 0.0, -1444.0, -2114.0, -2114.0, -2748.0, -3318.0]
-    cvp = [0.0, 0.0, 0.0, 259.0, 265.5, 265.5, 232.9, 249.6]
-    ad = [1.0, 1.0, 1.0, 23.3, 33.9, 32.8, 49.9, 50.5]
-    bd = [0.0, 0.0, 0.0, -0.0700, -0.0957, -0.0995, -0.0191, -0.0541]
-    cd = [0.0, 0.0, 0.0, -0.0002, -0.000152, -0.000233, -0.000425, -0.000150]
-    ah = [1.0e-6, 1.0e-6, 1.0e-6, 0.96e-6, 0.573e-6, 0.652e-6, 0.515e-6, 0.471e-6]
-    bh = [0., 0., 0., 8.70e-9, 2.41e-9, 2.18e-9, 5.65e-10, 8.70e-10]
-    ch = [0., 0., 0., 4.81e-11, 1.82e-11, 1.94e-11, 3.82e-12, 2.62e-12]
-    av = [1.0e-6, 1.0e-6, 1.0e-6, 86.7e-6, 160.0e-6, 160.0e-6, 225.0e-6, 209.0e-6]
-    ag = [3.411e-6, 0.3799e-6, 0.2491e-6, 0.3567e-6, 0.3463e-6, 0.393e-6, 0.17e-6, 0.150e-6]
-    bg = [7.18e-10, 1.08e-9, 1.36e-11, 8.51e-10, 8.96e-10, 1.02e-9, 0., 0.]
-    cg = [6.0e-13, -3.98e-13, -3.93e-14, -3.12e-13, -3.27e-13,-3.12e-13, 0., 0.]
-    xmw = [2.0, 25.4, 28.0, 32.0, 46.0, 48.0, 62.0, 76.0]
-
 !   common /teproc/ assignments. TODO: not all are present, investigate.
-    hwr=7060.
-    hws=11138.
+    R%hw=7060.
+    S%hw=11138.
 
-    vtr=1300.0
-    vts=3500.0
-    vtc=156.5
-    vtv=5000.0
+    R%vt=1300.0
+    S%vt=3500.0
+    C%vt=156.5
+    V%vt=5000.0
 
 !   vrng(5,6,12) not assigned. VCV assigned later from state.
     vrng(1)=400.00
@@ -323,50 +379,18 @@ subroutine teinit(nn, time, state, derivative)
         vtau(i)=vtau(i)/3600.
     end do
 
-    xst(1,1)=0.0
-    xst(2,1)=0.0001
-    xst(3,1)=0.0
-    xst(4,1)=0.9999
-    xst(5,1)=0.0
-    xst(6,1)=0.0
-    xst(7,1)=0.0
-    xst(8,1)=0.0
-    xst(1,2)=0.0
-    xst(2,2)=0.0
-    xst(3,2)=0.0
-    xst(4,2)=0.0
-    xst(5,2)=0.9999
-    xst(6,2)=0.0001
-    xst(7,2)=0.0
-    xst(8,2)=0.0
-    xst(1,3)=0.9999
-    xst(2,3)=0.0001
-    xst(3,3)=0.0
-    xst(4,3)=0.0
-    xst(5,3)=0.0
-    xst(6,3)=0.0
-    xst(7,3)=0.0
-    xst(8,3)=0.0
-    xst(1,4)=0.4850
-    xst(2,4)=0.0050
-    xst(3,4)=0.5100
-    xst(4,4)=0.0
-    xst(5,4)=0.0
-    xst(6,4)=0.0
-    xst(7,4)=0.0
-    xst(8,4)=0.0
-
-    tst(1)=45.
-    tst(2)=45.
-    tst(3)=45.
-    tst(4)=45.
+    xst(:,1)=[0., 0.0001, 0., 0.9999, 0., 0., 0., 0.]
+    xst(:,2)=[0., 0., 0., 0., 0.9999, 0.0001, 0., 0.]
+    xst(:,3)=[0.9999, 0.0001, 0., 0., 0., 0., 0., 0.]
+    xst(:,4)=[0.4850, 0.0050, 0.5100, 0., 0., 0., 0., 0.]
+    tst(1:4) = 45. !why just 1:4?
     sfr = [0.995, 0.991, 0.99, 0.916, 0.936, 0.938, 0.058, 0.0301]
 
     cpflmx=280275.
     cpprmx=1.3
 
 !   htr(3) not assigned
-    htr(1)=0.06899381054
+    htr(1)=0.06899381054 !calmol-1 again?
     htr(2)=0.05
 
     xns = [0.0012, 18.000, 22.000, 0.0500, 0.2000, &
@@ -382,17 +406,29 @@ subroutine teinit(nn, time, state, derivative)
     vst = 2.
     ivst = 0
 
-!   state has to happen before /pv/ and /teproc/ vcv
-    state = [10.40491389, 4.363996017, 7.570059737, 0.4230042431, 24.15513437, &
-            2.942597645, 154.3770655, 159.186596, 2.808522723, 63.75581199, &
-            26.74026066, 46.38532432, 0.2464521543, 15.20484404, 1.852266172, & 
-            52.44639459, 41.20394008, 0.569931776, 0.4306056376, 0.0079906200783, &
-            0.9056036089, 0.016054258216, 0.7509759687, 0.088582855955, 48.27726193, &
-            39.38459028, .3755297257, 107.7562698, 29.77250546, 88.32481135, &
-            23.03929507, 62.85848794, 5.546318688, 11.92244772, 5.555448243, &
-            0.9218489762, 94.59927549, 77.29698353, 63.05263039, 53.97970677, &
-            24.64355755, 61.30192144, 22.21, 40.06374673, 38.1003437, &
-            46.53415582, 47.44573456, 41.10581288, 18.11349055, 50.]
+!   state init to happen before /pv/ and /teproc/ vcv
+
+!   layout of state vector:
+
+!  |1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
+!  | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
+
+!  | 37|| 38||   39-50   |,
+!  |twr||tws|| vcv/vpos? |,
+
+    state = [10.40491389,  4.363996017,    7.570059737, .4230042431,   24.15513437, &
+             2.942597645,  154.3770655,    159.186596,  2.808522723,   63.75581199, &
+             26.74026066,  46.38532432,   .2464521543,  15.20484404,   1.852266172, & 
+             52.44639459,  41.20394008,   .569931776,   .4306056376,  .0079906200783, &
+             .9056036089,  .016054258216, .7509759687,  .088582855955, 48.27726193, &
+             39.38459028,  .3755297257,    107.7562698, 29.77250546,   88.32481135, &
+             23.03929507,  62.85848794,    5.546318688, 11.92244772,   5.555448243, &
+             .9218489762,  94.59927549,    77.29698353, 63.05263039,   53.97970677, &
+             24.64355755,  61.30192144,    22.21,       40.06374673,   38.1003437, &
+             46.53415582,  47.44573456,    41.10581288, 18.11349055,   50.]
+
+!   integrator step size:  1 second converted to hours (time-base of simulation)
+    delta_t = 1. / 3600.00001
 
 !   common /pv/ init
     do i=1,size(xmv) !label 200
@@ -423,15 +459,13 @@ subroutine teinit(nn, time, state, derivative)
     end do
     !idvwlk?
 
-    g = 1431655765.
-
     time = 0.
-    call tefunc(nn, time, state, derivative)
+    call tefunc(state, nn, derivative, time)
     return
 end subroutine teinit
 
 !==============================================================================
-subroutine tefunc(nn, time, state, derivative)
+subroutine tefunc(state, nn, derivative, time)
 !   function evaluator
 !
 !   inputs:
@@ -441,49 +475,28 @@ subroutine tefunc(nn, time, state, derivative)
 !
 !   mutates:
 !     derivative = current derivative values
+    use constants
+    use types
 
 !   common block
-    real(kind=8) :: &
-    avp,bvp,cvp, &
-    ad,bd,cd, &
-    av, &
-    ah,bh,ch, &
-    ag,bg,cg, &
-    xmw
-    common /const/ &
-    avp(8), bvp(8), cvp(8), &
-    ah(8), bh(8), ch(8), &
-    ag(8), bg(8), cg(8), &
-    av(8), &
-    ad(8), bd(8), cd(8), &
-    xmw(8)
-
     integer :: ivst
     real(kind=8) :: &
-    uclr, ucvr, utlr, utvr, xlr, xvr, etr, esr, tcr, tkr, dlr, vlr, &
-    vvr, vtr, ptr, ppr, fwr, twr, qur, hwr, &
-    crxr, rr, rh, uar, &
-    ucls, ucvs, utls, utvs, xls, xvs, ets, ess, tcs, tks, dls, vls, &
-    vvs, vts, pts, pps, fws, tws, qus, hws, &
-    uclc, utlc, xlc, etc, esc, tcc, dlc, vlc, vtc, quc, &
-    ucvv, utvv, xvv, etv, esv, tcv, tkv, vtv, ptv, &
+    twr, tws, fwr, fws, uar, &
+    delta_xr, reaction_rate, reaction_heat,  &
     vcv, vrng, vtau, &
     ftm, fcm, xst, xmws, hst, tst, sfr, &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
     htr, agsp, xdel, xns, &
     t_gas, t_prod, vst
+    type(vessel) :: r, c, s, v
     common /teproc/ &
-    uclr(8), ucvr(8), utlr, utvr, xlr(8), xvr(8), etr, esr, tcr, tkr, dlr, vlr, & 
-    vvr, vtr, ptr, ppr(8), fwr, twr, qur, hwr, &
-    crxr(8), rr(4), rh, uar, &
-    ucls(8), ucvs(8), utls, utvs, xls(8), xvs(8), ets, ess, tcs, tks, dls, vls, &
-    vvs, vts, pts, pps(8), fws, tws, qus, hws, &
-    uclc(8), utlc, xlc(8), etc, esc, tcc, dlc, vlc, vtc, quc, &
-    ucvv(8), utvv, xvv(8), etv, esv, tcv, tkv, vtv, ptv, &
+    r, c, s, v, &
+    twr, tws, fwr, fws, uar, &
+    delta_xr(8), reaction_rate(4), reaction_heat, &
     vcv(12),vrng(12),vtau(12), &
     ftm(13), fcm(8,13), xst(8,13), xmws(13), hst(13),tst(13), sfr(8), &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    htr(3), agsp, xdel(41), xns(41), &
+    htr(2), agsp, xdel(41), xns(41), &
     t_gas, t_prod, vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
@@ -501,33 +514,25 @@ subroutine tefunc(nn, time, state, derivative)
     hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
 !   common block
 
-    integer :: i, isd, nn
-    real(kind=8) :: time, &
+    integer, intent(in) :: nn
+    integer :: i, isd
+    real(kind=8) :: &
     delta_p, flcoef, flms, pr, &
     r1f, r2f, rg, &
     tmpfac, &
     uas, uac, uarlev, &
-    vovrl, vpr, &
+    vovrl, &
     hwlk, swlk, spwlk, &
     fin(8), &
     vpos(12), &
     xcmp(41), &
-    state(nn), derivative(nn), &
     random_dist, rand, random_xmeas_noise
+    character(len=40) :: err_msg
+    real(kind=8), intent(inout) :: state(nn), derivative(nn), time
 
-!   label 500 abstracted, idv is a logical anyway.
-    idvwlk(1)=idv(8)
-    idvwlk(2)=idv(8)
-    idvwlk(3)=idv(9)
-    idvwlk(4)=idv(10)
-    idvwlk(5)=idv(11)
-    idvwlk(6)=idv(12)
-    idvwlk(7)=idv(13)
-    idvwlk(8)=idv(13)
-    idvwlk(9)=idv(16)
-    idvwlk(10)=idv(17)
-    idvwlk(11)=idv(18)
-    idvwlk(12)=idv(24)
+!   label 500 abstracted, idv is a logical now.
+!   futzing with wlk block
+    call set_idvwlk()
     do i=1,9 !label 900
         if(time >= tnext(i)) then
             hwlk = tnext(i)-tlast(i)
@@ -537,10 +542,8 @@ subroutine tefunc(nn, time, state, derivative)
             spwlk = bdist(i) + hwlk &
                                 * (2. * cdist(i) + 3. * hwlk * ddist(i))
             tlast(i)=tnext(i)
-            !tesub5 calls random(), mutating cdist, ddist, tnext
-            call tesub5(swlk,spwlk,adist(i),bdist(i),cdist(i), &
-                        ddist(i),tlast(i),tnext(i),hspan(i),hzero(i), &
-                        sspan(i),szero(i),spspan(i),idvwlk(i))
+            !set_dists calls random(), mutating cdist, ddist, tnext
+            call set_dists(swlk,spwlk,i)
         end if
     end do
     do i=10,12 !label 910
@@ -572,16 +575,16 @@ subroutine tefunc(nn, time, state, derivative)
         end if
     end do
     if(time == 0.) then
-        !array ops don't work here?
         do i=1,12 !label 950
             adist(i)=szero(i)
-            bdist(i)=0.
-            cdist(i)=0.
-            ddist(i)=0.
-            tlast(i)=0.0
-            tnext(i)=0.1
         end do
+        bdist=0.
+        cdist=0.
+        ddist=0.
+        tlast=0.
+        tnext=.1
     end if
+!   stream and idvs
     xst(1,4)=random_dist(1, time)-idv(1)*0.03 -idv(2)*2.43719e-3
     xst(2,4)=random_dist(2, time)+idv(2)*0.005
     xst(3,4)=1.-xst(1,4)-xst(2,4)
@@ -589,120 +592,104 @@ subroutine tefunc(nn, time, state, derivative)
     tst(4)=random_dist(4, time)
     tcwr=random_dist(5, time)+idv(4)*5.
     tcws=random_dist(6, time)+idv(5)*5.
-    r1f=random_dist(7, time)
-    r2f=random_dist(8, time)
+
+!   download new molar amounts from state vector.
     do i=1,3 !label 1010
-        ucvr(i)=state(i)
-        ucvs(i)=state(i+9)
-        uclr(i)=0.0
-        ucls(i)=0.0
+        R%ucv(i)=state(i)
+        S%ucv(i)=state(i+9)
+        R%ucl(i)=0.  
+        S%ucl(i)=0.
     end do
     do i=4,8 !label 1020
-        uclr(i)=state(i)
-        ucls(i)=state(i+9)
+        R%ucl(i)=state(i)
+        S%ucl(i)=state(i+9)
     end do
     do  i=1,8 !label 1030
-        uclc(i)=state(i+18)
-        ucvv(i)=state(i+27)
+        C%ucl(i)=state(i+18)
+        V%ucv(i)=state(i+27)
     end do
-    etr=state(9)
-    ets=state(18)
-    etc=state(27)
-    etv=state(36)
+    R%et=state(9)
+    S%et=state(18)
+    C%et=state(27)
+    V%et=state(36)
     twr=state(37)
     tws=state(38)
     do i=1,size(vpos) !label 1035
         vpos(i)=state(i+38)
     end do
-    utlr=0.0
-    utls=0.0
-    utlc=0.0
-    utvv=0.0
-    do i=1,8 !label 1040
-        utlr=utlr+uclr(i)
-        utls=utls+ucls(i)
-        utlc=utlc+uclc(i)
-        utvv=utvv+ucvv(i)
-    end do
+!   label 1040 abstracted into sum()
+    R%utl = sum(R%ucl) 
+    S%utl = sum(S%ucl)
+    C%utl = sum(C%ucl)
+    V%utv = sum(V%ucv)
     do i=1,8 !label 1050
-        xlr(i)=uclr(i)/utlr
-        xls(i)=ucls(i)/utls
-        xlc(i)=uclc(i)/utlc
-        xvv(i)=ucvv(i)/utvv
+        R%xl(i) = R%ucl(i) / R%utl
+        S%xl(i) = S%ucl(i)/S%utl
+        C%xl(i) = C%ucl(i)/C%utl
+        V%xv(i) = V%ucv(i)/V%utv
     end do
-    esr=etr/utlr
-    ess=ets/utls
-    esc=etc/utlc
-    esv=etv/utvv
-    call tesub2(xlr,tcr,esr,0) !first point TCR is set?
-    tkr=tcr+273.15
-    call tesub2(xls,tcs,ess,0)
-    tks=tcs+273.15
-    call tesub2(xlc,tcc,esc,0)
-    call tesub2(xvv,tcv,esv,2)
-    tkv=tcv+273.15
-    call tesub4(xlr,tcr,dlr)
-    call tesub4(xls,tcs,dls)
-    call tesub4(xlc,tcc,dlc)
-    vlr=utlr/dlr
-    vls=utls/dls
-    vlc=utlc/dlc
-    vvr=vtr-vlr
-    vvs=vts-vls
-    rg=998.9
-    ptr=0.0
-    pts=0.0
-    do i=1,3 !label 1110
-        ppr(i)=ucvr(i)*rg*tkr/vvr
-        ptr=ptr+ppr(i)
-        pps(i)=ucvs(i)*rg*tks/vvs
-        pts=pts+pps(i)
-    end do
-    do i=4,8 !label 1120
-        vpr=exp(avp(i)+bvp(i)/(tcr+cvp(i)))
-        ppr(i)=vpr*xlr(i)
-        ptr=ptr+ppr(i)
-        vpr=exp(avp(i)+bvp(i)/(tcs+cvp(i)))
-        pps(i)=vpr*xls(i)
-        pts=pts+pps(i)
-    end do
-    ptv=utvv*rg*tkv/vtv
-    do i=1,8 !label 1130
-        xvr(i)=ppr(i)/ptr
-        xvs(i)=pps(i)/pts
-    end do
-    utvr=ptr*vvr/rg/tkr
-    utvs=pts*vvs/rg/tks
-    do i=4,8 !label 1140
-        ucvr(i)=utvr*xvr(i)
-        ucvs(i)=utvs*xvs(i)
-    end do
-    rr(1)=exp(31.5859536-40000.0/1.987/tkr)*r1f
-    rr(2)=exp(3.00094014-20000.0/1.987/tkr)*r2f
-    rr(3)=exp(53.4060443-60000.0/1.987/tkr)
-    rr(4)=rr(3)*0.767488334
-    if(ppr(1) > 0.0.and.ppr(3) > 0.0) then
-        r1f=ppr(1)**1.1544
-        r2f=ppr(3)**0.3735
-        rr(1)=rr(1)*r1f*r2f*ppr(4)
-        rr(2)=rr(2)*r1f*r2f*ppr(5)
+
+    R%es = R%et / R%utl
+    S%es = S%et / S%utl
+    C%es = C%et / C%utl
+    V%es = V%et / V%utv
+
+    call set_temperature(R)
+    call set_temperature(S)
+    call set_temperature(C) !ecce
+    call set_temperature_old(V%xv,V%tc,V%es,2) !only place ITY is 2
+    V%tk = V%tc + 273.15
+
+    call set_density(R)
+    !write(6,*) "S%density is ", S%tc, S%density
+    call set_density(S)
+    call set_density(C)
+
+    R%vl = R%utl / R%density
+    S%vl = S%utl / S%density
+    C%vl = C%utl / C%density
+    R%vv = R%vt-R%vl
+    S%vv = S%vt-S%vl
+    rg=998.9 !wat?
+
+!   setting pressures
+    call set_pressures(R)
+    call set_pressures(S)
+    V%pt = V%utv * rg * V%tk / V%vt ! P = n R T / V
+!   setting reactions
+!   rr's 1, 2, 3 consume A, 4 does not
+!   R is in cal.K-1mol-1! first Ea works out to about 167 kJmol-1
+    r1f=random_dist(7, time)
+    r2f=random_dist(8, time)
+    reaction_rate(1) = r1f * 5.219217002265e+13 * exp(-40./(1.987e-3 * R%tk))
+    reaction_rate(2) = r2f * 20.27525952163 * exp(-20./(1.987e-3 * R%tk))
+    reaction_rate(3) = 1.5629689117665e+23 * exp(-60./(1.987e-3 * R%tk))
+    reaction_rate(4) = reaction_rate(3)*0.767488334
+    if(R%pp(1) > 0.0 .and. R%pp(3) > 0.0) then
+        r1f=R%pp(1)**1.1544
+        r2f=R%pp(3)**0.3735
+        reaction_rate(1)=reaction_rate(1)*r1f*r2f*R%pp(4)
+        reaction_rate(2)=reaction_rate(2)*r1f*r2f*R%pp(5)
     else
-        rr(1)=0.0
-        rr(2)=0.0
+        reaction_rate(1)=0.0
+        reaction_rate(2)=0.0
     end if
-    rr(3)=rr(3)*ppr(1)*ppr(5)
-    rr(4)=rr(4)*ppr(1)*ppr(4)
+    reaction_rate(3)=reaction_rate(3)*R%pp(1)*R%pp(5)
+    reaction_rate(4)=reaction_rate(4)*R%pp(1)*R%pp(4)
     do i=1,4 !label 1200
-        rr(i)=rr(i)*vvr
+        reaction_rate(i)=reaction_rate(i)*R%vv
     end do
-    crxr(1)=-rr(1)-rr(2)-rr(3)
-    crxr(3)=-rr(1)-rr(2)
-    crxr(4)=-rr(1)-1.5*rr(4)
-    crxr(5)=-rr(2)-rr(3)
-    crxr(6)=rr(3)+rr(4)
-    crxr(7)=rr(1)
-    crxr(8)=rr(2)
-    rh=rr(1)*htr(1)+rr(2)*htr(2)
+!   consumption / generation
+    delta_xr(1)=-reaction_rate(1)-reaction_rate(2)-reaction_rate(3) ! A consumption
+    delta_xr(3)=-reaction_rate(1)-reaction_rate(2) ! C consumption.  Should be by rr(1) only!?
+    delta_xr(4)=-reaction_rate(1)-1.5*reaction_rate(4) ! D consumed by rr(1), rr(2), rr(4)
+    delta_xr(5)=-reaction_rate(2)-reaction_rate(3) ! E consumed by rr(2), rr(3)
+    delta_xr(6)=reaction_rate(3)+reaction_rate(4) ! F created by rr(3), rr(4)
+    delta_xr(7)=reaction_rate(1) ! A + C + D -> G
+    delta_xr(8)=reaction_rate(2) ! A + D + E -> H
+    reaction_heat=reaction_rate(1)*htr(1)+reaction_rate(2)*htr(2)
+
+!   ???
     xmws(1)=0.0
     xmws(2)=0.0
     xmws(6)=0.0
@@ -710,12 +697,12 @@ subroutine tefunc(nn, time, state, derivative)
     xmws(9)=0.0
     xmws(10)=0.0
     do i=1,8 !label 2010
-        xst(i,6)=xvv(i)
-        xst(i,8)=xvr(i)
-        xst(i,9)=xvs(i)
-        xst(i,10)=xvs(i)
-        xst(i,11)=xls(i)
-        xst(i,13)=xlc(i)
+        xst(i,6)=V%xv(i)
+        xst(i,8)=R%xv(i)
+        xst(i,9)=S%xv(i)
+        xst(i,10)=S%xv(i)
+        xst(i,11)=S%xl(i)
+        xst(i,13)=C%xl(i)
         xmws(1)=xmws(1)+xst(i,1)*xmw(i)
         xmws(2)=xmws(2)+xst(i,2)*xmw(i)
         xmws(6)=xmws(6)+xst(i,6)*xmw(i)
@@ -723,46 +710,51 @@ subroutine tefunc(nn, time, state, derivative)
         xmws(9)=xmws(9)+xst(i,9)*xmw(i)
         xmws(10)=xmws(10)+xst(i,10)*xmw(i)
     end do
-    tst(6)=tcv
-    tst(8)=tcr
-    tst(9)=tcs
-    tst(10)=tcs
-    tst(11)=tcs
-    tst(13)=tcc
-    call tesub1(xst(1,1),tst(1),hst(1),1)
-    call tesub1(xst(1,2),tst(2),hst(2),1)
-    call tesub1(xst(1,3),tst(3),hst(3),1)
-    call tesub1(xst(1,4),tst(4),hst(4),1)
-    call tesub1(xst(1,6),tst(6),hst(6),1)
-    call tesub1(xst(1,8),tst(8),hst(8),1)
-    call tesub1(xst(1,9),tst(9),hst(9),1)
-    hst(10)=hst(9)
-    call tesub1(xst(1,11),tst(11),hst(11),0)
-    call tesub1(xst(1,13),tst(13),hst(13),0)
-    ftm(1)=vpos(1)*vrng(1)/100.0
-    ftm(2)=vpos(2)*vrng(2)/100.0
-    ftm(3)=vpos(3)*(1.-idv(6))*vrng(3)/100.0
-    ftm(4)=vpos(4)*(1.-idv(7)*0.2)*vrng(4)/100.0+1.e-10
-    ftm(11)=vpos(7)*vrng(7)/100.0
-    ftm(13)=vpos(8)*vrng(8)/100.0
+
+!   setting stream temps
+    tst(6)=V%tc
+    tst(8)=R%tc
+    tst(9)=S%tc !
+    tst(10)=S%tc
+    tst(11)=S%tc
+    tst(13)=C%tc
+!   setting stream heats
+    call set_stream_heat(xst(:,1),tst(1),hst(1),1) 
+    call set_stream_heat(xst(:,2),tst(2),hst(2),1)
+    call set_stream_heat(xst(:,3),tst(3),hst(3),1)
+    call set_stream_heat(xst(:,4),tst(4),hst(4),1)
+    call set_stream_heat(xst(:,6),tst(6),hst(6),1)
+    call set_stream_heat(xst(:,8),tst(8),hst(8),1)
+    call set_stream_heat(xst(:,9),tst(9),hst(9),1)
+    hst(10)=hst(9) ! ???
+    call set_stream_heat(xst(:,11),tst(11),hst(11),0)
+    call set_stream_heat(xst(:,13),tst(13),hst(13),0)
+
+!   setting stream mass flows
+    ftm(3)=vpos(3)*(1.-idv(6))*vrng(3)/100.0 ! A feed
+    ftm(1)=vpos(1)*vrng(1)/100.0 ! D feed
+    ftm(2)=vpos(2)*vrng(2)/100.0 ! E feed
+    ftm(4)=vpos(4)*(1.-idv(7)*0.2)*vrng(4)/100.0+1.e-10 ! A and C feed
+    ftm(11)=vpos(7)*vrng(7)/100.0 ! separator underflow
+    ftm(13)=vpos(8)*vrng(8)/100.0 ! stripper underflow
     uac=vpos(9)*vrng(9)*(1.+random_dist(9,time))/100.0
     fwr=vpos(10)*vrng(10)/100.0
-    fws=vpos(11)*vrng(11)/100.0
+    fws=vpos(11)*vrng(11)/100.0 !fws, interesting
     agsp=(vpos(12)+150.0)/100.0
-    delta_p=max(ptv-ptr, 0.)
+    delta_p=max(V%pt-R%pt, 0.) 
     flms=1937.6*sqrt(delta_p)
     ftm(6)=flms/xmws(6)
-    delta_p=max(ptr-pts, 0.)
+    delta_p=max(R%pt-S%pt, 0.) ! reactor - condensor?
     flms=4574.21*sqrt(delta_p)*(1.-0.25*random_dist(12,time))
-    ftm(8)=flms/xmws(8)
-    delta_p=max(pts-760.0, 0.)
+    ftm(8)=flms/xmws(8) ! mass flow = volume / mean mass?
+    delta_p=max(S%pt-760.0, 0.) ! sep? - atmosphere
     flms=vpos(6)*0.151169*sqrt(delta_p)
     ftm(10)=flms/xmws(10)
-    pr=min(max(ptv/pts, 1.), cpprmx)
+    pr=min(max(V%pt/S%pt, 1.), cpprmx)
     flcoef=cpflmx/1.197
     flms=cpflmx+flcoef*(1.0-pr**3)
-    cpdh=flms*(tcs+273.15)*1.8e-6*1.9872 *(ptv-pts)/(xmws(9)*pts)
-    delta_p=max(ptv-pts, 0.)
+    cpdh=flms*(S%tk)*1.8e-6*1.9872 *(V%pt-S%pt)/(xmws(9)*S%pt)
+    delta_p=max(V%pt - S%pt, 0.)
     flms=max(flms-vpos(5)*53.349*sqrt(delta_p), 1.e-3)
     ftm(9)=flms/xmws(9)
     hst(9)=hst(9)+cpdh/ftm(9)
@@ -779,12 +771,12 @@ subroutine tefunc(nn, time, state, derivative)
         fcm(i,13)=xst(i,13)*ftm(13)
     end do
     if(ftm(11) > 0.1) then
-        if(tcc > 170.) then
-            tmpfac=tcc-120.262
-        elseif(tcc < 5.292) then
-            tmpfac=0.1
+        if(C%tc > 170.) then
+            tmpfac = C%tc-120.262
+        elseif(C%tc < 5.292) then
+            tmpfac = 0.1
         else
-            tmpfac=363.744/(177.-tcc)-2.22579488
+            tmpfac = 363.744/(177. - C%tc) - 2.22579488
         end if
         vovrl=ftm(4)/ftm(11)*tmpfac
         sfr(4)=8.5010*vovrl/(1.0+8.5010*vovrl)
@@ -800,12 +792,12 @@ subroutine tefunc(nn, time, state, derivative)
         sfr(8)=0.98
     end if
     do i=1,8 !label 6010
-        fin(i)=0.0
-        fin(i)=fin(i)+fcm(i,4)
-        fin(i)=fin(i)+fcm(i,11)
+        fin(i) = fcm(i,4) + fcm(i,11)
     end do
-    ftm(5)=0.0
-    ftm(12)=0.0
+
+!   setting streams 5 and 12 properties
+    ftm(5)=0.
+    ftm(12)=0.
     do i=1,8 !label 6020
         fcm(i,5)=sfr(i)*fin(i)
         fcm(i,12)=fin(i)-fcm(i,5)
@@ -816,10 +808,11 @@ subroutine tefunc(nn, time, state, derivative)
         xst(i,5)=fcm(i,5)/ftm(5)
         xst(i,12)=fcm(i,12)/ftm(12)
     end do
-    tst(5)=tcc
-    tst(12)=tcc
-    call tesub1(xst(1,5),tst(5),hst(5),1)
-    call tesub1(xst(1,12),tst(12),hst(12),0)
+    tst(5)=C%tc  !C%tc
+    tst(12)=C%tc !C%tc
+    call set_stream_heat(xst(:,5), tst(5), hst(5), 1)
+    call set_stream_heat(xst(:,12), tst(12), hst(12), 0)
+
     ftm(7)=ftm(6)
     hst(7)=hst(6)
     tst(7)=tst(6)
@@ -827,53 +820,86 @@ subroutine tefunc(nn, time, state, derivative)
         xst(i,7)=xst(i,6)
         fcm(i,7)=fcm(i,6)
     end do
-    if(vlr/7.8 > 50.0) then
+
+    if(R%vl/7.8 > 50.0) then
         uarlev=1.0
-    elseif(vlr/7.8 < 10.0) then
+    elseif(R%vl/7.8 < 10.0) then
         uarlev=0.0
     else
-        uarlev=0.025*vlr/7.8-0.25
+        uarlev=0.025*R%vl/7.8-0.25
     end if
-    uar=uarlev*(-0.5*agsp**2 + 2.75*agsp-2.5)*855490.e-6
-    qur=uar*(twr-tcr) *(1.-0.35*random_dist(10,time))
-    uas=0.404655*(1.0-1.0/(1.0+(ftm(8)/3528.73)**4))
-    qus=uas*(tws-tst(8)) *(1.-0.25*random_dist(11,time))
-    quc=0.
-    if(tcc < 100.) quc=uac*(100.0-tcc)
-    xmeas(1)=ftm(3)*0.359/35.3145
-    xmeas(2)=ftm(1)*xmws(1)*0.454
-    xmeas(3)=ftm(2)*xmws(2)*0.454
-    xmeas(4)=ftm(4)*0.359/35.3145
-    xmeas(5)=ftm(9)*0.359/35.3145
-    xmeas(6)=ftm(6)*0.359/35.3145
-    xmeas(7)=(ptr-760.0)/760.0*101.325
-    xmeas(8)=(vlr-84.6)/666.7*100.0
-    xmeas(9)=tcr
-    xmeas(10)=ftm(10)*0.359/35.3145
-    xmeas(11)=tcs
-    xmeas(12)=(vls-27.5)/290.0*100.0
-    xmeas(13)=(pts-760.0)/760.0*101.325
-    xmeas(14)=ftm(11)/dls/35.3145
-    xmeas(15)=(vlc-78.25)/vtc*100.0
-    xmeas(16)=(ptv-760.0)/760.0*101.325
-    xmeas(17)=ftm(13)/dlc/35.3145
-    xmeas(18)=tcc
-    xmeas(19)=quc*1.04e3*0.454
-    xmeas(20)=cpdh*0.0003927e6
-    xmeas(20)=cpdh*0.29307e3
-    xmeas(21)=twr
-    xmeas(22)=tws
+    uar = uarlev * (-0.5*agsp**2 + 2.75*agsp-2.5) * 855490.e-6
+    R%qu = uar * (twr-R%tc) * (1.-0.35*random_dist(10,time))
+    uas = 0.404655 * (1.0-1.0/(1.0+(ftm(8)/3528.73)**4))
+    S%qu = uas * (tws-tst(8)) *(1.-0.25*random_dist(11,time))
+    C%qu=0.
+    if(C%tc < 100.) C%qu = uac*(100.0-C%tc)
+    !       delta separator UCV and UCL
+    ! delta sep UCLs = fcm(i,8)-fcm(i,9)- fcm(i,10)-fcm(i,11)
+!   so ftm(3) -> stream 1, ftm(1) -> stream 2, ftm(2) -> stream 3
+    xmeas(1)=ftm(3)*0.359/35.3145 ! A Feed  (stream 1)                    kscmh
+    xmeas(2)=ftm(1)*xmws(1)*0.454 ! D Feed  (stream 2)                    kg/hr
+    xmeas(3)=ftm(2)*xmws(2)*0.454 ! E Feed  (stream 3)                    kg/hr
+    xmeas(4)=ftm(4)*0.359/35.3145 ! A and C Feed  (stream 4)              kscmh
+    xmeas(5)=ftm(9)*0.359/35.3145 ! Recycle Flow  (stream 8)              kscmh
+    xmeas(6)=ftm(6)*0.359/35.3145 ! Reactor Feed Rate  (stream 6)         kscmh
+    xmeas(7)=(R%pt-760.0)/760.0*101.325 ! Reactor Pressure                 kPa gauge
+    xmeas(8)=(R%vl-84.6)/666.7*100.0 ! Reactor Level                       %
+    xmeas(9)=R%tc ! Reactor Temperature                                    deg C
+    xmeas(10)=ftm(10)*0.359/35.3145 ! purge rate (stream 9)               kscmh
+    xmeas(11)=S%tc ! product sep temp                                      deg c
+    xmeas(12)=(S%vl-27.5)/290.0*100.0 ! product sep level                  %
+    xmeas(13)=(S%pt-760.0)/760.0*101.325 ! sep pressure               kpa gauge
+    xmeas(14)=ftm(11)/S%density/35.3145 ! sep underflow (stream 10)        m3/hr
+    xmeas(15)=(C%vl-78.25)/C%vt*100.0 ! stripper level                      %
+    xmeas(16)=(V%pt-760.0)/760.0*101.325 ! stripper pressure               kpa gauge
+    xmeas(17)=ftm(13)/C%density/35.3145 ! stripper underflow (stream 11)        m3/hr
+    xmeas(18)=C%tc ! stripper temperature                                  deg c
+    xmeas(19)=C%qu*1.04e3*0.454 ! stripper steam flow                      kg/hr
+    xmeas(20)=cpdh*0.0003927e6 ! compressor work                          kwh
+    xmeas(20)=cpdh*0.29307e3 !??
+    xmeas(21)=twr ! reactor cooling water outlet temp                     deg c
+    xmeas(22)=tws ! separator cooling water outlet temp                   deg c
     isd=0
-    if(xmeas(7) > 3000.0)isd=1
-    if(vlr/35.3145 > 24.0)isd=1
-    if(vlr/35.3145 < 2.0)isd=1
-    if(xmeas(9) > 175.0)isd=1
-    if(vls/35.3145 > 12.0)isd=1
-    if(vls/35.3145 < 1.0)isd=1
-    if(vlc/35.3145 > 8.0)isd=1
-    if(vlc/35.3145 < 1.0)isd=1
+    if(xmeas(7) > 3000.0) then
+     isd=1
+     err_msg = "reactor pressure high"
+    end if
+    if (((R%pt-760.0)/760.0*101.325) > 12000.) then
+        write(6,*) "plant has exploded"
+    end if
+    if(R%vl/35.3145 > 24.0) then 
+        isd=1
+        write(6,*) "Reactor level high"
+    end if
+    if(R%vl/35.3145 < 2.0) then
+        isd=1
+        err_msg = "Reactor level low"
+    end if
+    if(xmeas(9) > 175.0) then
+        isd=1
+        err_msg = "Reactor temp high"
+    end if
+    if(S%vl/35.3145 > 12.0) then 
+        isd=1
+        err_msg = "product sep level high"
+    end if
+    if(S%vl/35.3145 < 1.0) then
+        isd=1
+        err_msg = "product sep level low"
+    end if
+    if(C%vl/35.3145 > 8.0) then
+        isd=1
+        err_msg = "C level high"
+    end if
+    if(C%vl/35.3145 < 1.0) then
+        isd=1
+        err_msg = "C level low"
+    end if
     if(isd == 1) then
         write(6,*) 'plant has tripped'
+        write(6,*) time
+        write(6,*) err_msg
         stop
     end if    
     if(time > 0.0 .and. isd == 0) then
@@ -901,7 +927,7 @@ subroutine tefunc(nn, time, state, derivative)
     xcmp(39)=xst(6,13)*100.0
     xcmp(40)=xst(7,13)*100.0
     xcmp(41)=xst(8,13)*100.0
-    
+
     if(time == 0.) then
         do i=23,41 !label 7010
             xdel(i)=xcmp(i)
@@ -928,23 +954,35 @@ subroutine tefunc(nn, time, state, derivative)
         end do
         t_prod=t_prod+0.25
     end if
+!   product cost?
+    xmeas(42)=(62.0*xmeas(40))/(76*xmeas(41))
+
     do i=1,8 !label 9010
-        derivative(i)=fcm(i,7)-fcm(i,8)+crxr(i)
-        derivative(i+9)=fcm(i,8)-fcm(i,9)- fcm(i,10)-fcm(i,11)
+!       delta reactor UCV and UCL = flow in (7) - flow out (8) plus delta_xr
+        derivative(i)=fcm(i,7)-fcm(i,8)+delta_xr(i)
+!       delta separator UCV and UCL
+!                         React out  recycle    purge       underflow
+        derivative(i+9) = fcm(i,8) - fcm(i,9) - fcm(i,10) - fcm(i,11)
+!       delta C UCV and UCL
         derivative(i+18)=fcm(i,12)-fcm(i,13)
+!       delta V UCV only
         derivative(i+27)=fcm(i,1) + fcm(i,2) + fcm(i,3) + fcm(i,5) + fcm(i,9)- fcm(i,6)
     end do
-    derivative(9)=hst(7)*ftm(7)- hst(8)*ftm(8)+rh+qur
-    derivative(18)=hst(8)*ftm(8)- hst(9)*ftm(9)- hst(10)*ftm(10)- hst(11)*ftm(11)+ qus
-    derivative(27)=hst(4)*ftm(4)+ hst(11)*ftm(11)- hst(5)*ftm(5)- hst(13)*ftm(13)+ quc
-    derivative(36)=hst(1)*ftm(1)+ &
-                    hst(2)*ftm(2)+ &
-                    hst(3)*ftm(3)+ &
-                    hst(5)*ftm(5)+ &
-                    hst(9)*ftm(9)- &
-                    hst(6)*ftm(6)
-    derivative(37)=(fwr*500.53* (tcwr-twr)-qur*1.e6/1.8)/hwr
-    derivative(38)=(fws*500.53* (tcws-tws)-qus*1.e6/1.8)/hws 
+!   delta R.et
+    derivative(9) = hst(7)*ftm(7) - hst(8)*ftm(8) + reaction_heat + R%qu
+!   delta S.et
+    derivative(18)=hst(8)*ftm(8)- hst(9)*ftm(9)- hst(10)*ftm(10)- hst(11)*ftm(11)+ S%qu
+!   delta C.et
+    derivative(27)=hst(4)*ftm(4)+ hst(11)*ftm(11)- hst(5)*ftm(5)- hst(13)*ftm(13)+ C%qu
+!   delta V.et
+    derivative(36) = hst(1)*ftm(1) &
+                     + hst(2)*ftm(2) &
+                     + hst(3)*ftm(3) &
+                     + hst(5)*ftm(5) &
+                     + hst(9)*ftm(9) &
+                     - hst(6)*ftm(6)
+    derivative(37)=(fwr*500.53* (tcwr-twr)-R%qu*1.e6/1.8)/R%hw !twr
+    derivative(38)=(fws*500.53* (tcws-tws)-S%qu*1.e6/1.8)/S%hw !tws
     ivst(10)=idv(14)
     ivst(11)=idv(15)
     ivst(5)=idv(19)
@@ -952,193 +990,175 @@ subroutine tefunc(nn, time, state, derivative)
     ivst(8)=idv(19)
     ivst(9)=idv(19)
     do i=1,12 !label 9020
-        if(time == 0. .or. abs(vcv(i)-xmv(i)) > vst(i)*ivst(i)) vcv(i)=xmv(i)
+        if(time == 0. .or. abs(vcv(i)-xmv(i)) > vst(i)*ivst(i)) then
+            vcv(i)=xmv(i)
+        end if 
         if(vcv(i) < 0.0) vcv(i)=0.0
         if(vcv(i) > 100.0) vcv(i)=100.0
         derivative(i+38)=(vcv(i)-vpos(i))/vtau(i)
     end do
     if(isd /= 0) then
-        do i=1, size(derivative) !label 9030
-            derivative(i)=0.0
-        end do
+        !label 9030
+        derivative = 0.
     end if
     return
 end subroutine tefunc   
+
+subroutine intgtr(state, nn, derivative, time, delta_t)
+    !   euler integration algorithm
+    integer :: i
+    integer, intent(in) :: nn
+    real(kind=8), intent(in) :: delta_t, derivative(nn)
+    real(kind=8), intent(out) :: time, state(nn) 
+
+    time = time + delta_t
+    do i = 1, nn
+        state(i) = state(i) + derivative(i) * delta_t
+    end do
+    return
+end subroutine intgtr
 !
 !===============================================================================
 !
-subroutine tesub1(z, t, h, ity)
-!   common block
-    real(kind=8) :: &
-    avp,bvp,cvp, &
-    ah,bh,ch, &
-    ag,bg,cg, &
-    av, &
-    ad,bd,cd, &
-    xmw
-    common /const/ &
-    avp(8),bvp(8),cvp(8), &
-    ah(8),bh(8),ch(8), &
-    ag(8),bg(8),cg(8), &
-    av(8), &
-    ad(8),bd(8),cd(8), &
-    xmw(8)
-!   common block
+subroutine set_stream_heat(z, T, h, ity) 
+!   was tesub1
+    use constants
+    integer, intent(in) :: ity
+    integer :: i
+    real(kind=8), intent(in) :: T, z(8)
+    real(kind=8) :: hi, r
+    real(kind=8), intent(out) :: h
 
-    integer :: ity, i
-    real(kind=8) :: h, t, z(8), hi, r
-
-    if(ity == 0) then
+    if(ity == 0) then !11,12,13
         h = 0.0
         do i=1,8 !label 100
-            hi=t*(ah(i)+bh(i)*t/2.+ch(i)*t**2/3.)
-            hi=1.8 * hi
+            hi=1.8 * T * (ah(i) + bh(i)*T/2. + ch(i)*T**2/3.)
             h=h+z(i)*xmw(i)*hi
         end do
-    else
+    else !1,2,3,4,5,6,8,9
         h=0.0
         do i=1,8 !label 200
-            hi=t*(ag(i) + bg(i)*t/2. + cg(i)*t**2/3.)
-            hi=1.8 * hi
+            hi=1.8 * T * (ag(i) + bg(i)*T/2. + cg(i)*T**2/3.)
             hi=hi+av(i)
             h=h+z(i)*xmw(i)*hi
         end do
     end if
-    if(ity == 2) then
-        r=3.57696/1.e6
-        h=h-r*(t+273.15)
+    if(ity == 2) then !xvv only!
+        r=3.57696e-6 !got to be a heat cap
+        h=h-r*(T+273.15)
     end if
     return
-end subroutine tesub1
+end subroutine set_stream_heat
 
-subroutine tesub2(z, t, h, ity)
-!   common block
-    real(kind=8) :: &
-    avp,bvp,cvp, &
-    ah,bh,ch, &
-    ag,bg,cg, &
-    av, &
-    ad,bd,cd, &
-    xmw
-    common /const/ &
-    avp(8),bvp(8),cvp(8), &
-    ah(8),bh(8),ch(8), &
-    ag(8),bg(8),cg(8), &
-    av(8), &
-    ad(8),bd(8),cd(8), &
-    xmw(8)
-!   common block
+subroutine set_temperature_old(z, T, h, ity) 
+!   was tesub2
+    use constants
+    integer, intent(in) :: ity
+    integer :: j
+    real(kind=8), intent(in) :: h, z(8)
+    real(kind=8) :: dh, dT, err, h_test, T_in
+    real(kind=8), intent(inout) :: T
 
-    integer :: ity, j
-    real(kind=8) :: h, t, z(8), dh, err, dt, htest, tin
-
-    tin=t
+    T_in=T
     do j=1,100 !label 250
-        call tesub1(z, t, htest, ity)
-        err = htest - h
-        call tesub3(z, t, dh, ity)
-        dt=-err/dh
-        t=t+dt !main mutator of T
-        if(abs(dt) < 1.d-12) return
+        call set_stream_heat(z, T, h_test, ity)
+        err = h_test - h
+        call calc_delta_h(z, T, dh, ity)
+        dT = -err/dh
+        T = T+dT !main mutator of T
+        if(abs(dT) < 1.e-12) return
     end do
-    t=tin !this appears to be correct..? i.e. t is reset if error never converges.
+    T=T_in !this appears to be correct..? i.e. T is reset if error never converges.
     return
-end subroutine tesub2
+end subroutine set_temperature_old
 
-subroutine tesub3(z, t, dh, ity)
-!   common block
-    real(kind=8) :: &
-    avp,bvp,cvp, &
-    ah,bh,ch, &
-    ag,bg,cg, &
-    av, &
-    ad,bd,cd, &
-    xmw
-    common /const/ &
-    avp(8),bvp(8),cvp(8), &
-    ah(8),bh(8),ch(8), &
-    ag(8),bg(8),cg(8), &
-    av(8), &
-    ad(8),bd(8),cd(8), &
-    xmw(8)
-!   common block
-
-    integer :: ity, i
-    real(kind=8) :: dh, t, z(8), dhi, r
+subroutine calc_delta_h(z, T, dh, ity) 
+!   was tesub3
+    use constants
+    integer, intent(in) :: ity
+    integer :: i
+    real(kind=8), intent(in) :: T, z(8)
+    real(kind=8) :: dhi
+    real(kind=8), intent(out) :: dh
 
     if(ity == 0) then
-        dh=0.0
+        dh=0.
         do i=1,8 !label 100...again
-            dhi=ah(i)+bh(i)*t+ch(i)*t**2
-            dhi=1.8*dhi
-            dh=dh+z(i)*xmw(i)*dhi
+            dhi = 1.8 * (ah(i) + bh(i)*T + ch(i)*T**2)
+            dh = dh+z(i)*xmw(i)*dhi
         end do
     else
-        dh=0.0
+        dh=0.
         do i=1,8
-            dhi=ag(i)+bg(i)*t+cg(i)*t**2
-            dhi=1.8*dhi
-            dh=dh+z(i)*xmw(i)*dhi
+            dhi = 1.8 * (ag(i) + bg(i)*T + cg(i)*T**2)
+            dh = dh+z(i)*xmw(i)*dhi
         end do
     end if
     if(ity == 2) then
-        r=3.57696/1.e6
-        dh=dh-r
+        dh = dh - 3.57696e-6
     end if
     return
-end subroutine tesub3
+end subroutine calc_delta_h
 
-subroutine tesub4(x, t, r)
+subroutine set_dists(s, sp, i)
+!   was tesub5
 !   common block
+    integer :: idvwlk
     real(kind=8) :: &
-    avp,bvp,cvp, &
-    ah,bh,ch, &
-    ag,bg,cg, &
-    av, &
-    ad,bd,cd, &
-    xmw
-    common /const/ &
-    avp(8),bvp(8),cvp(8), &
-    ah(8),bh(8),ch(8), &
-    ag(8),bg(8),cg(8), &
-    av(8), &
-    ad(8),bd(8),cd(8), &
-    xmw(8)
+    adist, bdist, cdist, ddist, tlast, tnext, &
+    hspan, hzero, sspan, szero, spspan
+    common /wlk/ &
+    adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
+    hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
 !   common block
 
-    integer :: i
-    real(kind=8) :: r, t, x(8), v
-
-    v=0.
-    do i=1,8
-        v = v + x(i) * xmw(i) / (ad(i)+(bd(i)+cd(i)*t)*t)
-    end do
-    r = 1.0/v
-    return
-end subroutine tesub4
-
-subroutine tesub5(s, sp, adist, bdist, cdist, ddist, tlast, tnext, &
-                  hspan, hzero, sspan, szero, spspan, idvflag)
-    !calls random(-1,1) on cdist, ddist, tnext
-    integer :: idvflag
-    real(kind=8) :: s, sp, &
-    adist, bdist, cdist, ddist, tlast, tnext, &
-    hspan, hzero, sspan, szero, spspan, &
-    h, s1, s1p, rand(3)
+    integer, intent(in) :: i
+    real(kind=8), intent(in) :: s, sp
+    real(kind=8) ::  h, s1, s1p, rand(3)
 
     call random_number(rand)
-    h = hspan*(2*rand(1)-1)+hzero
-    s1 = sspan*(2*rand(2)-1)*idvflag+szero
-    s1p = spspan*(2*rand(3)-1)*idvflag
-    adist = s
-    bdist = sp
-    cdist=(3.*(s1-s)-h*(s1p+2.*sp))/h**2
-    ddist=(2.*(s-s1)+h*(s1p+sp))/h**3
-    tnext=tlast+h
+    h = hspan(i)*(2*rand(1)-1)+hzero(i)
+    s1 = sspan(i)*(2*rand(2)-1)*idvwlk(i)+szero(i)
+    s1p = spspan(i)*(2*rand(3)-1)*idvwlk(i)
+    adist(i) = s
+    bdist(i) = sp
+    cdist(i)=(3.*(s1-s)-h*(s1p+2.*sp))/h**2
+    ddist(i)=(2.*(s-s1)+h*(s1p+sp))/h**3
+    tnext(i)=tlast(i)+h
     return
-end subroutine tesub5
+end subroutine set_dists
 
-real(kind=8) function random_xmeas_noise(xns) !replaces tesub6
+subroutine set_idvwlk()
+!   common block
+    integer :: idv
+    common /dvec/ idv(24)
+
+    integer :: idvwlk
+    real(kind=8) :: &
+    adist, bdist, cdist, ddist, tlast, tnext, &
+    hspan, hzero, sspan, szero, spspan
+    common /wlk/ &
+    adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
+    hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
+!   common block
+
+    idvwlk(1)=idv(8)
+    idvwlk(2)=idv(8)
+    idvwlk(3)=idv(9)
+    idvwlk(4)=idv(10)
+    idvwlk(5)=idv(11)
+    idvwlk(6)=idv(12)
+    idvwlk(7)=idv(13)
+    idvwlk(8)=idv(13)
+    idvwlk(9)=idv(16)
+    idvwlk(10)=idv(17)
+    idvwlk(11)=idv(18)
+    idvwlk(12)=idv(24)
+    return
+end subroutine set_idvwlk
+
+real(kind=8) function random_xmeas_noise(xns) 
+!   replaces tesub6
     real(kind=8) :: xns, rand
 
     call random_number(rand)
@@ -1146,8 +1166,9 @@ real(kind=8) function random_xmeas_noise(xns) !replaces tesub6
     return
 end function random_xmeas_noise
 
-real(kind=8) function random_dist(i, t) !was named tesub8
-!   mutates xst(1,4) to xst(3,4), tst(1), tst(4), tcwr, tcws, r1f, r2f, uac, flms, qur, qus
+real(kind=8) function random_dist(i, time) 
+!   was named tesub8
+!   called with xst(1,4), xst(2,4), xst(3,4), tst(1), tst(4), tcwr, tcws, r1f, r2f, uac, flms, qur, qus
 !   common block
     integer :: idvwlk
     real(kind=8) :: &
@@ -1160,36 +1181,9 @@ real(kind=8) function random_dist(i, t) !was named tesub8
 !   common block
 
     integer :: i
-    real(kind=8) :: t, h
+    real(kind=8) :: time, h
 
-    h = t - tlast(i)
+    h = time - tlast(i)
     random_dist = adist(i) + h*(bdist(i) + h*(cdist(i) + h*ddist(i)))
     return
 end function random_dist
-
-! subroutine tesub6(xns, xmns)
-!     ! mutates xmns
-!     !integer :: i
-!     real(kind=8) :: xns, xmns, rand
-!     !calls random(0,1) on x
-!     !why not just x + 12*rand()
-!     xmns=0.
-!     call random_number(rand)
-!     !do i=1,12
-!     xmns = xmns + 12*rand
-!     !end do
-!     xmns = (xmns-6.)*xns
-!     return
-! end subroutine tesub6
-
-!real(kind=8) function tesub7(i)
-!   simple rng, normalised to [0-1] or [-1,1]
-!    integer :: i
-!    real(kind=8) :: g
-!
-!    common /randsd/ g
-!    g = mod(g*9228907., 4294967296.)
-!    if(i >=0) tesub7 = g
-!    if(i < 0) tesub7 = (2. * g) -1.
-!    return
-!end function tesub7

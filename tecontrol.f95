@@ -100,7 +100,7 @@ subroutine contrl
     real(kind=8) :: setpt, gain, taui, errold, delta_t
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20), delta_t
 
-    real(kind=8) :: dummy, err, rand1
+    real(kind=8) :: err
 !    dimension icount(20)
 !    data icount /20*0/
 !    data istart /0/
@@ -124,10 +124,6 @@ subroutine contrl
 !     impose integral desaturation
 !
 !       xmv(8)=max(0.,min(100.,xmv(8)))      
-
-!   measured variable 42 has to be calculated here
-!   because it isn't calculated in teprob
-    xmeas(42)=(62.0*xmeas(40))/(76*xmeas(41))
 
 !   relay testing
     if(dumm > 0.5)then
@@ -194,7 +190,7 @@ subroutine contrl
     xmv(3)=max(0.,min(100.,xmv(3)))
 
 !   gives a bounded random variable dummy
-    dummy=rand1()
+!   dummy=rand1()
 
 !   if want to use a random binary signal of clockwidth equal to n
 !   samples and upper limit 1, lower limit 0 could add

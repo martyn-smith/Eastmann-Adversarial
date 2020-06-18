@@ -26,6 +26,7 @@ include "teprob.f95"
 include "tecontrol.f95"
 
 program TEmain
+!   TODO: fix delta_t
     implicit none
 !   measurement and valve common block
     real(kind=8) :: xmeas, xmv, fxmeas, xmv0, taufil, alpha
@@ -38,7 +39,7 @@ program TEmain
 
 !   controller common block
     real(kind=8) :: setpt, gain, taui, errold, delta_t
-    common /ctrl/ setpt(20), gain(20), taui(20), errold(20), delta_t
+    common /ctrl/ setpt(20), gain(20), taui(20), errold(20), delta_t !TODO: remove delta_t
 
 !   specify the relay common block
     integer :: rlout, rlin
@@ -48,13 +49,9 @@ program TEmain
 !   local variables
     integer :: i, npts
     real(kind=8) :: time, state(50), derivative(50)
-    real(kind=8) :: dummy, rand1
 
 !   initialise filter times (seconds)
-    taufil = 5.d0
-                ! 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, &
-                ! 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, 5.d0, &
-                ! 5.d0, 5.d0, 5.d0, 5.d0/
+    taufil = 5.0
 !   open files for output
     call outputinit
 
@@ -74,10 +71,10 @@ program TEmain
     end do
 
 !   initialise random number generator
-    dummy = rand1()
+!   dummy = rand1()
 
 !   initialize process (sets time to zero)
-    call teinit(size(state), time, state, derivative)
+    call teinit(state, size(state), derivative, time)
 
 !   mass flow g/ mass flow h =
 !        (molecular weight*mol%g/molecular weight*mol%h)
@@ -99,12 +96,11 @@ program TEmain
         if (mod(i, 3600) == 0) then
             call set_idvs
         end if
-        call tefunc(size(state), time, state, derivative)
+        call tefunc(state, size(state), derivative, time)
         call output(time)
-        call intgtr(size(state), time, delta_t, state, derivative)
+        call intgtr(state, size(state), derivative, time, delta_t)
         call filter_xmeas(time)
     end do
-!   stop
 end program TEmain
 
 !===============================================================================
@@ -177,23 +173,11 @@ end subroutine output
 !
 !===============================================================================
 !
-subroutine intgtr(nn, time, delta_t, state, derivative)
-!   euler integration algorithm
-    integer :: i, nn
-    real(kind=8) :: time, delta_t, state(nn), derivative(nn)
-    
-    time = time + delta_t
-    do i = 1, nn
-        state(i) = state(i) + derivative(i) * delta_t
-    end do
-    return
-end subroutine intgtr
-
 subroutine filter_xmeas(time)
-    !       filter measurements
-    !       alpha = filter constant, see e.g. seeborg pp. 539-540 for more details.  Currently set to ~0.2)
-    !       alpha = 1,   no filtering
-    !       alpha = 0,   complete filtering (measurement is ignored)
+!   filter measurements
+!   alpha = filter constant, see e.g. seeborg pp. 539-540 for more details.  Currently set to ~0.2)
+!   alpha = 1,   no filtering
+!   alpha = 0,   complete filtering (measurement is ignored)
     integer :: k
     real(kind=8) :: alpha, fxmeas, taufil, xmv0, time
     real(kind=8) :: xmeas, xmv
@@ -212,60 +196,23 @@ subroutine filter_xmeas(time)
 end subroutine filter_xmeas
 
 subroutine set_idvs
-    
+
     integer :: idv
     common /dvec/ idv(24)
 
     logical :: init
     integer :: i
-    real(kind=8) :: rand1, aggression
+    real(kind=8), parameter :: aggression = 0.9
+    real(kind=8) :: rand1
     data init /.FALSE./
-    data aggression /0.9/
-    
-    do i=1,size(idv)
-        idv(i) = 0
-    end do
+
+    idv = 0
     if (init) then
         do i=1,size(idv)
             call random_number(rand1)
             if (rand1 > aggression) idv(i) = 1
         end do
     else
-        !init = .TRUE.
+        init = .TRUE.
     end if
 end subroutine set_idvs
-
-real(kind=8) function rand1()
-!   see numerical recipes in fortran, p.196
-!   returns 0.0 to 1.0 random deviate. set idum to any negative value to initialise
-    logical :: init
-    integer :: ia1, ia2, ia3, ic1, ic2, ic3, ix1, ix2, ix3, idum, j, m1, m2, m3
-    real(kind=8) :: r(97), rm1, rm2
-    save ix1, ix2, ix3, r
-    parameter(m1=259200, ia1=7141, ic1=54773, rm1=1./m1)
-    parameter(m2=134456, ia2=8121, ic2=28411, rm2=1./m2)
-    parameter(m3=243000, ia3=4561, ic3=51349)
-    data init /.FALSE./
-    data idum /-1/
-    if(.NOT. init) then ! idum < 0 .or. iff == 0) then
-        init = .TRUE.
-        ix1=mod(ic1-idum,m1)
-        ix1=mod(ia1*ix1+ic1,m1)
-        ix2=mod(ix1,m2)
-        ix1=mod(ia1*ix1+ic1,m1)
-        ix3=mod(ix1,m3)
-        do j=1,97
-            ix1=mod(ia1*ix1+ic1,m1)
-            ix2=mod(ia2*ix2+ic2,m2)
-            r(j)=(ix1+ix2*rm2)*rm1
-        end do
-        idum=1 !???
-    endif
-    ix1=mod(ia1*ix1+ic1, m1)
-    ix2=mod(ia2*ix2+ic2, m2)
-    ix3=mod(ia3*ix3+ic3, m3)
-    j=mod(1+(97*ix3)/m3, size(r))
-    rand1=r(j)
-    r(j)=(ix1+ix2*rm2)*rm1
-    return
-end function rand1
