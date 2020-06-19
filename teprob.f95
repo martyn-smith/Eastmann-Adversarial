@@ -190,6 +190,7 @@
 module constants
     real, parameter :: r_gas = 8.314472
     real, parameter :: r_gas_kcal = 1.987e-3
+    real, parameter :: rg = 998.9 ! ?. I have no idea.
     real, parameter :: avp(8) = [0.0, 0.0, 0.0, 15.92, 16.35, 16.35, 16.43, 17.21]
     real, parameter :: bvp(8) = [0.0, 0.0, 0.0, -1444.0, -2114.0, -2114.0, -2748.0, -3318.0]
     real, parameter :: cvp(8) = [0.0, 0.0, 0.0, 259.0, 265.5, 265.5, 232.9, 249.6]
@@ -204,6 +205,7 @@ module constants
     real, parameter :: bg(8) = [7.18e-10, 1.08e-9, 1.36e-11, 8.51e-10, 8.96e-10, 1.02e-9, 0., 0.]
     real, parameter :: cg(8) = [6.0e-13, -3.98e-13, -3.93e-14, -3.12e-13, -3.27e-13,-3.12e-13, 0., 0.]
     real, parameter :: xmw(8) = [2.0, 25.4, 28.0, 32.0, 46.0, 48.0, 62.0, 76.0]
+    real, parameter :: htr(2) = [0.06899381054, 0.05] !in calmol-1 !
 end module constants
 
 module types
@@ -223,6 +225,10 @@ module types
         !contains
         !   procedure, pass :: set_temperature
     end type Vessel
+    type Stream
+        sequence
+        real(kind=8) :: ftm, fcm(8), x(8), xmws, h, T
+    end type Stream
     contains
         subroutine set_temperature(this)
 !           replaces tesub2
@@ -254,7 +260,6 @@ module types
         subroutine set_pressures(this)
             use constants
             integer :: i
-            real(kind=8), parameter :: rg = 998.9
             type(vessel) :: this
 
             do i=1,3 !label 1110 - for R and S only
@@ -287,6 +292,14 @@ module types
             this%density = 1.0/v
             return
         end subroutine set_density
+
+        real(kind=8) function metric_gauge(P)
+!           converts mmHga to kPag
+            real(kind=8), intent(in) :: P
+
+            metric_gauge = (P-760.0)/760.0*101.325
+            return
+        end function metric_gauge
 end module types
 
 subroutine teinit(state, nn, derivative, time)
@@ -309,23 +322,26 @@ subroutine teinit(state, nn, derivative, time)
     vcv, vrng, vtau, &
     ftm, fcm, xst, xmws, hst, tst, sfr, &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    htr, agsp, xdel, xns, t_gas, t_prod, vst
+    agsp, xdel, xns, t_gas, t_prod, vst
 !   Possible bug in f2py - does not respect bang comments
 !   Reactor properties (24)
 !   Seperator properties (20)
 !   Stripper properties? (10)
 !   Condensor properties? (9)
-    type(vessel) :: r, c, s, v
+    type(vessel) :: r, s, c, v
+!   type(stream) :: sm
     common /teproc/ &
-    r, c, s, v, &
+    r, s, c, v, &
     twr, tws, fwr, fws, uar, &
     delta_xr(8), reaction_rate(4), reaction_heat, &
 !   XMV
     vcv(12), vrng(12), vtau(12), &
-!   stream and component properties
-    ftm(13), fcm(8,13), xst(8,13), xmws(13), hst(13), tst(13), sfr(8), &
+!   stream and component properties 
+!   sm(13), &
+    ftm(13), fcm(8,13), xst(8,13), xmws(13), hst(13), tst(13), &
+    sfr(8), &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    htr(2), agsp, xdel(41), xns(41), &
+    agsp, xdel(41), xns(41), &
     t_gas, t_prod, vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
@@ -388,10 +404,6 @@ subroutine teinit(state, nn, derivative, time)
 
     cpflmx=280275.
     cpprmx=1.3
-
-!   htr(3) not assigned
-    htr(1)=0.06899381054 !calmol-1 again?
-    htr(2)=0.05
 
     xns = [0.0012, 18.000, 22.000, 0.0500, 0.2000, &
            0.2100, 0.3000, 0.5000, 0.0100, 0.0017, &
@@ -486,17 +498,17 @@ subroutine tefunc(state, nn, derivative, time)
     vcv, vrng, vtau, &
     ftm, fcm, xst, xmws, hst, tst, sfr, &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    htr, agsp, xdel, xns, &
+    agsp, xdel, xns, &
     t_gas, t_prod, vst
-    type(vessel) :: r, c, s, v
+    type(vessel) :: r, s, c, v
     common /teproc/ &
-    r, c, s, v, &
+    r, s, c, v, &
     twr, tws, fwr, fws, uar, &
     delta_xr(8), reaction_rate(4), reaction_heat, &
     vcv(12),vrng(12),vtau(12), &
     ftm(13), fcm(8,13), xst(8,13), xmws(13), hst(13),tst(13), sfr(8), &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    htr(2), agsp, xdel(41), xns(41), &
+    agsp, xdel(41), xns(41), &
     t_gas, t_prod, vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
@@ -518,7 +530,7 @@ subroutine tefunc(state, nn, derivative, time)
     integer :: i, isd
     real(kind=8) :: &
     delta_p, flcoef, flms, pr, &
-    r1f, r2f, rg, &
+    r1f, r2f, & !temp variables
     tmpfac, &
     uas, uac, uarlev, &
     vovrl, &
@@ -641,7 +653,6 @@ subroutine tefunc(state, nn, derivative, time)
     V%tk = V%tc + 273.15
 
     call set_density(R)
-    !write(6,*) "S%density is ", S%tc, S%density
     call set_density(S)
     call set_density(C)
 
@@ -650,7 +661,6 @@ subroutine tefunc(state, nn, derivative, time)
     C%vl = C%utl / C%density
     R%vv = R%vt-R%vl
     S%vv = S%vt-S%vl
-    rg=998.9 !wat?
 
 !   setting pressures
     call set_pressures(R)
@@ -799,7 +809,7 @@ subroutine tefunc(state, nn, derivative, time)
     ftm(5)=0.
     ftm(12)=0.
     do i=1,8 !label 6020
-        fcm(i,5)=sfr(i)*fin(i)
+        fcm(i,5)=sfr(i)*fin(i) ! only place that consumes sfr
         fcm(i,12)=fin(i)-fcm(i,5)
         ftm(5)=ftm(5)+fcm(i,5)
         ftm(12)=ftm(12)+fcm(i,12)
@@ -837,6 +847,9 @@ subroutine tefunc(state, nn, derivative, time)
     !       delta separator UCV and UCL
     ! delta sep UCLs = fcm(i,8)-fcm(i,9)- fcm(i,10)-fcm(i,11)
 !   so ftm(3) -> stream 1, ftm(1) -> stream 2, ftm(2) -> stream 3
+!   note vessel "C", apparently part of the stripper, is never pressurised.
+    
+    print *, metric_gauge(R%pt), metric_gauge(S%pt), metric_gauge(V%pt)
     xmeas(1)=ftm(3)*0.359/35.3145 ! A Feed  (stream 1)                    kscmh
     xmeas(2)=ftm(1)*xmws(1)*0.454 ! D Feed  (stream 2)                    kg/hr
     xmeas(3)=ftm(2)*xmws(2)*0.454 ! E Feed  (stream 3)                    kg/hr
@@ -882,11 +895,11 @@ subroutine tefunc(state, nn, derivative, time)
     end if
     if(S%vl/35.3145 > 12.0) then 
         isd=1
-        err_msg = "product sep level high"
+        err_msg = "Sep level high"
     end if
     if(S%vl/35.3145 < 1.0) then
         isd=1
-        err_msg = "product sep level low"
+        err_msg = "Sep level low"
     end if
     if(C%vl/35.3145 > 8.0) then
         isd=1
@@ -897,9 +910,9 @@ subroutine tefunc(state, nn, derivative, time)
         err_msg = "C level low"
     end if
     if(isd == 1) then
-        write(6,*) 'plant has tripped'
+!        write(6,*) 'plant has tripped'
         write(6,*) time
-        write(6,*) err_msg
+        !write(6,*) err_msg
         stop
     end if    
     if(time > 0.0 .and. isd == 0) then
@@ -927,6 +940,8 @@ subroutine tefunc(state, nn, derivative, time)
     xcmp(39)=xst(6,13)*100.0
     xcmp(40)=xst(7,13)*100.0
     xcmp(41)=xst(8,13)*100.0
+
+!    write() R%pt S%pt C%pt V%pt
 
     if(time == 0.) then
         do i=23,41 !label 7010
@@ -1020,6 +1035,7 @@ end subroutine intgtr
 !
 !===============================================================================
 !
+
 subroutine set_stream_heat(z, T, h, ity) 
 !   was tesub1
     use constants
@@ -1162,7 +1178,7 @@ real(kind=8) function random_xmeas_noise(xns)
     real(kind=8) :: xns, rand
 
     call random_number(rand)
-    random_xmeas_noise =  (12*rand - 6.) * xns
+    random_xmeas_noise = (12*rand - 6.) * xns
     return
 end function random_xmeas_noise
 
