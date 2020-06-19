@@ -5,9 +5,10 @@ end type Vessel
 end module types
 
 program test
-    use types
-    type(Vessel) :: foo
-    foo%utl = 1.
-    print *, foo%utl
+    real, parameter :: a(8) = [1., 2., 3., 4., 5., 6., 7., 8.]
+    real, parameter :: b = 2.
+    real :: c(8)
+    c = a * b
+    print *, c
 end program
 

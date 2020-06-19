@@ -2,8 +2,10 @@
 
 TE:
 	#gfortran -c teconstants.f95;
-	gfortran -g3 -o debug.out -fbacktrace -fdefault-real-8 -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none -Wconversion -Wuninitialized -std=f2003 temain.f95;
-	gfortran -fdefault-real-8 -std=f2003 temain.f95;
+	gfortran -g3 -o debug.out -fbacktrace -fdefault-real-8 \
+	    -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none  \
+		-Wall -static -std=f2003 temain.f95;
+	gfortran -fdefault-real-8 -O3 -std=f2003 temain.f95;
 	./a.out; 
 	#./to_csv.sh
 

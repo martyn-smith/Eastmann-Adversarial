@@ -230,29 +230,78 @@ module types
         real(kind=8) :: ftm, fcm(8), x(8), xmws, h, T
     end type Stream
     contains
-        subroutine set_temperature(this)
-!           replaces tesub2
-            integer, parameter :: ity = 0
+        real(kind=8) function calc_vessel_heat(this, ity) result(H)
+!           was tesub1. Split out for when it's used for vessels.
+            use constants
+            integer, intent(in) :: ity
             integer :: i
-!            character :: mode
-!            real(kind=8), intent(in) :: h, z(8)
+            real(kind=8) :: hi
+            type(vessel) :: this
+
+            H = 0.
+            if(ity == 0) then ! R, S, C
+                do i=1,8 !label 100
+                    hi = 1.8 * this%Tc * (ah(i) + bh(i)*this%Tc/2. + ch(i)*this%Tc**2/3.)
+                    H = H + this%xl(i)*xmw(i)*hi !xl
+                end do
+            else if (ity==2) then ! V only
+                do i=1,8 !label 200
+                    hi = 1.8 * this%Tc * (ag(i) + bg(i)*this%Tc/2. + cg(i)*this%Tc**2/3.) + av(i)
+                    H = H + this%xv(i)*xmw(i)*hi !xv
+                end do
+                H = H - 3.57696e-6 * (this%tc+273.15)
+            end if
+            return
+        end function calc_vessel_heat
+
+        real(kind=8) function new_calc_delta_h(this, ity) result(dh)
+!           was tesub3
+            use constants
+            integer, intent(in) :: ity
+            integer :: i
+            real(kind=8) :: dhi
+            type(vessel), intent(in) :: this
+
+            dh = 0.
+            if(ity == 0) then
+                do i=1,8 !label 100...again
+                    dhi = 1.8 * (ah(i) + bh(i)*this%Tc + ch(i)*this%tc**2)
+                    dh = dh + this%xl(i)*xmw(i)*dhi
+                end do
+            else
+                do i=1,8
+                    dhi = 1.8 * (ag(i) + bg(i)*this%tc + cg(i)*this%tc**2)
+                    dh = dh + this%xv(i)*xmw(i)*dhi
+                end do
+                dh = dh - 3.57696e-6
+            end if
+            return
+        end function new_calc_delta_h
+
+        subroutine set_temperature(this, ity)
+!           replaces tesub2
+!           for R, S, C, called with xl, tc, es, 0
+            logical :: converged
+            integer, intent(in) :: ity
+            integer :: i
             real(kind=8) :: dh, dT, err, h_test, T_in
             type(vessel) :: this
 
             T_in = this%tc
+            converged = .FALSE.
             do i=1,100 !label 250
-                call set_stream_heat(this%xl, this%tc, h_test, ity)
+                h_test = calc_vessel_heat(this, ity)
                 err = h_test - this%es
-                call calc_delta_h(this%xl, this%tc, dh, ity)
+                dh = new_calc_delta_h(this, ity) 
                 dT = -err/dh
                 this%tc = this%tc + dT !main mutator of T
                 if(abs(dT) < 1.e-12) then
-                    this%tk = this%tc + 273.15
-                    return
+                    converged = .TRUE.
+                    exit
                 end if
             end do
 !           this appears to be correct..? i.e. T is reset if error never converges.
-            this%tc = T_in 
+            if (.not. converged) this%tc = T_in 
             this%tk = this%tc + 273.15
             return
         end subroutine set_temperature
@@ -266,7 +315,7 @@ module types
                 this%pp(i) = this%ucv(i) * rg * this%tk / this%vv
             end do
             do i=4,8 !label 1120 - for R and S only
-                this%pp(i) = this%xl(i) * exp(avp(i) + bvp(i)/(this%tc+cvp(i))) !Antoine eq.
+                this%pp(i) = this%xl(i) * exp(avp(i) + bvp(i)/(this%tc + cvp(i))) !Antoine eq.
             end do
             this%pt = sum(this%pp)
             do i=1,8 !label 1130
@@ -284,7 +333,7 @@ module types
             integer :: i
             real(kind=8) :: v
             type(vessel), intent(inout) :: this
-        
+
             v=0.
             do i=1,8
                 v = v + this%xl(i) * xmw(i) / (ad(i) + (bd(i)+cd(i) * this%tc) * this%tc)
@@ -293,11 +342,11 @@ module types
             return
         end subroutine set_density
 
-        real(kind=8) function metric_gauge(P)
+        real(kind=8) function metric_gauge(Pa) result(Pg)
 !           converts mmHga to kPag
-            real(kind=8), intent(in) :: P
+            real(kind=8), intent(in) :: Pa
 
-            metric_gauge = (P-760.0)/760.0*101.325
+            Pg = (Pa-760.0)/760.0*101.325
             return
         end function metric_gauge
 end module types
@@ -317,10 +366,10 @@ subroutine teinit(state, nn, derivative, time)
 
     integer :: ivst
     real(kind=8) :: &
-    twr, tws, fwr, fws, uar, &
+    twr, tws, fwr, fws, &
     delta_xr, reaction_rate, reaction_heat, &
     vcv, vrng, vtau, &
-    ftm, fcm, xst, xmws, hst, tst, sfr, &
+    sfr, &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
     agsp, xdel, xns, t_gas, t_prod, vst
 !   Possible bug in f2py - does not respect bang comments
@@ -329,16 +378,15 @@ subroutine teinit(state, nn, derivative, time)
 !   Stripper properties? (10)
 !   Condensor properties? (9)
     type(vessel) :: r, s, c, v
-!   type(stream) :: sm
+    type(stream) :: sm
     common /teproc/ &
     r, s, c, v, &
-    twr, tws, fwr, fws, uar, &
+    twr, tws, fwr, fws, &
     delta_xr(8), reaction_rate(4), reaction_heat, &
 !   XMV
     vcv(12), vrng(12), vtau(12), &
 !   stream and component properties 
-!   sm(13), &
-    ftm(13), fcm(8,13), xst(8,13), xmws(13), hst(13), tst(13), &
+    sm(13), &
     sfr(8), &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
     agsp, xdel(41), xns(41), &
@@ -363,7 +411,6 @@ subroutine teinit(state, nn, derivative, time)
     integer :: i
     real :: delta_t
     real(kind=8), intent(out) :: state(nn), derivative(nn), time
-!   type(vessel) :: R, C, S, V
 
 !   fortran to python headers
 !   f2py intent(in) nn, time, state, derivative
@@ -395,11 +442,12 @@ subroutine teinit(state, nn, derivative, time)
         vtau(i)=vtau(i)/3600.
     end do
 
-    xst(:,1)=[0., 0.0001, 0., 0.9999, 0., 0., 0., 0.]
-    xst(:,2)=[0., 0., 0., 0., 0.9999, 0.0001, 0., 0.]
-    xst(:,3)=[0.9999, 0.0001, 0., 0., 0., 0., 0., 0.]
-    xst(:,4)=[0.4850, 0.0050, 0.5100, 0., 0., 0., 0., 0.]
-    tst(1:4) = 45. !why just 1:4?
+    !was xst(:,1) etc
+    sm(1)%x = [0., 0.0001, 0., 0.9999, 0., 0., 0., 0.]
+    sm(2)%x = [0., 0., 0., 0., 0.9999, 0.0001, 0., 0.]
+    sm(3)%x = [0.9999, 0.0001, 0., 0., 0., 0., 0., 0.]
+    sm(4)%x = [0.4850, 0.0050, 0.5100, 0., 0., 0., 0., 0.]
+    sm(1:4)%T = 45. !why just 1:4?
     sfr = [0.995, 0.991, 0.99, 0.916, 0.936, 0.938, 0.058, 0.0301]
 
     cpflmx=280275.
@@ -493,20 +541,22 @@ subroutine tefunc(state, nn, derivative, time)
 !   common block
     integer :: ivst
     real(kind=8) :: &
-    twr, tws, fwr, fws, uar, &
+    twr, tws, fwr, fws, &
     delta_xr, reaction_rate, reaction_heat,  &
     vcv, vrng, vtau, &
-    ftm, fcm, xst, xmws, hst, tst, sfr, &
+    sfr, &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
     agsp, xdel, xns, &
     t_gas, t_prod, vst
     type(vessel) :: r, s, c, v
+    type(stream) :: sm
     common /teproc/ &
     r, s, c, v, &
-    twr, tws, fwr, fws, uar, &
+    twr, tws, fwr, fws, &
     delta_xr(8), reaction_rate(4), reaction_heat, &
-    vcv(12),vrng(12),vtau(12), &
-    ftm(13), fcm(8,13), xst(8,13), xmws(13), hst(13),tst(13), sfr(8), &
+    vcv(12), vrng(12), vtau(12), &
+    sm(13), &
+    sfr(8), &
     cpflmx, cpprmx, cpdh, tcwr, tcws, &
     agsp, xdel(41), xns(41), &
     t_gas, t_prod, vst(12), ivst(12)
@@ -530,16 +580,16 @@ subroutine tefunc(state, nn, derivative, time)
     integer :: i, isd
     real(kind=8) :: &
     delta_p, flcoef, flms, pr, &
-    r1f, r2f, & !temp variables
+    r1f, r2f, &
     tmpfac, &
-    uas, uac, uarlev, &
+    uar, uas, uac, uarlev, &
     vovrl, &
     hwlk, swlk, spwlk, &
     fin(8), &
     vpos(12), &
     xcmp(41), &
     random_dist, rand, random_xmeas_noise
-    character(len=40) :: err_msg
+    character(len=25) :: err_msg
     real(kind=8), intent(inout) :: state(nn), derivative(nn), time
 
 !   label 500 abstracted, idv is a logical now.
@@ -547,6 +597,7 @@ subroutine tefunc(state, nn, derivative, time)
     call set_idvwlk()
     do i=1,9 !label 900
         if(time >= tnext(i)) then
+!   TODO: this part frequently denormalises. Really, is it necessary?
             hwlk = tnext(i)-tlast(i)
             swlk = adist(i) + hwlk &
                                * (bdist(i) + hwlk &
@@ -555,7 +606,7 @@ subroutine tefunc(state, nn, derivative, time)
                                 * (2. * cdist(i) + 3. * hwlk * ddist(i))
             tlast(i)=tnext(i)
             !set_dists calls random(), mutating cdist, ddist, tnext
-            call set_dists(swlk,spwlk,i)
+            call set_dists(swlk, spwlk, i)
         end if
     end do
     do i=10,12 !label 910
@@ -597,11 +648,11 @@ subroutine tefunc(state, nn, derivative, time)
         tnext=.1
     end if
 !   stream and idvs
-    xst(1,4)=random_dist(1, time)-idv(1)*0.03 -idv(2)*2.43719e-3
-    xst(2,4)=random_dist(2, time)+idv(2)*0.005
-    xst(3,4)=1.-xst(1,4)-xst(2,4)
-    tst(1)=random_dist(3, time)+idv(3)*5.
-    tst(4)=random_dist(4, time)
+    sm(4)%x(1) = random_dist(1, time)-idv(1)*0.03 -idv(2)*2.43719e-3
+    sm(4)%x(2) = random_dist(2, time)+idv(2)*0.005
+    sm(4)%x(3) = 1. - sm(4)%x(1) - sm(4)%x(2)
+    sm(1)%T = random_dist(3, time) + idv(3)*5.
+    sm(4)%T =random_dist(4, time)
     tcwr=random_dist(5, time)+idv(4)*5.
     tcws=random_dist(6, time)+idv(5)*5.
 
@@ -635,7 +686,7 @@ subroutine tefunc(state, nn, derivative, time)
     C%utl = sum(C%ucl)
     V%utv = sum(V%ucv)
     do i=1,8 !label 1050
-        R%xl(i) = R%ucl(i) / R%utl
+        R%xl(i) = R%ucl(i)/R%utl
         S%xl(i) = S%ucl(i)/S%utl
         C%xl(i) = C%ucl(i)/C%utl
         V%xv(i) = V%ucv(i)/V%utv
@@ -646,11 +697,10 @@ subroutine tefunc(state, nn, derivative, time)
     C%es = C%et / C%utl
     V%es = V%et / V%utv
 
-    call set_temperature(R)
-    call set_temperature(S)
-    call set_temperature(C) !ecce
-    call set_temperature_old(V%xv,V%tc,V%es,2) !only place ITY is 2
-    V%tk = V%tc + 273.15
+    call set_temperature(R, 0)
+    call set_temperature(S, 0)
+    call set_temperature(C, 0) !ecce
+    call set_temperature(V, 2)
 
     call set_density(R)
     call set_density(S)
@@ -699,88 +749,82 @@ subroutine tefunc(state, nn, derivative, time)
     delta_xr(8)=reaction_rate(2) ! A + D + E -> H
     reaction_heat=reaction_rate(1)*htr(1)+reaction_rate(2)*htr(2)
 
-!   ???
-    xmws(1)=0.0
-    xmws(2)=0.0
-    xmws(6)=0.0
-    xmws(8)=0.0
-    xmws(9)=0.0
-    xmws(10)=0.0
-    do i=1,8 !label 2010
-        xst(i,6)=V%xv(i)
-        xst(i,8)=R%xv(i)
-        xst(i,9)=S%xv(i)
-        xst(i,10)=S%xv(i)
-        xst(i,11)=S%xl(i)
-        xst(i,13)=C%xl(i)
-        xmws(1)=xmws(1)+xst(i,1)*xmw(i)
-        xmws(2)=xmws(2)+xst(i,2)*xmw(i)
-        xmws(6)=xmws(6)+xst(i,6)*xmw(i)
-        xmws(8)=xmws(8)+xst(i,8)*xmw(i)
-        xmws(9)=xmws(9)+xst(i,9)*xmw(i)
-        xmws(10)=xmws(10)+xst(i,10)*xmw(i)
-    end do
+!   label 2010 vectorised
+    sm(6)%x = V%xv
+    sm(8)%x = R%xv
+    sm(9)%x = S%xv
+    sm(10)%x = S%xv
+    sm(11)%x = S%xl
+    sm(13)%x = C%xl
+
+    sm(1)%xmws = sum(sm(1)%x * xmw)
+    sm(2)%xmws = sum(sm(2)%x * xmw)
+    sm(6)%xmws = sum(sm(6)%x * xmw)
+    sm(8)%xmws = sum(sm(8)%x * xmw)
+    sm(9)%xmws = sum(sm(9)%x * xmw)
+    sm(10)%xmws = sum(sm(10)%x * xmw)
 
 !   setting stream temps
-    tst(6)=V%tc
-    tst(8)=R%tc
-    tst(9)=S%tc !
-    tst(10)=S%tc
-    tst(11)=S%tc
-    tst(13)=C%tc
+    sm(6)%T = V%tc
+    sm(8)%T = R%tc
+    sm(9)%T = S%tc !
+    sm(10)%T = S%tc
+    sm(11)%T = S%tc
+    sm(13)%T = C%tc
 !   setting stream heats
-    call set_stream_heat(xst(:,1),tst(1),hst(1),1) 
-    call set_stream_heat(xst(:,2),tst(2),hst(2),1)
-    call set_stream_heat(xst(:,3),tst(3),hst(3),1)
-    call set_stream_heat(xst(:,4),tst(4),hst(4),1)
-    call set_stream_heat(xst(:,6),tst(6),hst(6),1)
-    call set_stream_heat(xst(:,8),tst(8),hst(8),1)
-    call set_stream_heat(xst(:,9),tst(9),hst(9),1)
-    hst(10)=hst(9) ! ???
-    call set_stream_heat(xst(:,11),tst(11),hst(11),0)
-    call set_stream_heat(xst(:,13),tst(13),hst(13),0)
+    call set_stream_heat(sm(1),1) 
+    call set_stream_heat(sm(2),1)
+    call set_stream_heat(sm(3),1)
+    call set_stream_heat(sm(4),1)
+    call set_stream_heat(sm(6),1)
+    call set_stream_heat(sm(8),1)
+    call set_stream_heat(sm(9),1)
+    sm(1)%H = sm(9)%H ! ???
+    call set_stream_heat(sm(11),0)
+    call set_stream_heat(sm(13),0)
 
 !   setting stream mass flows
-    ftm(3)=vpos(3)*(1.-idv(6))*vrng(3)/100.0 ! A feed
-    ftm(1)=vpos(1)*vrng(1)/100.0 ! D feed
-    ftm(2)=vpos(2)*vrng(2)/100.0 ! E feed
-    ftm(4)=vpos(4)*(1.-idv(7)*0.2)*vrng(4)/100.0+1.e-10 ! A and C feed
-    ftm(11)=vpos(7)*vrng(7)/100.0 ! separator underflow
-    ftm(13)=vpos(8)*vrng(8)/100.0 ! stripper underflow
-    uac=vpos(9)*vrng(9)*(1.+random_dist(9,time))/100.0
-    fwr=vpos(10)*vrng(10)/100.0
-    fws=vpos(11)*vrng(11)/100.0 !fws, interesting
-    agsp=(vpos(12)+150.0)/100.0
+    sm(3)%ftm = vpos(3)*(1.-idv(6))*vrng(3)/100.0 ! A feed
+    sm(1)%ftm = vpos(1)*vrng(1)/100.0 ! D feed
+    sm(2)%ftm = vpos(2)*vrng(2)/100.0 ! E feed
+    sm(4)%ftm = vpos(4)*(1.-idv(7)*0.2)*vrng(4)/100.0+1.e-10 ! A and C feed
+    sm(11)%ftm = vpos(7)*vrng(7)/100.0 ! separator underflow
+    sm(13)%ftm = vpos(8)*vrng(8)/100.0 ! stripper underflow
+    uac = vpos(9)*vrng(9)*(1. + random_dist(9,time))/100.0
+    fwr = vpos(10)*vrng(10)/100.0
+    fws = vpos(11)*vrng(11)/100.0 !fws, interesting
+    agsp = (vpos(12)+150.0)/100.0
     delta_p=max(V%pt-R%pt, 0.) 
     flms=1937.6*sqrt(delta_p)
-    ftm(6)=flms/xmws(6)
+    sm(6)%ftm = flms / sm(6)%xmws
     delta_p=max(R%pt-S%pt, 0.) ! reactor - condensor?
     flms=4574.21*sqrt(delta_p)*(1.-0.25*random_dist(12,time))
-    ftm(8)=flms/xmws(8) ! mass flow = volume / mean mass?
+    sm(8)%ftm = flms / sm(8)%xmws ! mass flow = volume / mean mass?
     delta_p=max(S%pt-760.0, 0.) ! sep? - atmosphere
     flms=vpos(6)*0.151169*sqrt(delta_p)
-    ftm(10)=flms/xmws(10)
+    sm(10)%ftm = flms / sm(10)%xmws
     pr=min(max(V%pt/S%pt, 1.), cpprmx)
     flcoef=cpflmx/1.197
     flms=cpflmx+flcoef*(1.0-pr**3)
-    cpdh=flms*(S%tk)*1.8e-6*1.9872 *(V%pt-S%pt)/(xmws(9)*S%pt)
+    cpdh=flms*(S%tk)*1.8e-6*1.9872 *(V%pt-S%pt)/(sm(9)%xmws*S%pt)
     delta_p=max(V%pt - S%pt, 0.)
     flms=max(flms-vpos(5)*53.349*sqrt(delta_p), 1.e-3)
-    ftm(9)=flms/xmws(9)
-    hst(9)=hst(9)+cpdh/ftm(9)
-    do i=1,8 !label 5020
-        fcm(i,1)=xst(i,1)*ftm(1)
-        fcm(i,2)=xst(i,2)*ftm(2)
-        fcm(i,3)=xst(i,3)*ftm(3)
-        fcm(i,4)=xst(i,4)*ftm(4)
-        fcm(i,6)=xst(i,6)*ftm(6)
-        fcm(i,8)=xst(i,8)*ftm(8)
-        fcm(i,9)=xst(i,9)*ftm(9)
-        fcm(i,10)=xst(i,10)*ftm(10)
-        fcm(i,11)=xst(i,11)*ftm(11)
-        fcm(i,13)=xst(i,13)*ftm(13)
-    end do
-    if(ftm(11) > 0.1) then
+    sm(9)%ftm = flms/sm(9)%xmws
+    sm(9)%h = sm(9)%h + cpdh/sm(9)%ftm
+
+    ! label 5020 vectorised (yes, this also works)
+    sm(1)%fcm = sm(1)%x * sm(1)%ftm
+    sm(2)%fcm = sm(2)%x * sm(2)%ftm
+    sm(3)%fcm = sm(3)%x * sm(3)%ftm
+    sm(4)%fcm = sm(4)%x * sm(4)%ftm
+    sm(6)%fcm = sm(6)%x * sm(6)%ftm
+    sm(8)%fcm = sm(8)%x * sm(8)%ftm
+    sm(9)%fcm = sm(9)%x * sm(9)%ftm
+    sm(10)%fcm = sm(10)%x * sm(10)%ftm
+    sm(11)%fcm = sm(11)%x * sm(11)%ftm
+    sm(13)%fcm = sm(13)%x * sm(13)%ftm
+
+    if(sm(11)%ftm > 0.1) then
         if(C%tc > 170.) then
             tmpfac = C%tc-120.262
         elseif(C%tc < 5.292) then
@@ -788,7 +832,7 @@ subroutine tefunc(state, nn, derivative, time)
         else
             tmpfac = 363.744/(177. - C%tc) - 2.22579488
         end if
-        vovrl=ftm(4)/ftm(11)*tmpfac
+        vovrl = sm(4)%ftm / sm(11)%ftm*tmpfac
         sfr(4)=8.5010*vovrl/(1.0+8.5010*vovrl)
         sfr(5)=11.402*vovrl/(1.0+11.402*vovrl)
         sfr(6)=11.795*vovrl/(1.0+11.795*vovrl)
@@ -801,36 +845,32 @@ subroutine tefunc(state, nn, derivative, time)
         sfr(7)=0.99
         sfr(8)=0.98
     end if
-    do i=1,8 !label 6010
-        fin(i) = fcm(i,4) + fcm(i,11)
-    end do
+!   label 6010
+    fin = sm(4)%fcm + sm(11)%fcm
 
 !   setting streams 5 and 12 properties
-    ftm(5)=0.
-    ftm(12)=0.
-    do i=1,8 !label 6020
-        fcm(i,5)=sfr(i)*fin(i) ! only place that consumes sfr
-        fcm(i,12)=fin(i)-fcm(i,5)
-        ftm(5)=ftm(5)+fcm(i,5)
-        ftm(12)=ftm(12)+fcm(i,12)
-    end do
-    do i=1,8 !label 6030
-        xst(i,5)=fcm(i,5)/ftm(5)
-        xst(i,12)=fcm(i,12)/ftm(12)
-    end do
-    tst(5)=C%tc  !C%tc
-    tst(12)=C%tc !C%tc
-    call set_stream_heat(xst(:,5), tst(5), hst(5), 1)
-    call set_stream_heat(xst(:,12), tst(12), hst(12), 0)
+!   label 6020 and 6030
+    sm(5)%fcm = sfr * fin ! only place that consumes sfr
+    sm(12)%fcm = fin - sm(5)%fcm
+    sm(5)%ftm = sum(sm(5)%fcm)
+    sm(12)%ftm = sum(sm(12)%fcm)
+    sm(5)%x = sm(5)%fcm / sm(5)%ftm
+    sm(12)%x = sm(12)%fcm / sm(12)%ftm
 
-    ftm(7)=ftm(6)
-    hst(7)=hst(6)
-    tst(7)=tst(6)
-    do i=1,8 !label 6130
-        xst(i,7)=xst(i,6)
-        fcm(i,7)=fcm(i,6)
-    end do
+    sm(5)%T = C%tc  !C%tc
+    sm(12)%T = C%tc !C%tc
+    call set_stream_heat(sm(5), 1)
+    call set_stream_heat(sm(12), 0)
 
+    sm(7)%ftm = sm(6)%ftm
+    sm(7)%H = sm(6)%H
+    sm(7)%T = sm(6)%T
+!   label 6130
+    sm(7)%x = sm(6)%x
+    sm(7)%fcm = sm(6)%fcm
+
+!   calculate cooling from water feeds
+!    call set_heat_transfer(R) , (S), (C)
     if(R%vl/7.8 > 50.0) then
         uarlev=1.0
     elseif(R%vl/7.8 < 10.0) then
@@ -839,51 +879,50 @@ subroutine tefunc(state, nn, derivative, time)
         uarlev=0.025*R%vl/7.8-0.25
     end if
     uar = uarlev * (-0.5*agsp**2 + 2.75*agsp-2.5) * 855490.e-6
-    R%qu = uar * (twr-R%tc) * (1.-0.35*random_dist(10,time))
-    uas = 0.404655 * (1.0-1.0/(1.0+(ftm(8)/3528.73)**4))
-    S%qu = uas * (tws-tst(8)) *(1.-0.25*random_dist(11,time))
+    R%qu = uar * (twr-R%tc) * (1. - 0.35*random_dist(10,time))
+    uas = 0.404655 * (1. - 1./(1. + (sm(8)%ftm/3528.73)**4)) ! condensor?
+    S%qu = uas * (tws-sm(8)%T) *(1. - 0.25*random_dist(11,time))
     C%qu=0.
     if(C%tc < 100.) C%qu = uac*(100.0-C%tc)
-    !       delta separator UCV and UCL
-    ! delta sep UCLs = fcm(i,8)-fcm(i,9)- fcm(i,10)-fcm(i,11)
-!   so ftm(3) -> stream 1, ftm(1) -> stream 2, ftm(2) -> stream 3
-!   note vessel "C", apparently part of the stripper, is never pressurised.
-    
-    print *, metric_gauge(R%pt), metric_gauge(S%pt), metric_gauge(V%pt)
-    xmeas(1)=ftm(3)*0.359/35.3145 ! A Feed  (stream 1)                    kscmh
-    xmeas(2)=ftm(1)*xmws(1)*0.454 ! D Feed  (stream 2)                    kg/hr
-    xmeas(3)=ftm(2)*xmws(2)*0.454 ! E Feed  (stream 3)                    kg/hr
-    xmeas(4)=ftm(4)*0.359/35.3145 ! A and C Feed  (stream 4)              kscmh
-    xmeas(5)=ftm(9)*0.359/35.3145 ! Recycle Flow  (stream 8)              kscmh
-    xmeas(6)=ftm(6)*0.359/35.3145 ! Reactor Feed Rate  (stream 6)         kscmh
-    xmeas(7)=(R%pt-760.0)/760.0*101.325 ! Reactor Pressure                 kPa gauge
-    xmeas(8)=(R%vl-84.6)/666.7*100.0 ! Reactor Level                       %
-    xmeas(9)=R%tc ! Reactor Temperature                                    deg C
-    xmeas(10)=ftm(10)*0.359/35.3145 ! purge rate (stream 9)               kscmh
-    xmeas(11)=S%tc ! product sep temp                                      deg c
-    xmeas(12)=(S%vl-27.5)/290.0*100.0 ! product sep level                  %
-    xmeas(13)=(S%pt-760.0)/760.0*101.325 ! sep pressure               kpa gauge
-    xmeas(14)=ftm(11)/S%density/35.3145 ! sep underflow (stream 10)        m3/hr
-    xmeas(15)=(C%vl-78.25)/C%vt*100.0 ! stripper level                      %
-    xmeas(16)=(V%pt-760.0)/760.0*101.325 ! stripper pressure               kpa gauge
-    xmeas(17)=ftm(13)/C%density/35.3145 ! stripper underflow (stream 11)        m3/hr
-    xmeas(18)=C%tc ! stripper temperature                                  deg c
-    xmeas(19)=C%qu*1.04e3*0.454 ! stripper steam flow                      kg/hr
-    xmeas(20)=cpdh*0.0003927e6 ! compressor work                          kwh
-    xmeas(20)=cpdh*0.29307e3 !??
-    xmeas(21)=twr ! reactor cooling water outlet temp                     deg c
-    xmeas(22)=tws ! separator cooling water outlet temp                   deg c
+!   sm(3) -> stream 1, sm(1) -> stream 2, sm(2) -> stream 3
+!   note vessel "C", apparently part of the stripper, is never pressurised (the original code has no PTC slot)
+
+!   print *, S%vl
+    xmeas(1) = sm(3)%ftm*0.359/35.3145 ! A Feed  (stream 1)                    kscmh
+    xmeas(2) = sm(1)%ftm*sm(1)%xmws*0.454 ! D Feed  (stream 2)                 kg/hr
+    xmeas(3) = sm(2)%ftm*sm(2)%xmws*0.454 ! E Feed  (stream 3)                 kg/hr
+    xmeas(4) = sm(4)%ftm*0.359/35.3145 ! A and C Feed  (stream 4)              kscmh
+    xmeas(5) = sm(9)%ftm*0.359/35.3145 ! Recycle Flow  (stream 8)              kscmh
+    xmeas(6) = sm(6)%ftm*0.359/35.3145 ! Reactor Feed Rate  (stream 6)         kscmh
+    xmeas(7) = (R%pt-760.0)/760.0*101.325 ! Reactor Pressure                   kPa gauge
+    xmeas(8) = (R%vl-84.6)/666.7*100.0 ! Reactor Level                         %
+    xmeas(9) = R%tc ! Reactor Temperature                                      deg C
+    xmeas(10) = sm(10)%ftm*0.359/35.3145 ! purge rate (stream 9)               kscmh
+    xmeas(11) = S%tc ! product sep temp                                        deg c
+    xmeas(12) = (S%vl-27.5)/290.0*100.0 ! product sep level                    %
+    xmeas(13) = (S%pt-760.0)/760.0*101.325 ! sep pressure                      kpa gauge
+    xmeas(14) = sm(11)%ftm/S%density/35.3145 ! sep underflow (stream 10)       m3/hr
+    xmeas(15) = (C%vl-78.25)/C%vt*100.0 ! stripper level                       %
+    xmeas(16) = (V%pt-760.0)/760.0*101.325 ! stripper pressure                 kpa gauge
+    xmeas(17) = sm(13)%ftm/C%density/35.3145 ! stripper underflow (stream 11)  m3/hr
+    xmeas(18) = C%tc ! stripper temperature                                    deg c
+    xmeas(19) = C%qu*1.04e3*0.454 ! stripper steam flow                        kg/hr
+    xmeas(20) = cpdh*0.0003927e6 ! compressor work                             kwh
+    xmeas(20) = cpdh*0.29307e3 ! compressor work, again??                      kwh
+    xmeas(21) = twr ! reactor cooling water outlet temp                        deg c
+    xmeas(22) = tws ! separator cooling water outlet temp                      deg c
+
     isd=0
     if(xmeas(7) > 3000.0) then
      isd=1
      err_msg = "reactor pressure high"
     end if
     if (((R%pt-760.0)/760.0*101.325) > 12000.) then
-        write(6,*) "plant has exploded"
+        print *, "plant has exploded"
     end if
     if(R%vl/35.3145 > 24.0) then 
         isd=1
-        write(6,*) "Reactor level high"
+        print *, "Reactor level high"
     end if
     if(R%vl/35.3145 < 2.0) then
         isd=1
@@ -910,9 +949,7 @@ subroutine tefunc(state, nn, derivative, time)
         err_msg = "C level low"
     end if
     if(isd == 1) then
-!        write(6,*) 'plant has tripped'
-        write(6,*) time
-        !write(6,*) err_msg
+        print *, err_msg, " at t = ", time
         stop
     end if    
     if(time > 0.0 .and. isd == 0) then
@@ -921,27 +958,27 @@ subroutine tefunc(state, nn, derivative, time)
             xmeas(i)=xmeas(i)+random_xmeas_noise(xns(i))
         end do
     end if
-    xcmp(23)=xst(1,7)*100.0
-    xcmp(24)=xst(2,7)*100.0
-    xcmp(25)=xst(3,7)*100.0
-    xcmp(26)=xst(4,7)*100.0
-    xcmp(27)=xst(5,7)*100.0
-    xcmp(28)=xst(6,7)*100.0
-    xcmp(29)=xst(1,10)*100.0
-    xcmp(30)=xst(2,10)*100.0
-    xcmp(31)=xst(3,10)*100.0
-    xcmp(32)=xst(4,10)*100.0
-    xcmp(33)=xst(5,10)*100.0
-    xcmp(34)=xst(6,10)*100.0
-    xcmp(35)=xst(7,10)*100.0
-    xcmp(36)=xst(8,10)*100.0
-    xcmp(37)=xst(4,13)*100.0
-    xcmp(38)=xst(5,13)*100.0
-    xcmp(39)=xst(6,13)*100.0
-    xcmp(40)=xst(7,13)*100.0
-    xcmp(41)=xst(8,13)*100.0
+    xcmp(23)=sm(7)%x(1)*100.0
+    xcmp(24)=sm(7)%x(2)*100.0
+    xcmp(25)=sm(7)%x(3)*100.0
+    xcmp(26)=sm(7)%x(4)*100.0
+    xcmp(27)=sm(7)%x(5)*100.0
+    xcmp(28)=sm(7)%x(6)*100.0
+    xcmp(29)=sm(10)%x(1)*100.0
+    xcmp(30)=sm(10)%x(2)*100.0
+    xcmp(31)=sm(10)%x(3)*100.0
+    xcmp(32)=sm(10)%x(4)*100.0
+    xcmp(33)=sm(10)%x(5)*100.0
+    xcmp(34)=sm(10)%x(6)*100.0
+    xcmp(35)=sm(10)%x(7)*100.0
+    xcmp(36)=sm(10)%x(8)*100.0
+    xcmp(37)=sm(13)%x(4)*100.0
+    xcmp(38)=sm(13)%x(5)*100.0
+    xcmp(39)=sm(13)%x(6)*100.0
+    xcmp(40)=sm(13)%x(7)*100.0
+    xcmp(41)=sm(13)%x(8)*100.0
 
-!    write() R%pt S%pt C%pt V%pt
+!    print *, metric_gauge(R%pt), S%pt, C%pt, metric_gauge(V%pt)
 
     if(time == 0.) then
         do i=23,41 !label 7010
@@ -974,28 +1011,28 @@ subroutine tefunc(state, nn, derivative, time)
 
     do i=1,8 !label 9010
 !       delta reactor UCV and UCL = flow in (7) - flow out (8) plus delta_xr
-        derivative(i)=fcm(i,7)-fcm(i,8)+delta_xr(i)
+        derivative(i) = sm(7)%fcm(i) - sm(8)%fcm(i) + delta_xr(i)
 !       delta separator UCV and UCL
-!                         React out  recycle    purge       underflow
-        derivative(i+9) = fcm(i,8) - fcm(i,9) - fcm(i,10) - fcm(i,11)
+!                         React out      recycle        purge           underflow
+        derivative(i+9) = sm(8)%fcm(i) - sm(9)%fcm(i) - sm(10)%fcm(i) - sm(11)%fcm(i)
 !       delta C UCV and UCL
-        derivative(i+18)=fcm(i,12)-fcm(i,13)
+        derivative(i+18) = sm(12)%fcm(i) - sm(13)%fcm(i)
 !       delta V UCV only
-        derivative(i+27)=fcm(i,1) + fcm(i,2) + fcm(i,3) + fcm(i,5) + fcm(i,9)- fcm(i,6)
+        derivative(i+27) = sm(1)%fcm(i) + sm(2)%fcm(i) + sm(3)%fcm(i) &
+                           + sm(5)%fcm(i) + sm(9)%fcm(i) - sm(6)%fcm(i)
     end do
 !   delta R.et
-    derivative(9) = hst(7)*ftm(7) - hst(8)*ftm(8) + reaction_heat + R%qu
+    derivative(9) = sm(7)%H*sm(7)%ftm - sm(8)%H*sm(8)%ftm + reaction_heat + R%qu
 !   delta S.et
-    derivative(18)=hst(8)*ftm(8)- hst(9)*ftm(9)- hst(10)*ftm(10)- hst(11)*ftm(11)+ S%qu
+    derivative(18) = sm(8)%h*sm(8)%ftm - (sm(9)%H*sm(9)%ftm - cpdh) - sm(10)%H*sm(10)%ftm &
+                     - sm(11)%H*sm(11)%ftm + S%qu
 !   delta C.et
-    derivative(27)=hst(4)*ftm(4)+ hst(11)*ftm(11)- hst(5)*ftm(5)- hst(13)*ftm(13)+ C%qu
+    derivative(27) = sm(4)%H*sm(4)%ftm + sm(11)%H*sm(11)%ftm - sm(5)%H*sm(5)%ftm- sm(13)%H*sm(13)%ftm &
+                     + C%qu
 !   delta V.et
-    derivative(36) = hst(1)*ftm(1) &
-                     + hst(2)*ftm(2) &
-                     + hst(3)*ftm(3) &
-                     + hst(5)*ftm(5) &
-                     + hst(9)*ftm(9) &
-                     - hst(6)*ftm(6)
+    derivative(36) = sm(1)%H*sm(1)%ftm + sm(2)%H*sm(2)%ftm + sm(3)%H*sm(3)%ftm  &
+                     + sm(5)%H*sm(5)%ftm + sm(9)%H*sm(9)%ftm - sm(6)%H*sm(6)%ftm
+
     derivative(37)=(fwr*500.53* (tcwr-twr)-R%qu*1.e6/1.8)/R%hw !twr
     derivative(38)=(fws*500.53* (tcws-tws)-S%qu*1.e6/1.8)/S%hw !tws
     ivst(10)=idv(14)
@@ -1036,85 +1073,25 @@ end subroutine intgtr
 !===============================================================================
 !
 
-subroutine set_stream_heat(z, T, h, ity) 
+subroutine set_stream_heat(sm, ity) 
 !   was tesub1
+!   called as set_stream_heat(xst(:,12) -> z(8), tst(12)->T, hst(12)->H, 0)
+
     use constants
+    use types
     integer, intent(in) :: ity
     integer :: i
-    real(kind=8), intent(in) :: T, z(8)
-    real(kind=8) :: hi, r
-    real(kind=8), intent(out) :: h
+    real(kind=8) :: hi
+    type(stream), intent(inout) :: sm
 
-    if(ity == 0) then !11,12,13
-        h = 0.0
-        do i=1,8 !label 100
-            hi=1.8 * T * (ah(i) + bh(i)*T/2. + ch(i)*T**2/3.)
-            h=h+z(i)*xmw(i)*hi
-        end do
-    else !1,2,3,4,5,6,8,9
-        h=0.0
-        do i=1,8 !label 200
-            hi=1.8 * T * (ag(i) + bg(i)*T/2. + cg(i)*T**2/3.)
-            hi=hi+av(i)
-            h=h+z(i)*xmw(i)*hi
-        end do
-    end if
-    if(ity == 2) then !xvv only!
-        r=3.57696e-6 !got to be a heat cap
-        h=h-r*(T+273.15)
-    end if
+    sm%H = 0.
+    do i =1,8
+        if (ity == 0) hi = 1.8 * sm%T * (ah(i) + bh(i)*sm%T/2. + ch(i)*sm%T**2/3.)
+        if (ity == 1) hi = 1.8 * sm%T * (ag(i) + bg(i)*sm%T/2. + cg(i)*sm%T**2/3.) + av(i)
+        sm%H = sm%H + sm%x(i)*xmw(i)*hi
+    end do
     return
 end subroutine set_stream_heat
-
-subroutine set_temperature_old(z, T, h, ity) 
-!   was tesub2
-    use constants
-    integer, intent(in) :: ity
-    integer :: j
-    real(kind=8), intent(in) :: h, z(8)
-    real(kind=8) :: dh, dT, err, h_test, T_in
-    real(kind=8), intent(inout) :: T
-
-    T_in=T
-    do j=1,100 !label 250
-        call set_stream_heat(z, T, h_test, ity)
-        err = h_test - h
-        call calc_delta_h(z, T, dh, ity)
-        dT = -err/dh
-        T = T+dT !main mutator of T
-        if(abs(dT) < 1.e-12) return
-    end do
-    T=T_in !this appears to be correct..? i.e. T is reset if error never converges.
-    return
-end subroutine set_temperature_old
-
-subroutine calc_delta_h(z, T, dh, ity) 
-!   was tesub3
-    use constants
-    integer, intent(in) :: ity
-    integer :: i
-    real(kind=8), intent(in) :: T, z(8)
-    real(kind=8) :: dhi
-    real(kind=8), intent(out) :: dh
-
-    if(ity == 0) then
-        dh=0.
-        do i=1,8 !label 100...again
-            dhi = 1.8 * (ah(i) + bh(i)*T + ch(i)*T**2)
-            dh = dh+z(i)*xmw(i)*dhi
-        end do
-    else
-        dh=0.
-        do i=1,8
-            dhi = 1.8 * (ag(i) + bg(i)*T + cg(i)*T**2)
-            dh = dh+z(i)*xmw(i)*dhi
-        end do
-    end if
-    if(ity == 2) then
-        dh = dh - 3.57696e-6
-    end if
-    return
-end subroutine calc_delta_h
 
 subroutine set_dists(s, sp, i)
 !   was tesub5
@@ -1138,9 +1115,9 @@ subroutine set_dists(s, sp, i)
     s1p = spspan(i)*(2*rand(3)-1)*idvwlk(i)
     adist(i) = s
     bdist(i) = sp
-    cdist(i)=(3.*(s1-s)-h*(s1p+2.*sp))/h**2
-    ddist(i)=(2.*(s-s1)+h*(s1p+sp))/h**3
-    tnext(i)=tlast(i)+h
+    cdist(i) = (3.*(s1-s) - h*(s1p + 2.*sp))/h**2
+    ddist(i) = (2.*(s-s1) + h*(s1p + sp))/h**3
+    tnext(i) = tlast(i)+h
     return
 end subroutine set_dists
 
@@ -1184,7 +1161,8 @@ end function random_xmeas_noise
 
 real(kind=8) function random_dist(i, time) 
 !   was named tesub8
-!   called with xst(1,4), xst(2,4), xst(3,4), tst(1), tst(4), tcwr, tcws, r1f, r2f, uac, flms, qur, qus
+!   sets: sm(4)%x(1,2) (1,2), sm(1)%T (3), sm(4)%T (4), tcwr (5), tcws (6), r1f (7), r2f (8), 
+!   uac (9), sm(8)%ftm (12), R%qu (10), S%qu (11)
 !   common block
     integer :: idvwlk
     real(kind=8) :: &
@@ -1201,5 +1179,6 @@ real(kind=8) function random_dist(i, time)
 
     h = time - tlast(i)
     random_dist = adist(i) + h*(bdist(i) + h*(cdist(i) + h*ddist(i)))
+!    print *, time, i, random_dist
     return
 end function random_dist
