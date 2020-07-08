@@ -187,6 +187,8 @@
 !
 !===============================================================================
 
+include "tewalk.f95"
+
 module constants
     real, parameter :: r_gas = 8.314472
     real, parameter :: r_gas_kcal = 1.987e-3
@@ -204,152 +206,48 @@ module constants
     real, parameter :: ag(8) = [3.411e-6, 0.3799e-6, 0.2491e-6, 0.3567e-6, 0.3463e-6, 0.393e-6, 0.17e-6, 0.150e-6]
     real, parameter :: bg(8) = [7.18e-10, 1.08e-9, 1.36e-11, 8.51e-10, 8.96e-10, 1.02e-9, 0., 0.]
     real, parameter :: cg(8) = [6.0e-13, -3.98e-13, -3.93e-14, -3.12e-13, -3.27e-13,-3.12e-13, 0., 0.]
-    real, parameter :: xmw(8) = [2.0, 25.4, 28.0, 32.0, 46.0, 48.0, 62.0, 76.0]
+    real, parameter :: xmw(8) = [2.0, 25.4, 28.0, 32.0, 46.0, 48.0, 62.0, 76.0] ! definitely gmol-1
     real, parameter :: htr(2) = [0.06899381054, 0.05] !in calmol-1 !
+    real, parameter :: x_costs(8) = [2.206, 0., 6.177, 22.06, 14.56, 17.89, 30.44, 22.94] !$kgmol-1 . B is incorrect?
+    real, parameter :: compressor_cost = 0.0536 ! /kWh
+    real, parameter :: strip_steam_cost = 0.0318 ! /kg
 end module constants
 
-module types
-    use iso_c_binding
+module entities
+!    C binding conflicts with sequence, which is more necessary.
+!    use iso_c_binding
+    type agitator
+         sequence
+         real(kind=8) :: speed
+    end type agitator
+
+    type Compressor
+        sequence
+        real(kind=8) :: max_PR, max_flow, work
+    end type Compressor
+
     type Vessel
         sequence
         real(kind=8) :: utl, utv, &    ! total molar amounts in liquid and gas phase
                         et, es, &      ! total and liquid phase heat?
                         tc, tk, &      ! temps (C and K)
-                        density, &          ! ??
+                        density, &     !
                         vt, vl, vv, &  ! total, liquid and vapour volumes
                         pt, &          ! total pressure
-                        qu, hw ! ?? ?? ?? ??
+                        qu, hw         ! ?? ?? ?? ??
         real(kind=8), dimension(8) :: ucl, ucv, & ! molar components amounts in liquid and gas phase
                                       xl, xv, &      ! concentrations in liquid and gas phase
                                       pp             ! partial pressure
         !contains
         !   procedure, pass :: set_temperature
     end type Vessel
+
     type Stream
         sequence
         real(kind=8) :: ftm, fcm(8), x(8), xmws, h, T
     end type Stream
-    contains
-        real(kind=8) function calc_vessel_heat(this, ity) result(H)
-!           was tesub1. Split out for when it's used for vessels.
-            use constants
-            integer, intent(in) :: ity
-            integer :: i
-            real(kind=8) :: hi
-            type(vessel) :: this
 
-            H = 0.
-            if(ity == 0) then ! R, S, C
-                do i=1,8 !label 100
-                    hi = 1.8 * this%Tc * (ah(i) + bh(i)*this%Tc/2. + ch(i)*this%Tc**2/3.)
-                    H = H + this%xl(i)*xmw(i)*hi !xl
-                end do
-            else if (ity==2) then ! V only
-                do i=1,8 !label 200
-                    hi = 1.8 * this%Tc * (ag(i) + bg(i)*this%Tc/2. + cg(i)*this%Tc**2/3.) + av(i)
-                    H = H + this%xv(i)*xmw(i)*hi !xv
-                end do
-                H = H - 3.57696e-6 * (this%tc+273.15)
-            end if
-            return
-        end function calc_vessel_heat
-
-        real(kind=8) function new_calc_delta_h(this, ity) result(dh)
-!           was tesub3
-            use constants
-            integer, intent(in) :: ity
-            integer :: i
-            real(kind=8) :: dhi
-            type(vessel), intent(in) :: this
-
-            dh = 0.
-            if(ity == 0) then
-                do i=1,8 !label 100...again
-                    dhi = 1.8 * (ah(i) + bh(i)*this%Tc + ch(i)*this%tc**2)
-                    dh = dh + this%xl(i)*xmw(i)*dhi
-                end do
-            else
-                do i=1,8
-                    dhi = 1.8 * (ag(i) + bg(i)*this%tc + cg(i)*this%tc**2)
-                    dh = dh + this%xv(i)*xmw(i)*dhi
-                end do
-                dh = dh - 3.57696e-6
-            end if
-            return
-        end function new_calc_delta_h
-
-        subroutine set_temperature(this, ity)
-!           replaces tesub2
-!           for R, S, C, called with xl, tc, es, 0
-            logical :: converged
-            integer, intent(in) :: ity
-            integer :: i
-            real(kind=8) :: dh, dT, err, h_test, T_in
-            type(vessel) :: this
-
-            T_in = this%tc
-            converged = .FALSE.
-            do i=1,100 !label 250
-                h_test = calc_vessel_heat(this, ity)
-                err = h_test - this%es
-                dh = new_calc_delta_h(this, ity) 
-                dT = -err/dh
-                this%tc = this%tc + dT !main mutator of T
-                if(abs(dT) < 1.e-12) then
-                    converged = .TRUE.
-                    exit
-                end if
-            end do
-!           this appears to be correct..? i.e. T is reset if error never converges.
-            if (.not. converged) this%tc = T_in 
-            this%tk = this%tc + 273.15
-            return
-        end subroutine set_temperature
-
-        subroutine set_pressures(this)
-            use constants
-            integer :: i
-            type(vessel) :: this
-
-            do i=1,3 !label 1110 - for R and S only
-                this%pp(i) = this%ucv(i) * rg * this%tk / this%vv
-            end do
-            do i=4,8 !label 1120 - for R and S only
-                this%pp(i) = this%xl(i) * exp(avp(i) + bvp(i)/(this%tc + cvp(i))) !Antoine eq.
-            end do
-            this%pt = sum(this%pp)
-            do i=1,8 !label 1130
-                this%xv(i) = this%pp(i) / this%pt
-            end do
-            this%utv = this%pt * this%vv/rg/this%tk
-            do i=4,8 !label 1140
-                this%ucv(i) = this%utv * this%xv(i)
-            end do
-        end subroutine set_pressures
-
-        subroutine set_density(this) 
-!           was tesub4
-            use constants
-            integer :: i
-            real(kind=8) :: v
-            type(vessel), intent(inout) :: this
-
-            v=0.
-            do i=1,8
-                v = v + this%xl(i) * xmw(i) / (ad(i) + (bd(i)+cd(i) * this%tc) * this%tc)
-            end do
-            this%density = 1.0/v
-            return
-        end subroutine set_density
-
-        real(kind=8) function metric_gauge(Pa) result(Pg)
-!           converts mmHga to kPag
-            real(kind=8), intent(in) :: Pa
-
-            Pg = (Pa-760.0)/760.0*101.325
-            return
-        end function metric_gauge
-end module types
+end module entities
 
 subroutine teinit(state, nn, derivative, time)
 !   initialization
@@ -361,8 +259,9 @@ subroutine teinit(state, nn, derivative, time)
 !     time = current time(hrs)
 !     state = current state values
 !     derivative = current derivative values
-    use types
     use constants
+    use entities
+    use tewalk
 
     integer :: ivst
     real(kind=8) :: &
@@ -370,26 +269,28 @@ subroutine teinit(state, nn, derivative, time)
     delta_xr, reaction_rate, reaction_heat, &
     vcv, vrng, vtau, &
     sfr, &
-    cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    agsp, xdel, xns, t_gas, t_prod, vst
-!   Possible bug in f2py - does not respect bang comments
+    tcwr, tcws, &
+    xdel, xns, t_gas, t_prod, vst
 !   Reactor properties (24)
 !   Seperator properties (20)
 !   Stripper properties? (10)
 !   Condensor properties? (9)
+    type(agitator) :: agtatr
     type(vessel) :: r, s, c, v
     type(stream) :: sm
+    type(compressor) :: cmpsr
+    type(walk) :: wlk
     common /teproc/ &
     r, s, c, v, &
     twr, tws, fwr, fws, &
     delta_xr(8), reaction_rate(4), reaction_heat, &
 !   XMV
     vcv(12), vrng(12), vtau(12), &
-!   stream and component properties 
+!   stream and component properties
     sm(13), &
     sfr(8), &
-    cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    agsp, xdel(41), xns(41), &
+    cmpsr, tcwr, tcws, &
+    agtatr, xdel(41), xns(41), &
     t_gas, t_prod, vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
@@ -398,23 +299,14 @@ subroutine teinit(state, nn, derivative, time)
     integer :: idv
     common /dvec/ idv(24)
 
-    integer :: idvwlk
-    real(kind=8) :: &
-    adist, bdist, cdist, ddist, tlast, tnext, &
-    hspan, hzero, sspan, szero, spspan
-    common /wlk/ &
-    adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
-    hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
+    common /wlk/ wlk
+    ! adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
+    ! hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
 !   common block
 
     integer, intent(in) :: nn
-    integer :: i
     real :: delta_t
     real(kind=8), intent(out) :: state(nn), derivative(nn), time
-
-!   fortran to python headers
-!   f2py intent(in) nn, time, state, derivative
-!   f2py intent(out) state, derivative
 
 !   common /teproc/ assignments. TODO: not all are present, investigate.
     R%hw=7060.
@@ -435,12 +327,10 @@ subroutine teinit(state, nn, derivative, time)
     vrng(9)=0.03
     vrng(10)=1000.
     vrng(11)=1200.0
+!   label 300 vectorised here. Vtau is a constant.
     vtau = [8., 8., 6., 9., &
             7., 5., 5., 5., &
-            120., 5., 5., 5.]
-    do i=1,size(vtau) !label 300
-        vtau(i)=vtau(i)/3600.
-    end do
+            120., 5., 5., 5.] / 3600.
 
     !was xst(:,1) etc
     sm(1)%x = [0., 0.0001, 0., 0.9999, 0., 0., 0., 0.]
@@ -450,8 +340,8 @@ subroutine teinit(state, nn, derivative, time)
     sm(1:4)%T = 45. !why just 1:4?
     sfr = [0.995, 0.991, 0.99, 0.916, 0.936, 0.938, 0.058, 0.0301]
 
-    cpflmx=280275.
-    cpprmx=1.3
+    cmpsr%max_flow = 280275.
+    cmpsr%max_PR = 1.3
 
     xns = [0.0012, 18.000, 22.000, 0.0500, 0.2000, &
            0.2100, 0.3000, 0.5000, 0.0100, 0.0017, &
@@ -462,12 +352,11 @@ subroutine teinit(state, nn, derivative, time)
            0.250, 0.100, 0.250, 0.025, 0.050, &
            0.050, 0.010, 0.010, 0.010, 0.500, &
            0.500]
-!   array assignment!
+!   note: array assignment!
     vst = 2.
     ivst = 0
 
-!   state init to happen before /pv/ and /teproc/ vcv
-
+!   state init must happen before /pv/ and /teproc/ vcv.
 !   layout of state vector:
 
 !  |1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
@@ -491,33 +380,15 @@ subroutine teinit(state, nn, derivative, time)
     delta_t = 1. / 3600.00001
 
 !   common /pv/ init
-    do i=1,size(xmv) !label 200
-        xmv(i)=state(i+38)
-        vcv(i)=xmv(i) !not a /pv/ !
-    end do
+!   label 200
+    xmv = state(39:50)
+    vcv = xmv !not a /pv/ !
 
 !   common /idv/ init
-    idv=0
+    idv = 0
 
-!   common /wlk/ init 
-    bdist=0.
-    cdist=0.
-    ddist=0.
-    tlast=0.
-    tnext=0.1
-    hspan = [0.2, 0.7, 0.25, 0.7, 0.15, 0.15, &
-             1.0, 1.0, 0.4, 1.5, 2.0, 1.5]
-    hzero = [0.5, 1.0, 0.5, 1.0, 0.25, 0.25, &
-             2.0, 2.0, 0.5, 2.0, 3.0, 2.0]
-    sspan = [0.03, 0.003, 10.0, 10.0, 10.0, 10.0, &
-             0.25, 0.25, 0.25, 0.0, 0.0, 0.0]
-    szero = [0.485, 0.005, 45.0, 45.0, 35.0, 40.0, &
-             1.0, 1.0, 0.0, 0.0, 0.0, 0.0]
-    spspan = 0.
-    do i=1,12 !label 550
-        adist(i)=szero(i)
-    end do
-    !idvwlk?
+!   common /wlk/ init
+    call walker_init()
 
     time = 0.
     call tefunc(state, nn, derivative, time)
@@ -536,7 +407,8 @@ subroutine tefunc(state, nn, derivative, time)
 !   mutates:
 !     derivative = current derivative values
     use constants
-    use types
+    use entities
+    use tewalk
 
 !   common block
     integer :: ivst
@@ -545,11 +417,13 @@ subroutine tefunc(state, nn, derivative, time)
     delta_xr, reaction_rate, reaction_heat,  &
     vcv, vrng, vtau, &
     sfr, &
-    cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    agsp, xdel, xns, &
+    tcwr, tcws, &
+    xdel, xns, &
     t_gas, t_prod, vst
+    type(agitator) :: agtatr
     type(vessel) :: r, s, c, v
     type(stream) :: sm
+    type(compressor) :: cmpsr
     common /teproc/ &
     r, s, c, v, &
     twr, tws, fwr, fws, &
@@ -557,8 +431,8 @@ subroutine tefunc(state, nn, derivative, time)
     vcv(12), vrng(12), vtau(12), &
     sm(13), &
     sfr(8), &
-    cpflmx, cpprmx, cpdh, tcwr, tcws, &
-    agsp, xdel(41), xns(41), &
+    cmpsr, tcwr, tcws, &
+    agtatr, xdel(41), xns(41), &
     t_gas, t_prod, vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
@@ -567,13 +441,8 @@ subroutine tefunc(state, nn, derivative, time)
     integer :: idv
     common /dvec/ idv(24)
 
-    integer :: idvwlk
-    real(kind=8) :: &
-    adist, bdist, cdist, ddist, tlast, tnext, &
-    hspan, hzero, sspan, szero, spspan
-    common /wlk/ &
-    adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
-    hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
+    type(walk) :: wlk
+    common /wlk/ wlk
 !   common block
 
     integer, intent(in) :: nn
@@ -582,129 +451,66 @@ subroutine tefunc(state, nn, derivative, time)
     delta_p, flcoef, flms, pr, &
     r1f, r2f, &
     tmpfac, &
-    uar, uas, uac, uarlev, &
     vovrl, &
-    hwlk, swlk, spwlk, &
     fin(8), &
     vpos(12), &
-    xcmp(41), &
-    random_dist, rand, random_xmeas_noise
+    xcmp(41)
     character(len=25) :: err_msg
     real(kind=8), intent(inout) :: state(nn), derivative(nn), time
 
 !   label 500 abstracted, idv is a logical now.
-!   futzing with wlk block
-    call set_idvwlk()
-    do i=1,9 !label 900
-        if(time >= tnext(i)) then
-!   TODO: this part frequently denormalises. Really, is it necessary?
-            hwlk = tnext(i)-tlast(i)
-            swlk = adist(i) + hwlk &
-                               * (bdist(i) + hwlk &
-                                              * (cdist(i) + hwlk * ddist(i)))
-            spwlk = bdist(i) + hwlk &
-                                * (2. * cdist(i) + 3. * hwlk * ddist(i))
-            tlast(i)=tnext(i)
-            !set_dists calls random(), mutating cdist, ddist, tnext
-            call set_dists(swlk, spwlk, i)
-        end if
-    end do
-    do i=10,12 !label 910
-        if(time >= tnext(i)) then
-            hwlk = tnext(i)-tlast(i)
-            swlk = adist(i)+hwlk &
-                             * (bdist(i) + hwlk &
-                                            * (cdist(i) + hwlk * ddist(i)))
-            spwlk = bdist(i) + hwlk &
-                                * (2. * cdist(i) + 3. * hwlk * ddist(i))
-            tlast(i)=tnext(i)
-            if(swlk > 0.1) then
-                adist(i)=swlk
-                bdist(i)=spwlk
-                cdist(i)=-(3.*swlk+0.2*spwlk)/0.01
-                ddist(i)=(2.*swlk+0.1*spwlk)/0.001
-                tnext(i)=tlast(i)+0.1
-            else
-                !isd=-1
-                !calls random(-1,1) on hwlk (used to be tesub7(isd))
-                call random_number(rand)
-                hwlk=hspan(i)*(2*rand-1)+hzero(i)
-                adist(i)=0.
-                bdist(i)=0.
-                cdist(i)=idvwlk(i)/hwlk**2
-                ddist(i)=0.
-                tnext(i)=tlast(i)+hwlk
-            end if
-        end if
-    end do
-    if(time == 0.) then
-        do i=1,12 !label 950
-            adist(i)=szero(i)
-        end do
-        bdist=0.
-        cdist=0.
-        ddist=0.
-        tlast=0.
-        tnext=.1
-    end if
+    call next_walk(time)
 !   stream and idvs
-    sm(4)%x(1) = random_dist(1, time)-idv(1)*0.03 -idv(2)*2.43719e-3
-    sm(4)%x(2) = random_dist(2, time)+idv(2)*0.005
+    sm(4)%x(1) = random_dist(1, time) - idv(1)*0.03 - idv(2)*2.43719e-3
+    sm(4)%x(2) = random_dist(2, time) + idv(2)*0.005
     sm(4)%x(3) = 1. - sm(4)%x(1) - sm(4)%x(2)
     sm(1)%T = random_dist(3, time) + idv(3)*5.
     sm(4)%T =random_dist(4, time)
-    tcwr=random_dist(5, time)+idv(4)*5.
-    tcws=random_dist(6, time)+idv(5)*5.
+    tcwr = random_dist(5, time) + idv(4)*5.
+    tcws = random_dist(6, time) + idv(5)*5.
 
 !   download new molar amounts from state vector.
-    do i=1,3 !label 1010
-        R%ucv(i)=state(i)
-        S%ucv(i)=state(i+9)
-        R%ucl(i)=0.  
-        S%ucl(i)=0.
-    end do
-    do i=4,8 !label 1020
-        R%ucl(i)=state(i)
-        S%ucl(i)=state(i+9)
-    end do
-    do  i=1,8 !label 1030
-        C%ucl(i)=state(i+18)
-        V%ucv(i)=state(i+27)
-    end do
-    R%et=state(9)
-    S%et=state(18)
-    C%et=state(27)
-    V%et=state(36)
-    twr=state(37)
-    tws=state(38)
-    do i=1,size(vpos) !label 1035
-        vpos(i)=state(i+38)
-    end do
+!   labels 1010, 1020, 1030
+    R%ucv(1:3) = state(1:3)
+    R%ucl(1:3) = 0.
+    R%ucl(4:8) = state(4:8)
+    R%et = state(9)
+    S%ucv(1:3) = state(10:12)
+    S%ucl(1:3) = 0.
+    S%ucl(4:8) = state(13:17)
+    S%et = state(18)
+    C%ucl = state(19:26)
+    C%et = state(27)
+    V%ucv = state(28:35)
+    V%et = state(36)
+    twr = state(37)
+    tws = state(38)
+    vpos = state(39:50)
+
 !   label 1040 abstracted into sum()
     R%utl = sum(R%ucl) 
     S%utl = sum(S%ucl)
     C%utl = sum(C%ucl)
     V%utv = sum(V%ucv)
-    do i=1,8 !label 1050
-        R%xl(i) = R%ucl(i)/R%utl
-        S%xl(i) = S%ucl(i)/S%utl
-        C%xl(i) = C%ucl(i)/C%utl
-        V%xv(i) = V%ucv(i)/V%utv
-    end do
+!   vectorised label 1050
+    R%xl = R%ucl/R%utl
+    S%xl = S%ucl/S%utl
+    C%xl = C%ucl/C%utl
+    V%xv = V%ucv/V%utv
 
     R%es = R%et / R%utl
     S%es = S%et / S%utl
     C%es = C%et / C%utl
     V%es = V%et / V%utv
 
-    call set_temperature(R, 0)
-    call set_temperature(S, 0)
-    call set_temperature(C, 0) !ecce
-    call set_temperature(V, 2)
+    call set_vessel_temperature(R, 0)
+    call set_vessel_temperature(S, 0)
+    call set_vessel_temperature(C, 0)
+    call set_vessel_temperature(V, 2)
 
-    call set_density(R)
-    call set_density(S)
-    call set_density(C)
+    call set_vessel_density(R)
+    call set_vessel_density(S)
+    call set_vessel_density(C)
 
     R%vl = R%utl / R%density
     S%vl = S%utl / S%density
@@ -713,31 +519,31 @@ subroutine tefunc(state, nn, derivative, time)
     S%vv = S%vt-S%vl
 
 !   setting pressures
-    call set_pressures(R)
-    call set_pressures(S)
+    call set_vessel_pressure(R)
+    call set_vessel_pressure(S)
     V%pt = V%utv * rg * V%tk / V%vt ! P = n R T / V
 !   setting reactions
 !   rr's 1, 2, 3 consume A, 4 does not
 !   R is in cal.K-1mol-1! first Ea works out to about 167 kJmol-1
-    r1f=random_dist(7, time)
-    r2f=random_dist(8, time)
+    r1f = random_dist(7, time)
+    r2f = random_dist(8, time)
     reaction_rate(1) = r1f * 5.219217002265e+13 * exp(-40./(1.987e-3 * R%tk))
     reaction_rate(2) = r2f * 20.27525952163 * exp(-20./(1.987e-3 * R%tk))
     reaction_rate(3) = 1.5629689117665e+23 * exp(-60./(1.987e-3 * R%tk))
     reaction_rate(4) = reaction_rate(3)*0.767488334
     if(R%pp(1) > 0.0 .and. R%pp(3) > 0.0) then
-        r1f=R%pp(1)**1.1544
-        r2f=R%pp(3)**0.3735
-        reaction_rate(1)=reaction_rate(1)*r1f*r2f*R%pp(4)
-        reaction_rate(2)=reaction_rate(2)*r1f*r2f*R%pp(5)
+        r1f = R%pp(1)**1.1544
+        r2f = R%pp(3)**0.3735
+        reaction_rate(1) = reaction_rate(1)*r1f*r2f*R%pp(4)
+        reaction_rate(2) = reaction_rate(2)*r1f*r2f*R%pp(5)
     else
-        reaction_rate(1)=0.0
-        reaction_rate(2)=0.0
+        reaction_rate(1) = 0.
+        reaction_rate(2) = 0.
     end if
-    reaction_rate(3)=reaction_rate(3)*R%pp(1)*R%pp(5)
-    reaction_rate(4)=reaction_rate(4)*R%pp(1)*R%pp(4)
+    reaction_rate(3) = reaction_rate(3)*R%pp(1)*R%pp(5)
+    reaction_rate(4) = reaction_rate(4)*R%pp(1)*R%pp(4)
     do i=1,4 !label 1200
-        reaction_rate(i)=reaction_rate(i)*R%vv
+        reaction_rate(i) = reaction_rate(i)*R%vv
     end do
 !   consumption / generation
     delta_xr(1)=-reaction_rate(1)-reaction_rate(2)-reaction_rate(3) ! A consumption
@@ -790,27 +596,27 @@ subroutine tefunc(state, nn, derivative, time)
     sm(4)%ftm = vpos(4)*(1.-idv(7)*0.2)*vrng(4)/100.0+1.e-10 ! A and C feed
     sm(11)%ftm = vpos(7)*vrng(7)/100.0 ! separator underflow
     sm(13)%ftm = vpos(8)*vrng(8)/100.0 ! stripper underflow
-    uac = vpos(9)*vrng(9)*(1. + random_dist(9,time))/100.0
     fwr = vpos(10)*vrng(10)/100.0
-    fws = vpos(11)*vrng(11)/100.0 !fws, interesting
-    agsp = (vpos(12)+150.0)/100.0
-    delta_p=max(V%pt-R%pt, 0.) 
-    flms=1937.6*sqrt(delta_p)
-    sm(6)%ftm = flms / sm(6)%xmws
-    delta_p=max(R%pt-S%pt, 0.) ! reactor - condensor?
-    flms=4574.21*sqrt(delta_p)*(1.-0.25*random_dist(12,time))
+    fws = vpos(11)*vrng(11)/100.0
+    agtatr%speed = (vpos(12)+150.0)/100.0
+    delta_p = max(V%pt-R%pt, 0.) 
+    flms = 1937.6*sqrt(delta_p)
+    sm(6)%ftm = flms / sm(6)%xmws ! volume flow per time / m weight = moles / s / density?
+    delta_p = max(R%pt-S%pt, 0.) ! reactor - separator
+    flms = 4574.21*sqrt(delta_p)*(1.-0.25*random_dist(12,time))
     sm(8)%ftm = flms / sm(8)%xmws ! mass flow = volume / mean mass?
-    delta_p=max(S%pt-760.0, 0.) ! sep? - atmosphere
-    flms=vpos(6)*0.151169*sqrt(delta_p)
+    delta_p = max(S%pt-760.0, 0.) ! sep - atmosphere
+    flms = vpos(6)*0.151169*sqrt(delta_p)
     sm(10)%ftm = flms / sm(10)%xmws
-    pr=min(max(V%pt/S%pt, 1.), cpprmx)
-    flcoef=cpflmx/1.197
-    flms=cpflmx+flcoef*(1.0-pr**3)
-    cpdh=flms*(S%tk)*1.8e-6*1.9872 *(V%pt-S%pt)/(sm(9)%xmws*S%pt)
-    delta_p=max(V%pt - S%pt, 0.)
-    flms=max(flms-vpos(5)*53.349*sqrt(delta_p), 1.e-3)
+    pr =min(max(V%pt/S%pt, 1.), cmpsr%max_PR)
+    flcoef = cmpsr%max_flow/1.197
+    flms = cmpsr%max_flow+flcoef*(1.0-pr**3)
+!   later conversion implies this is in BTU
+    cmpsr%work = flms*(S%tk)*1.8e-6*1.9872 *(V%pt-S%pt)/(sm(9)%xmws*S%pt)
+    delta_p = max(V%pt - S%pt, 0.)
+    flms = max(flms-vpos(5)*53.349*sqrt(delta_p), 1.e-3)
     sm(9)%ftm = flms/sm(9)%xmws
-    sm(9)%h = sm(9)%h + cpdh/sm(9)%ftm
+    sm(9)%h = sm(9)%h + cmpsr%work/sm(9)%ftm
 
     ! label 5020 vectorised (yes, this also works)
     sm(1)%fcm = sm(1)%x * sm(1)%ftm
@@ -870,26 +676,16 @@ subroutine tefunc(state, nn, derivative, time)
     sm(7)%fcm = sm(6)%fcm
 
 !   calculate cooling from water feeds
-!    call set_heat_transfer(R) , (S), (C)
-    if(R%vl/7.8 > 50.0) then
-        uarlev=1.0
-    elseif(R%vl/7.8 < 10.0) then
-        uarlev=0.0
-    else
-        uarlev=0.025*R%vl/7.8-0.25
-    end if
-    uar = uarlev * (-0.5*agsp**2 + 2.75*agsp-2.5) * 855490.e-6
-    R%qu = uar * (twr-R%tc) * (1. - 0.35*random_dist(10,time))
-    uas = 0.404655 * (1. - 1./(1. + (sm(8)%ftm/3528.73)**4)) ! condensor?
-    S%qu = uas * (tws-sm(8)%T) *(1. - 0.25*random_dist(11,time))
-    C%qu=0.
-    if(C%tc < 100.) C%qu = uac*(100.0-C%tc)
+    call set_heat_transfer(R, "R", vpos, time)
+    call set_heat_transfer(S, "S", vpos, time)
+    call set_heat_transfer(C, "C", vpos, time)
 !   sm(3) -> stream 1, sm(1) -> stream 2, sm(2) -> stream 3
 !   note vessel "C", apparently part of the stripper, is never pressurised (the original code has no PTC slot)
-
-!   print *, S%vl
-    xmeas(1) = sm(3)%ftm*0.359/35.3145 ! A Feed  (stream 1)                    kscmh
-    xmeas(2) = sm(1)%ftm*sm(1)%xmws*0.454 ! D Feed  (stream 2)                 kg/hr
+!   print *, time, sm(1)%ftm, sm(2)%ftm, sm(3)%ftm, sm(4)%ftm, sm(5)%ftm, sm(6)%ftm, sm(7)%ftm, &
+!                sm(8)%ftm, sm(9)%ftm, sm(10)%ftm, sm(11)%ftm, sm(12)%ftm, sm(13)%ftm, &
+!                R%pt, S%pt, C%pt, V%pt, S%vl
+    xmeas(1) = sm(3)%ftm*0.359/35.3145 ! A Feed  (stream 1)                    kscmh , 
+    xmeas(2) = sm(1)%ftm*sm(1)%xmws*0.454 ! D Feed  (stream 2)                 kg/hr from lbmol/hr
     xmeas(3) = sm(2)%ftm*sm(2)%xmws*0.454 ! E Feed  (stream 3)                 kg/hr
     xmeas(4) = sm(4)%ftm*0.359/35.3145 ! A and C Feed  (stream 4)              kscmh
     xmeas(5) = sm(9)%ftm*0.359/35.3145 ! Recycle Flow  (stream 8)              kscmh
@@ -907,14 +703,13 @@ subroutine tefunc(state, nn, derivative, time)
     xmeas(17) = sm(13)%ftm/C%density/35.3145 ! stripper underflow (stream 11)  m3/hr
     xmeas(18) = C%tc ! stripper temperature                                    deg c
     xmeas(19) = C%qu*1.04e3*0.454 ! stripper steam flow                        kg/hr
-    xmeas(20) = cpdh*0.0003927e6 ! compressor work                             kwh
-    xmeas(20) = cpdh*0.29307e3 ! compressor work, again??                      kwh
+    xmeas(20) = cmpsr%work*0.29307e3 ! compressor work, again??                kwh
     xmeas(21) = twr ! reactor cooling water outlet temp                        deg c
     xmeas(22) = tws ! separator cooling water outlet temp                      deg c
 
-    isd=0
+    isd = 0
     if(xmeas(7) > 3000.0) then
-     isd=1
+     isd = 1
      err_msg = "reactor pressure high"
     end if
     if (((R%pt-760.0)/760.0*101.325) > 12000.) then
@@ -955,59 +750,59 @@ subroutine tefunc(state, nn, derivative, time)
     if(time > 0.0 .and. isd == 0) then
         do i=1,22 !label 6500
             !call tesub6(xns(i),xmns)
-            xmeas(i)=xmeas(i)+random_xmeas_noise(xns(i))
+            xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
         end do
     end if
-    xcmp(23)=sm(7)%x(1)*100.0
-    xcmp(24)=sm(7)%x(2)*100.0
-    xcmp(25)=sm(7)%x(3)*100.0
-    xcmp(26)=sm(7)%x(4)*100.0
-    xcmp(27)=sm(7)%x(5)*100.0
-    xcmp(28)=sm(7)%x(6)*100.0
-    xcmp(29)=sm(10)%x(1)*100.0
-    xcmp(30)=sm(10)%x(2)*100.0
-    xcmp(31)=sm(10)%x(3)*100.0
-    xcmp(32)=sm(10)%x(4)*100.0
-    xcmp(33)=sm(10)%x(5)*100.0
-    xcmp(34)=sm(10)%x(6)*100.0
-    xcmp(35)=sm(10)%x(7)*100.0
-    xcmp(36)=sm(10)%x(8)*100.0
-    xcmp(37)=sm(13)%x(4)*100.0
-    xcmp(38)=sm(13)%x(5)*100.0
-    xcmp(39)=sm(13)%x(6)*100.0
-    xcmp(40)=sm(13)%x(7)*100.0
-    xcmp(41)=sm(13)%x(8)*100.0
+    xcmp(23) = sm(7)%x(1)*100.0
+    xcmp(24) = sm(7)%x(2)*100.0
+    xcmp(25) = sm(7)%x(3)*100.0
+    xcmp(26) = sm(7)%x(4)*100.0
+    xcmp(27) = sm(7)%x(5)*100.0
+    xcmp(28) = sm(7)%x(6)*100.0
+    xcmp(29) = sm(10)%x(1)*100.0
+    xcmp(30) = sm(10)%x(2)*100.0
+    xcmp(31) = sm(10)%x(3)*100.0
+    xcmp(32) = sm(10)%x(4)*100.0
+    xcmp(33) = sm(10)%x(5)*100.0
+    xcmp(34) = sm(10)%x(6)*100.0
+    xcmp(35) = sm(10)%x(7)*100.0
+    xcmp(36) = sm(10)%x(8)*100.0
+    xcmp(37) = sm(13)%x(4)*100.0
+    xcmp(38) = sm(13)%x(5)*100.0
+    xcmp(39) = sm(13)%x(6)*100.0
+    xcmp(40) = sm(13)%x(7)*100.0
+    xcmp(41) = sm(13)%x(8)*100.0
 
 !    print *, metric_gauge(R%pt), S%pt, C%pt, metric_gauge(V%pt)
 
     if(time == 0.) then
         do i=23,41 !label 7010
-            xdel(i)=xcmp(i)
-            xmeas(i)=xcmp(i)
+            xdel(i) = xcmp(i)
+            xmeas(i) = xcmp(i)
         end do
-        t_gas=0.1
-        t_prod=0.25
+        t_gas = 0.1
+        t_prod = 0.25
     end if
     if(time >= t_gas) then
         do i=23,36 !label 7020
-            xmeas(i)=xdel(i)
+            xmeas(i) = xdel(i)
             !call tesub6(xns(i),xmns)
-            xmeas(i)=xmeas(i)+random_xmeas_noise(xns(i))
-            xdel(i)=xcmp(i)
+            xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
+            xdel(i) = xcmp(i)
         end do
         t_gas=t_gas+0.1
     end if
     if(time >= t_prod) then
         do i=37,41 !label 7030
-            xmeas(i)=xdel(i)
+            xmeas(i) = xdel(i)
             !call tesub6(xns(i),xmns)
-            xmeas(i)=xmeas(i)+random_xmeas_noise(xns(i))
-            xdel(i)=xcmp(i)
+            xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
+            xdel(i) = xcmp(i)
         end do
-        t_prod=t_prod+0.25
+        t_prod = t_prod+0.25
     end if
-!   product cost?
-    xmeas(42)=(62.0*xmeas(40))/(76*xmeas(41))
+!   g/h ratio
+    xmeas(42) = (62.0*xmeas(40))/(76*xmeas(41))
 
     do i=1,8 !label 9010
 !       delta reactor UCV and UCL = flow in (7) - flow out (8) plus delta_xr
@@ -1024,7 +819,7 @@ subroutine tefunc(state, nn, derivative, time)
 !   delta R.et
     derivative(9) = sm(7)%H*sm(7)%ftm - sm(8)%H*sm(8)%ftm + reaction_heat + R%qu
 !   delta S.et
-    derivative(18) = sm(8)%h*sm(8)%ftm - (sm(9)%H*sm(9)%ftm - cpdh) - sm(10)%H*sm(10)%ftm &
+    derivative(18) = sm(8)%h*sm(8)%ftm - (sm(9)%H*sm(9)%ftm - cmpsr%work) - sm(10)%H*sm(10)%ftm &
                      - sm(11)%H*sm(11)%ftm + S%qu
 !   delta C.et
     derivative(27) = sm(4)%H*sm(4)%ftm + sm(11)%H*sm(11)%ftm - sm(5)%H*sm(5)%ftm- sm(13)%H*sm(13)%ftm &
@@ -1033,21 +828,21 @@ subroutine tefunc(state, nn, derivative, time)
     derivative(36) = sm(1)%H*sm(1)%ftm + sm(2)%H*sm(2)%ftm + sm(3)%H*sm(3)%ftm  &
                      + sm(5)%H*sm(5)%ftm + sm(9)%H*sm(9)%ftm - sm(6)%H*sm(6)%ftm
 
-    derivative(37)=(fwr*500.53* (tcwr-twr)-R%qu*1.e6/1.8)/R%hw !twr
-    derivative(38)=(fws*500.53* (tcws-tws)-S%qu*1.e6/1.8)/S%hw !tws
-    ivst(10)=idv(14)
-    ivst(11)=idv(15)
-    ivst(5)=idv(19)
-    ivst(7)=idv(19)
-    ivst(8)=idv(19)
-    ivst(9)=idv(19)
+    derivative(37) = (fwr*500.53* (tcwr-twr)-R%qu*1.e6/1.8)/R%hw !twr
+    derivative(38) = (fws*500.53* (tcws-tws)-S%qu*1.e6/1.8)/S%hw !tws
+    ivst(10) = idv(14)
+    ivst(11) = idv(15)
+    ivst(5) = idv(19)
+    ivst(7) = idv(19)
+    ivst(8) = idv(19)
+    ivst(9) = idv(19)
     do i=1,12 !label 9020
         if(time == 0. .or. abs(vcv(i)-xmv(i)) > vst(i)*ivst(i)) then
             vcv(i)=xmv(i)
         end if 
-        if(vcv(i) < 0.0) vcv(i)=0.0
-        if(vcv(i) > 100.0) vcv(i)=100.0
-        derivative(i+38)=(vcv(i)-vpos(i))/vtau(i)
+        if(vcv(i) < 0.0) vcv(i) = 0.0
+        if(vcv(i) > 100.0) vcv(i) = 100.0
+        derivative(i+38) = (vcv(i)-vpos(i))/vtau(i)
     end do
     if(isd /= 0) then
         !label 9030
@@ -1057,128 +852,203 @@ subroutine tefunc(state, nn, derivative, time)
 end subroutine tefunc   
 
 subroutine intgtr(state, nn, derivative, time, delta_t)
-    !   euler integration algorithm
-    integer :: i
+!   euler integration algorithm
     integer, intent(in) :: nn
     real(kind=8), intent(in) :: delta_t, derivative(nn)
     real(kind=8), intent(out) :: time, state(nn) 
 
     time = time + delta_t
-    do i = 1, nn
-        state(i) = state(i) + derivative(i) * delta_t
-    end do
+    state = state + derivative * delta_t
     return
 end subroutine intgtr
 !
 !===============================================================================
 !
-
 subroutine set_stream_heat(sm, ity) 
 !   was tesub1
-!   called as set_stream_heat(xst(:,12) -> z(8), tst(12)->T, hst(12)->H, 0)
-
+!   for streams 1,2,3,4,5,6,8,9: ITY = 1. For streams 11, 12 and 13: ITY = 0. 
+!   stream 10 is never set.
     use constants
-    use types
+    use entities
     integer, intent(in) :: ity
-    integer :: i
-    real(kind=8) :: hi
+    real(kind=8) :: hi(8)
     type(stream), intent(inout) :: sm
 
-    sm%H = 0.
-    do i =1,8
-        if (ity == 0) hi = 1.8 * sm%T * (ah(i) + bh(i)*sm%T/2. + ch(i)*sm%T**2/3.)
-        if (ity == 1) hi = 1.8 * sm%T * (ag(i) + bg(i)*sm%T/2. + cg(i)*sm%T**2/3.) + av(i)
-        sm%H = sm%H + sm%x(i)*xmw(i)*hi
-    end do
+    if (ity == 0) hi = 1.8 * sm%T * (ah + bh*sm%T/2. + ch*sm%T**2/3.)
+    if (ity == 1) hi = 1.8 * sm%T * (ag + bg*sm%T/2. + cg*sm%T**2/3.) + av
+    sm%H = sum(sm%x * xmw * hi)
     return
 end subroutine set_stream_heat
 
-subroutine set_dists(s, sp, i)
-!   was tesub5
-!   common block
-    integer :: idvwlk
-    real(kind=8) :: &
-    adist, bdist, cdist, ddist, tlast, tnext, &
-    hspan, hzero, sspan, szero, spspan
-    common /wlk/ &
-    adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
-    hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
-!   common block
-
-    integer, intent(in) :: i
-    real(kind=8), intent(in) :: s, sp
-    real(kind=8) ::  h, s1, s1p, rand(3)
-
-    call random_number(rand)
-    h = hspan(i)*(2*rand(1)-1)+hzero(i)
-    s1 = sspan(i)*(2*rand(2)-1)*idvwlk(i)+szero(i)
-    s1p = spspan(i)*(2*rand(3)-1)*idvwlk(i)
-    adist(i) = s
-    bdist(i) = sp
-    cdist(i) = (3.*(s1-s) - h*(s1p + 2.*sp))/h**2
-    ddist(i) = (2.*(s-s1) + h*(s1p + sp))/h**3
-    tnext(i) = tlast(i)+h
-    return
-end subroutine set_dists
-
-subroutine set_idvwlk()
-!   common block
-    integer :: idv
-    common /dvec/ idv(24)
-
-    integer :: idvwlk
-    real(kind=8) :: &
-    adist, bdist, cdist, ddist, tlast, tnext, &
-    hspan, hzero, sspan, szero, spspan
-    common /wlk/ &
-    adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
-    hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
-!   common block
-
-    idvwlk(1)=idv(8)
-    idvwlk(2)=idv(8)
-    idvwlk(3)=idv(9)
-    idvwlk(4)=idv(10)
-    idvwlk(5)=idv(11)
-    idvwlk(6)=idv(12)
-    idvwlk(7)=idv(13)
-    idvwlk(8)=idv(13)
-    idvwlk(9)=idv(16)
-    idvwlk(10)=idv(17)
-    idvwlk(11)=idv(18)
-    idvwlk(12)=idv(24)
-    return
-end subroutine set_idvwlk
-
-real(kind=8) function random_xmeas_noise(xns) 
-!   replaces tesub6
-    real(kind=8) :: xns, rand
-
-    call random_number(rand)
-    random_xmeas_noise = (12*rand - 6.) * xns
-    return
-end function random_xmeas_noise
-
-real(kind=8) function random_dist(i, time) 
-!   was named tesub8
-!   sets: sm(4)%x(1,2) (1,2), sm(1)%T (3), sm(4)%T (4), tcwr (5), tcws (6), r1f (7), r2f (8), 
-!   uac (9), sm(8)%ftm (12), R%qu (10), S%qu (11)
-!   common block
-    integer :: idvwlk
-    real(kind=8) :: &
-    adist, bdist, cdist, ddist, tlast, tnext, &
-    hspan, hzero, sspan, szero, spspan
-    common /wlk/ &
-    adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
-    hspan(12), hzero(12), sspan(12), szero(12), spspan(12), &
-    idvwlk(12)
-!   common block
-
+real(kind=8) function calc_vessel_heat(vsl, ity) result(H)
+!           was tesub1. Split out for when it's used for vessels.
+    use constants
+    use entities
+    integer, intent(in) :: ity
     integer :: i
-    real(kind=8) :: time, h
+    real(kind=8) :: hi
+    type(vessel) :: vsl
 
-    h = time - tlast(i)
-    random_dist = adist(i) + h*(bdist(i) + h*(cdist(i) + h*ddist(i)))
-!    print *, time, i, random_dist
+    H = 0.
+    if(ity == 0) then ! R, S, C
+        do i=1,8 !label 100
+            hi = 1.8 * vsl%Tc * (ah(i) + bh(i)*vsl%Tc/2. + ch(i)*vsl%Tc**2/3.)
+            H = H + vsl%xl(i)*xmw(i)*hi !xl
+        end do
+    else if (ity==2) then ! V only
+        do i=1,8 !label 200
+            hi = 1.8 * vsl%Tc * (ag(i) + bg(i)*vsl%Tc/2. + cg(i)*vsl%Tc**2/3.) + av(i)
+            H = H + vsl%xv(i)*xmw(i)*hi !xv
+        end do
+        H = H - 3.57696e-6 * (vsl%tc+273.15)
+    end if
     return
-end function random_dist
+end function calc_vessel_heat
+
+real(kind=8) function calc_delta_h(vsl, ity) result(dh)
+!           was tesub3
+    use constants
+    use entities
+    integer, intent(in) :: ity
+    integer :: i
+    real(kind=8) :: dhi
+    type(vessel), intent(in) :: vsl
+
+    dh = 0.
+    if(ity == 0) then
+        do i=1,8 !label 100...again
+            dhi = 1.8 * (ah(i) + bh(i)*vsl%Tc + ch(i)*vsl%tc**2)
+            dh = dh + vsl%xl(i)*xmw(i)*dhi
+        end do
+    else
+        do i=1,8
+            dhi = 1.8 * (ag(i) + bg(i)*vsl%tc + cg(i)*vsl%tc**2)
+            dh = dh + vsl%xv(i)*xmw(i)*dhi
+        end do
+        dh = dh - 3.57696e-6
+    end if
+    return
+end function calc_delta_h
+
+subroutine set_vessel_temperature(vsl, ity)
+!   replaces tesub2
+!   for R, S, C, called with ity = 0. For V, called with ity = 2
+    use entities
+    logical :: converged
+    integer, intent(in) :: ity
+    integer :: i
+    real(kind=8) :: calc_vessel_heat, calc_delta_h, dh, dT, err, h_test, T_in
+    type(vessel) :: vsl
+
+    T_in = vsl%Tc
+    converged = .FALSE.
+    do i=1,100 !label 250
+        h_test = calc_vessel_heat(vsl, ity)
+        err = h_test - vsl%es
+        dh = calc_delta_h(vsl, ity) 
+        dT = -err/dh
+        vsl%Tc = vsl%Tc + dT !main mutator of T
+        if(abs(dT) < 1.e-12) then
+            converged = .TRUE.
+            exit
+        end if
+    end do
+!   T is reset if error never converges.
+    if (.not. converged) vsl%tc = T_in 
+    vsl%tk = vsl%tc + 273.15
+    return
+end subroutine set_vessel_temperature
+
+subroutine set_vessel_pressure(vsl)
+    use constants
+    use entities
+    integer :: i
+    type(vessel) :: vsl
+
+    do i=1,3 !label 1110 - for R and S only
+        vsl%pp(i) = vsl%ucv(i) * rg * vsl%tk / vsl%vv
+    end do
+    do i=4,8 !label 1120 - for R and S only
+        vsl%pp(i) = vsl%xl(i) * exp(avp(i) + bvp(i)/(vsl%tc + cvp(i))) !Antoine eq.
+    end do
+    vsl%pt = sum(vsl%pp)
+    !label 1130
+    vsl%xv = vsl%pp / vsl%pt
+    vsl%utv = vsl%pt * vsl%vv/rg/vsl%tk
+    do i=4,8 !label 1140
+        vsl%ucv(i) = vsl%utv * vsl%xv(i)
+    end do
+end subroutine set_vessel_pressure
+
+subroutine set_vessel_density(vsl) 
+!           was tesub4
+    use constants
+    use entities
+    real(kind=8) :: v
+    type(vessel), intent(inout) :: vsl
+
+    v = sum(vsl%xl * xmw / (ad + (bd+cd * vsl%tc) * vsl%tc))
+    vsl%density = 1.0/v
+end subroutine set_vessel_density
+
+subroutine set_heat_transfer(vsl, vsl_type, vpos, time)
+    use entities
+    use tewalk
+!   common block
+    integer :: ivst
+    real(kind=8) :: &
+    twr, tws, fwr, fws, &
+    delta_xr, reaction_rate, reaction_heat,  &
+    vcv, vrng, vtau, &
+    sfr, &
+    tcwr, tcws, &
+    xdel, xns, &
+    t_gas, t_prod, vst
+    type(agitator) :: agtatr
+    type(vessel) :: r, s, c, v
+    type(stream) :: sm
+    type(compressor) :: cmpsr
+    common /teproc/ &
+    r, s, c, v, &
+    twr, tws, fwr, fws, &
+    delta_xr(8), reaction_rate(4), reaction_heat, &
+    vcv(12), vrng(12), vtau(12), &
+    sm(13), &
+    sfr(8), &
+    cmpsr, tcwr, tcws, &
+    agtatr, xdel(41), xns(41), &
+    t_gas, t_prod, vst(12), ivst(12)
+!   common block
+
+    character, intent(in) :: vsl_type
+    real(kind=8), intent(in) :: vpos(12), time
+    real(kind=8) :: uarlev, ua
+    type(vessel), intent(inout) :: vsl
+
+    if (vsl_type == "R") then
+        if(vsl%vl/7.8 > 50.0) then ! 390.
+            uarlev = 1.0
+        elseif(vsl%vl/7.8 < 10.0) then ! 78.
+            uarlev = 0.0
+        else
+            uarlev = 0.025 * vsl%vl/7.8 - 0.25 ! vl / 312.
+        end if
+        ua = uarlev * (-0.5*agtatr%speed**2 + 2.75*agtatr%speed-2.5) * 855490.e-6
+        vsl%qu = ua * (twr-vsl%tc) * (1. - 0.35*random_dist(10,time))
+    else if (vsl_type == "S") then
+        ua = 0.404655 * (1. - 1./(1. + (sm(8)%ftm/3528.73)**4))
+        vsl%qu = ua * (tws-sm(8)%T) *(1. - 0.25*random_dist(11,time))
+    else if (vsl_type == "C") then 
+        ua = vpos(9)*vrng(9)*(1. + random_dist(9,time))/100.0
+        vsl%qu = 0.
+        if(vsl%tc < 100.) vsl%qu = ua*(100.0-vsl%tc)
+    end if
+end subroutine set_heat_transfer
+
+real(kind=8) function metric_gauge(Pa) result(Pg)
+!   converts mmHga to kPag
+    real(kind=8), intent(in) :: Pa
+
+    Pg = (Pa-760.0)/760.0*101.325
+    return
+end function metric_gauge

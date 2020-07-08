@@ -25,8 +25,16 @@
 include "teprob.f95"
 include "tecontrol.f95"
 
-program TEmain
-!   TODO: fix delta_t
+!  layout of state vector:
+
+!  |1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
+!  | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
+
+!  | 37|| 38||   39-50   |,
+!  |twr||tws|| vcv/vpos? |,
+
+program temain
+!   TODO: fix delta_t, xmeas(42), general output format
     implicit none
 !   measurement and valve common block
     real(kind=8) :: xmeas, xmv, fxmeas, xmv0, taufil, alpha
@@ -96,7 +104,9 @@ program TEmain
         if (mod(i, 3600) == 0) then
             call set_idvs
         end if
+       ! call sleep(1)
         call tefunc(state, size(state), derivative, time)
+        !print *, state(1:8)
         call output(time)
         call intgtr(state, size(state), derivative, time, delta_t)
         call filter_xmeas(time)
@@ -135,8 +145,8 @@ subroutine outputinit
     write(60, *) "time  ", "a_c_ratio  ", "b_comp  ", "d_feed  ", "reactor_cool_step  ", "condensor_cool_step  ", &
                  "a_feed_loss  ", "c_Pressure_loss  ", "a_b_c_feed  ", "d_T  ", "c_T  ", "reactor_cool_T  ", "condensor_cool_T  ", &
                  "reaction_kinetics  ", "reactor_cool_stick  ", "condensor_cool_stick  ", &
-                 "unknown", "unknown", "unknown", "unknown", "unknown", &
-                 "Reactor Integrity", "DDoS 1", "D feed DDoS", "Noise 1"
+                 "unknown  ", "unknown  ", "unknown  ", "unknown  ", "unknown  ", &
+                 "Reactor_Integrity  ", "DDoS_1  ", "D_feed_DDoS  ", "Noise_1"
 end subroutine outputinit
 
 subroutine output(time)
@@ -152,7 +162,6 @@ subroutine output(time)
 !   write matlab output every n samples
     n=1
     if(mod(icount,n) == 0) then
-!       matlab output
         write(30,101) time, xmeas(8),xmeas(9),xmeas(12),xmeas(15), &
         xmeas(7),xmeas(17),xmeas(30),xmeas(40)/xmeas(41),xmv(2), &
         xmv(10),xmv(11),xmv(7),xmv(4),xmv(8),xmv(6),xmv(1), &
@@ -186,11 +195,11 @@ subroutine filter_xmeas(time)
 
     if (time /= 0) then
         do k=1,22
-            fxmeas(k)=alpha(k)*xmeas(k)+(1-alpha(k))*fxmeas(k)
+            fxmeas(k) = alpha(k)*xmeas(k)+(1-alpha(k))*fxmeas(k)
         end do 
     else
         do k=1,22
-            fxmeas(k)=xmeas(k)
+            fxmeas(k) = xmeas(k)
         end do 
     end if
 end subroutine filter_xmeas
@@ -202,15 +211,19 @@ subroutine set_idvs
 
     logical :: init
     integer :: i
-    real(kind=8), parameter :: aggression = 0.9
-    real(kind=8) :: rand1
+    real(kind=8) :: aggression, rand
+    character(len=10) :: aggression_param
     data init /.FALSE./
+    aggression = 0.1
 
+    call get_command_argument(1, aggression_param)
+    read(aggression_param,'(f10.0)') aggression
+    aggression = 1 / aggression
     idv = 0
     if (init) then
         do i=1,size(idv)
-            call random_number(rand1)
-            if (rand1 > aggression) idv(i) = 1
+            call random_number(rand)
+            if (rand + aggression > 1.) idv(i) = 1
         end do
     else
         init = .TRUE.
