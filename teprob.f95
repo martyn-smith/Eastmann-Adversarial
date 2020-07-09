@@ -185,6 +185,21 @@
 !    idv(24)  C feed (mv(3)), Purge flow (mv(5)), Stripper underflow (meas(16)),
 !             Stripper steam (xmeas(8))                       Noise, 7,727 to 71,291 h.
 !
+!    Stream mappings
+!
+!    sm(1)  D feed -> V
+!    sm(2)  E feed -> V
+!    sm(3)  A feed -> V
+!    sm(4)  A & C feed -> sm(12)
+!    sm(5)  C (Stripper) -> V (compressor?)
+!    sm(6)  V (compressor) -> sm(7)
+!    sm(7)  V -> R (Reactor)
+!    sm(8)  R (Reactor) -> S (Separator)
+!    sm(9)  S (Separator) -> V (compressor?)
+!    sm(10) S (Separator) -> purge
+!    sm(11) S (Separator) -> sm(12)
+!    sm(12) sm(4) + S (Separator) -> C (Stripper)
+!    sm(13) C (Stripper) -> prod
 !===============================================================================
 
 include "tewalk.f95"
@@ -827,9 +842,9 @@ subroutine tefunc(state, nn, derivative, time)
 !   delta V.et
     derivative(36) = sm(1)%H*sm(1)%ftm + sm(2)%H*sm(2)%ftm + sm(3)%H*sm(3)%ftm  &
                      + sm(5)%H*sm(5)%ftm + sm(9)%H*sm(9)%ftm - sm(6)%H*sm(6)%ftm
-
-    derivative(37) = (fwr*500.53* (tcwr-twr)-R%qu*1.e6/1.8)/R%hw !twr
-    derivative(38) = (fws*500.53* (tcws-tws)-S%qu*1.e6/1.8)/S%hw !tws
+!   twr and tws
+    derivative(37) = (fwr*500.53* (tcwr-twr)-R%qu*1.e6/1.8)/R%hw !delta_T in degC, 1.8 is F->C
+    derivative(38) = (fws*500.53* (tcws-tws)-S%qu*1.e6/1.8)/S%hw
     ivst(10) = idv(14)
     ivst(11) = idv(15)
     ivst(5) = idv(19)
