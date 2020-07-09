@@ -7,7 +7,7 @@ TE:
 		-Wall -static -std=f2003 temain.f95;
 	gfortran -fdefault-real-8 -O3 -std=f2003 temain.f95;
 	./a.out; 
-	#./to_csv.sh
+	./utils/to_csv.sh
 
 results:
 	@echo "making output folder"

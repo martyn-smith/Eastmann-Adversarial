@@ -3,7 +3,7 @@ do
 #replace leading spaces
 sed -i 's/^ */"/g' $file
 #replace middle spaces
-sed -i 's/  /","/g' $file
+sed -i 's/ \+/","/g' $file
 #replace trailing
 sed -i 's/$/"/g' $file
 done

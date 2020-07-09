@@ -36,7 +36,7 @@ a,d,e ->                                  c ->
 
 ###############################################################################
 
-Notes on C to Python conversion:
+Notes on Fortran to Python conversion:
 
     Lots more OO and abstraction, in particular Stream() (13x) and Vessel() (4x).
     Also, add Sensors().  Maybe some JSON too.  Everyone like json.
@@ -60,7 +60,7 @@ High-level overview of run():
 10) calculate Pressure of D,E,F,G,H
 11) calculate XVs from PPs
 12) calculate whatever RRs are 
-13) ditto CRXR, XMWs
+13) ditto delta_xr, XMWs
 14) Set temps
 15) set_heat on streams()
 16) calculate flows
@@ -77,7 +77,8 @@ High-level overview of run():
 
 ############################################################################### 
 
-    50 State Variables
+
+    50 State vector
 
 #   |0|,
 #   |?|,
@@ -88,6 +89,7 @@ High-level overview of run():
 #   | 37|| 38|| 39-50|,
 #   |twr||tws|| vpos |,
 
+So: ]R, C, S].ucv, ucl, et, twr, tws, vpos are INHERENT. All others can be derived?
 """
 
 """
@@ -100,6 +102,7 @@ Four core loops:
 """
 import numpy as np
 from math import exp, sqrt
+from random import random
 import constants
 
 REACTOR_P_HIGH = 3e3
@@ -113,7 +116,6 @@ STRIP_LEVEL_LOW = 1
 
 class TEprob():
 
-    #static int teinit(const integer *nn, doublereal *time, doublereal *yy, doublereal *yp)
     def __init__(self):
         # the original C matches the following regex:
         # constants.[a-z]{2,3}\[[0-7]\] = (\(float\))?
@@ -127,75 +129,62 @@ class TEprob():
                         .9218489762, 94.59927549, 77.29698353, 63.05263039, 53.97970677, 
                         24.64355755, 61.30192144, 22.21, 40.06374673, 38.1003437, 
                         46.53415582, 47.44573456, 41.10581288, 18.11349055, 50.]
-        self.derivatives = [None] * len(self.state)
 
         #L200 
-        # Removed a weird TEproc alteration that occurs BEFORE init, or PV.__init__
-        self.dvec = DVEC()   
-        self.pv = PV(self.state)
-        self = TEproc(self.pv)
-        self.wlk = WLK()
+        #self.dvec = DVEC()   
         self.time = 0.
+        self.delta_t = 1. / 3600.0
+        self.R, self.S, self.C, self.V = (Reactor(state[0:9], 
+                                                  Coolant(state[36], 7060.), 1300.), 
+                                          Separator(state[9:18], 
+                                                  Coolant(state[37], 11138.), 3500.), 
+                                          C(state[18:27], 256.5), 
+                                          V(state[27:36], 5000.))
+        self.streams = ( FeedStream([.9999, 1e-4, 0., 0., 0., 0., 0., 0.], 45.), 
+                         FeedStream([0., 1e-4, 0., .9999, 0., 0., 0., 0.], 45.), 
+                         FeedStream([0., 0., 0., 0., .9999, 1e-4, 0., 0.], 45.), 
+                         FeedStream(),
+                         Stream([]),
+                         PurgeStream(),
+                         LiquidStream(),
+                         LiquidStream(),
+                         LiquidStream())
+        self.sfr = [0.995, 0.991, 0.99, 0.916, 0.936, 0.938, 0.058, 0.0301]
 
-    #def update(self, state):
-        #will need this to accept states from a http server
-        #self.state = state
+        self.compressor = Compressor(280275, 1.3)
+        self.vpos = [None] * 12
+        self.vrng = [400.0, 400.0, 100.0, 1500.0, 
+                    None, None, 1500.0, 1500.0,
+                    0.03, 1000.0, 1200.0, None]
+        self.vtau = [i / 3600. for i in [8., 8., 6., 9., 
+                                         7., 5., 5., 5., 
+                                         120., 5., 5., 5.]] #L300
+        
+        self.pv = PV()
+        
+        self.rr = [0.] * 4 #reaction rates.
+        self.htr = [.06899381054, .05] #reaction heats
+        self.delta_xr = {"A": None, "B": None, "C": None, "D": None, 
+                     "E": None, "F": None, "G": None, "H": None}
 
-    # called as run(integer *nn=len(state), time, &state[1]=*state, &derivatives[1]=*derivatives)
     def run(self):
-        #locals: flms, hwlk, vovrl, vpr, uas,flcoef, pr, tmpfac, uarlev, r1f, r2f, uac, fin[8]
-        xcmp = [None] * 41 #?
-
-        #L500
-        self.dvec.set_IDVs_0_or_1() #why though
-        self.wlk.set_idvwlk(self.dvec)
-
-        #L900
-        for i in range(9): #(i = 1; i <= 9; ++i)
-            if (self.time >= self.wlk.tnext[i]):
-                hwlk, swlk, spwlk = self.wlk.get_h_s_spwlk(i)
-                self.wlk.tlast[i] = self.wlk.tnext[i]   
-                self.wlk.sub5(i, swlk, spwlk)
-
-        #L910
-        for i in range(9, 12): #(i = 10; i < 12; ++i) #why though
-            if (self.time >= self.wlk.tnext[i]): 
-                hwlk, swlk, spwlk = self.wlk.get_h_s_spwlk(i)
-                self.wlk.tlast[i] = self.wlk.tnext[i]
-                if (swlk > .1):
-                    self.wlk.adist[i] = swlk
-                    self.wlk.bdist[i] = spwlk
-                    self.wlk.cdist[i] = -(swlk * 3. + spwlk * .2) / .01
-                    self.wlk.ddist[i] = (swlk * 2. + spwlk * .1) / .001
-                    self.wlk.tnext[i] = self.wlk.tlast[i] + .1
-                else:
-                    self.dvec.isd = -1
-                    hwlk = self.wlk.hspan[i] * tesub7(self.dvec.isd) + self.wlk.hzero[i]
-                    self.wlk.adist[i] = 0.
-                    self.wlk.bdist[i] = 0.
-                    # Computing 2nd power
-                    self.wlk.cdist[i] = self.wlk.idvwlk[i] / (hwlk **2)
-                    self.wlk.ddist[i] = 0.
-                    self.wlk.tnext[i] = self.wlk.tlast[i] + hwlk
-
-        #L950
-        if (self.time == 0.): #why though
-            self.wlk.reset()
-
+        #locals: hwlk, vovrl, vpr, tmpfac, r1f, r2f, fin[8]
+        #xcmp = [None] * 41 #?
+        #L500, L900, L910, L950 gone
         #stream num and IDV matches
-        self.stream["Strp"].x[0] = (self.wlk.sub8(1, self.time) 
-                                           - self.dvec.idv[0] * .03 #A/C feed
+        self.streams[3].x[0] = (self.wlk.sub8(1, self.time) 
+                                           - self.dvec.idv[0] * .03        #A/C feed
                                            - self.dvec.idv[1] * .00243719) #B composition
-        self.stream["Strp"].x[1] = self.wlk.sub8(2, self.time) + self.dvec.idv[1] * .005
-        self.stream["Strp"].x[2] = (1 - (self.stream["Strp"].x[0] 
-                                                + self.stream["Strp"].x[1]))  #xC = 1 - xA +xB
+        self.streams[3].x[1] = self.wlk.sub8(2, self.time) + self.dvec.idv[1] * .005
+        self.streams[3].x[2] = (1 - (self.streams[3].x[0] 
+                                                + self.streams[3].x[1]))   #xC = 1 - xA +xB
 
         #ambiguous if A or D.  Also sub8 is weird.  Also, D and A feed messed up.
-        self.stream["D"].T = self.wlk.sub8(3, self.time) + self.dvec.idv[2] * 5 #D feed.  Yes, it is Temp.
-        self.stream["C"].T = self.wlk.sub8(4, self.time)
+        self.streams[0].T = self.wlk.sub8(3, self.time) + self.dvec.idv[2] * 5 #D feed.  Yes, it is Temp.
+        self.streams[3].T = self.wlk.sub8(4, self.time)
 
-        self.tcwr = self.wlk.sub8(5, self.time) + self.dvec.idv[3] * 5. #Reactor coolant
-        self.tcws = self.wlk.sub8(6, self.time) + self.dvec.idv[4] * 5. #Condensor coolant
+        self.R.coolant.T_in = self.wlk.sub8(5, self.time) + self.dvec.idv[3] * 5. #Reactor coolant
+        self.S.coolant.T_in = self.wlk.sub8(6, self.time) + self.dvec.idv[4] * 5. #Condensor coolant
 
         r1f = self.wlk.sub8(7, self.time)
         r2f = self.wlk.sub8(8, self.time)
@@ -206,26 +195,26 @@ class TEprob():
         self.S.load(self.state)
         self.V.load(self.state)
 
-        self.twr = self.state[37]
-        self.tws = self.state[38]
+        self.R.coolant.T_out = self.state[37]
+        self.S.coolant.T_out = self.state[38]
 
         #L1035
         for i in range(0, 12):
             self.vpos[i] = self.state[i + 38]
 
         #L1040 abstracted into earlier load() method
-
         #L1050 (conc. calculations, or xl) abstracted into Vessel property
-
         #es calculation abstracted into property methods
 
-        self.R.sub2()
-        self.S.sub2()
-        self.C.sub2()
-        self.V.sub2(2)
-        self.R.sub4()
-        self.S.sub4()
-        self.C.sub4()
+        self.R.set_vessel_temperature()
+        self.S.set_vessel_temperature()
+        self.C.set_vessel_temperature()
+        self.V.set_vessel_temperature()
+        self.R.set_vessel_density()
+        self.S.set_vessel_density()
+        self.C.set_vessel_density()
+        self.R.set_pressure()
+        self.S.set_pressure()
 
         # vl[x] = level
         # level and vv abstracted into property methods
@@ -248,7 +237,6 @@ class TEprob():
             self.S.pp[i] = vpr * self.S.xl[i]
 
         #L1130 (xv, or gaseous concs) abstracted into property
-
         #L1140
         for i in range(4, 8):
             self.R.ucv[i] = self.R.utv * self.R.xv[i]
@@ -256,100 +244,60 @@ class TEprob():
 
         #L1200
         self.set_reaction_rates(r1f, r2f)
-        self.set_crxrs()
-
-        self.rh = (self.rr[0] * self.htr[0] 
-                         + self.rr[1] * self.htr[1])
+        self.set_delta_xrs()
+        self.rh = (self.rr[0] * self.htr[0] + self.rr[1] * self.htr[1])
 
         #self.xmws zeroing removed.
         #why is recirc stream set to same properties as S only?
         #L2010
         #was (5,7,8,9,10,12)
-        self.stream["Strp"].x = self.V.xv
-        self.stream["R out"].x = self.R.xv
-        self.stream["Recirc"].x = self.S.xv
-        self.stream["Purge"].x = self.S.xv #was 8/9
-        self.stream["S out"].x = self.S.xl #was 9/10
-        self.stream["Product"].x = self.C.xl #was 11
+        self.streams[5].x = self.V.xv
+        self.streams[7].x = self.R.xv
+        self.streams[8].x = self.S.xv
+        self.streams[9].x = self.S.xv
+        self.streams[10].x = self.S.xl
+        self.streams[12].x = self.C.xl
 
         for i in (0,1,5,7,8,9): #why just these
             self.xmws[i] = sum(x * xmw for x, xmw in 
-                                      zip(self.stream[i].x, constants.xmw))
+                                      zip(self.streams[i].x, constants.xmw))
 
-        #self.set_stream_temps() 
-        #ERR: Sep has two outputs not three!
-        self.stream["Strp"].T = self.V.T
-        self.stream["R out"].T = self.R.T
-        self.stream["Recirc"].T = self.S.T
-        self.stream["Purge"].T = self.S.T
-        self.stream["S out"].T = self.S.T 
-        self.stream["Product"].T = self.C.T
+        self.streams[5].T = self.V.T
+        self.streams[7].T = self.R.T
+        self.streams[8].T = self.S.T
+        self.streams[9].T = self.S.T
+        self.streams[10].T = self.S.T 
+        self.streams[12].T = self.C.T
 
         for i in (0, 1, 2, 3, 5, 7, 8):
-            self.stream[i].set_heat(1)
-        self.stream[9].H = self.stream[8].H
-        self.stream[10].set_heat(0) 
-        self.stream[12].set_heat(0) 
+            self.streams[i].set_heat()
+        self.streams[9].H = self.streams[8].H 
+        self.streams[10].set_heat() 
+        self.streams[12].set_heat() 
 
-        self.stream[0].flow = self.vpos[0] * self.vrng[0] / 100
-        self.stream[1].flow = self.vpos[1] * self.vrng[1] / 100
-        self.stream[2].flow = (self.vpos[2] 
-                              * (1. - self.dvec.idv[5]) # A Feed Loss (Stream 1) 
-                              * self.vrng[2] / 100)
-        self.stream["C"].flow = (self.vpos[3] 
-                              * (1. - self.dvec.idv[6] * .2)  #C Header Pressure Loss - Reduced Availability (Stream 4)
-                              * self.vrng[3] / 100.
-                              + 1e-10)
-        self.stream[10].flow = self.vpos[6] * self.vrng[6] / 100.
-        self.stream[12].flow = self.vpos[7] * self.vrng[7] / 100.
-        uac = (self.vpos[8] * self.vrng[8] * (self.wlk.sub8(9, self.time) + 1.) / 100.)
-        self.fwr = self.vpos[9] * self.vrng[9] / 100.
-        self.fws = self.vpos[10] * self.vrng[10] / 100.
-        self.agsp = (self.vpos[11] + 150.) / 100.
+        #2,0,1,3,10,12
+        self.streams[0].set_flow(self.vpos[0], self.vrng[0])
+        self.streams[1].set_flow(self.vpos[1],  self.vrng[1])
+        self.streams[2].set_flow(self.vpos[2], self.vrng[2]) # (1. - self.dvec.idv[5]) # A Feed Loss (Stream 1) 
+        self.streams[3].set_flow(self.vpos[3], self.vrng[3]) #C Header Pressure Loss - Reduced Availability (Stream 4)
+        self.streams[10].set_flow(self.vpos[6], self.vrng[6])
+        self.streams[12].set_flow(self.vpos[7], self.vrng[7])
+
+        self.R,coolant.flow = self.vpos[9] * self.vrng[9] / 100.
+        self.S.coolant.flow = self.vpos[10] * self.vrng[10] / 100.
+        self.R.agitator_speed = (self.vpos[11] + 150.) / 100.
 
         # calculating flow from V to Reactor, as stream 5
-        #NOTHING SHOULD FLOW FROM V TO REACTOR.  But whatever, this is DEFINITELY going to reactor.
-        self.stream[5].set_flow(self.V, self.R)
-        # calculating flow from Reactor to Separator, as stream 6
-        self.stream[6].set_flow()
-        self.stream[9].set_flow()
-
-        dlp = max(self.V.P - self.R.P, 0)
-        flms = sqrt(dlp) * 1937.6
-        self.stream[5].flow = flms / self.xmws[5]
-
-
-        dlp = max(self.R.P - self.S.P, 0)
-        flms = sqrt(dlp) * 4574.21 * (1 - self.wlk.sub8(12, self.time) * .25)
-        self.stream[6].flow = flms / self.xmws[7]
-
-        # calculating flow from Separator to Purge?
-        dlp = max(self.S.P - 760. , 0)
-        flms = sqrt(dlp) * self.vpos[5] * .151169
-        self.stream[9].flow = flms / self.xmws[9]
-
-        pr = min(max(self.V.P / self.S.P, 1), 
-                self.cpprmx)
-        flcoef = self.cpflmx / 1.197
-        # Computing 3rd power 
-        flms = self.cpflmx + flcoef * (1 - pr * (pr**2))
-
-        self.compressor_work = (flms 
-                            * (self.S.T_K) * 1.8e-6 * 1.9872 
-                            * (self.V.P - self.S.P) 
-                            / (self.xmws[8] * self.S.P))
-
-        self.stream[8].set_flow(self.V, self.S)
-        dlp = max(self.V.P - self.S.P, 0)
-        flms -= self.vpos[4] * 53.349 * sqrt(dlp)
-        flms = max(flms, .001)
-        self.stream[8].flow = flms / self.xmws[8]
-
-        self.stream[8].H += self.compressor_work / self.stream[8].flow
-        #L5020
-        self.update_fractional_flows()
+        self.streams[5].set_flow(self.V, self.R, 1937.6)
+        self.streams[7].set_flow(self,R, self.S, 4574.21)   #plus random_dist
+        self.streams[9].set_flow(self.S, 0.151169)          #discharges to atmosphere, mult flcoef by vpos[5]
+        self.compressor.set_work(self.S, self.V, self.xmws)
+        self.streams[8].set_flow(self.V, self.S, 53.349)    #plus max thing, check fortran
+        self.streams[8].H += self.compressor.work / self.streams[8].flow
+        #L5020 - as property?
+        #self.update_fractional_flows()
         
-        if (self.stream[10].flow > .1):
+        if (self.streams[10].flow > .1):
             if (self.C.T > 170.):
                 tmpfac = self.C.T - 120.262
             elif (self.C.T < 5.292):
@@ -358,7 +306,7 @@ class TEprob():
                 tmpfac = (363.744 / (177. - self.C.T) 
                           - 2.22579488)
             #vovrl = stripper flow mass balance ()
-            vovrl = self.stream["C"].flow / self.stream["Product"].flow * tmpfac
+            vovrl = self.streams["C"].flow / self.streams["Product"].flow * tmpfac
             self.sfr[3] = vovrl * 8.501 / (vovrl * 8.501 + 1)
             self.sfr[4] = vovrl * 11.402 / (vovrl * 11.402 + 1)
             self.sfr[5] = vovrl * 11.795 / (vovrl * 11.795 + 1)
@@ -372,90 +320,55 @@ class TEprob():
             self.sfr[7] = .98
 
         #L6010
-        fin = self.stream[3].flow_frac + self.stream[10].flow_frac
+        fin = self.streams[3].flow_frac + self.streams[10].flow_frac
 
         #L6020
-        self.stream[4].flow_frac = [i * j for i, j in zip(fin, self.sfr)]
-        self.stream[11].flow_frac = [i - j  for i, j in zip(fin, self.stream[4].flow_frac)]
-        self.stream[4].flow = sum(self.stream[4].flow_frac)
-        self.stream[11].flow = sum(self.stream[11].flow_frac)
+        self.streams[4].flow_frac = [i * j for i, j in zip(fin, self.sfr)]
+        self.streams[11].flow_frac = [i - j  for i, j in zip(fin, self.streams[4].flow_frac)]
+        self.streams[4].flow = sum(self.streams[4].flow_frac)
+        self.streams[11].flow = sum(self.streams[11].flow_frac)
 
         #L6030
         for i in range(8):
-            self.stream[4].x[i] = self.stream[4].flow_frac[i] / self.stream[4].flow
-            self.stream[11].x[i] = self.stream[11].flow_frac[i] / self.stream[11].flow
+            self.streams[4].x[i] = self.streams[4].flow_frac[i] / self.streams[4].flow
+            self.streams[11].x[i] = self.streams[11].flow_frac[i] / self.streams[11].flow
 
-        self.stream[3].T = self.C.T
-        self.stream[10].T = self.C.T
-        self.stream[3].set_heat(1)
-        self.stream[10].set_heat(0)
-        self.stream[6].flow = self.stream[5].flow
-        self.stream[6].H = self.stream[5].H
-        self.stream[6].T = self.stream[5].T
+        self.streams[3].T = self.C.T
+        self.streams[10].T = self.C.T
+        self.streams[3].set_heat() #why again?
+        self.streams[10].set_heat()
+        self.streams[6].flow = self.streams[5].flow
+        self.streams[6].H = self.streams[5].H
+        self.streams[6].T = self.streams[5].T
 
         #L6130
-        self.stream[6].x = self.stream[5].x
-        self.stream[6].flow_frac = self.stream[5].flow_frac
+        self.streams[6].x = self.streams[5].x
+        self.streams[6].flow_frac = self.streams[5].flow_frac
 
-        if (self.R.level / 7.8 > 50.):
-            uarlev = 1.
-        elif (self.R.level / 7.8 < 10.):
-            uarlev = 0.
-        else:
-            uarlev = self.R.level * .025 / 7.8 - .25
-
-        self.uar = (uarlev 
-                          * (self.agsp**2 * -0.5 
-                             + self.agsp * 2.75 - 2.5) 
-                          * .85549)
-        self.R.underflow = (self.uar 
-                           * (self.twr - self.R.T) 
-                           * (1 - self.wlk.sub8(10, self.time) * .35))
-
-        uas = .404655 * (1 - 1 / ((self.stream[7].flow / 3528.73)**4 + 1)) 
-        self.S.underflow = (uas 
-                           * (self.tws - self.stream[7].T) 
-                           * (1 - self.wlk.sub8(11, self.time) * .25))
-
-        self.C.underflow = (uac * (100. - self.C.T) 
-                            if self.C.T < 100 else 0)
+        self.R.set_heat_transfer()
+        self.S.set_heat_transfer()
+        self.C.set_heat_transfer()
 
         self.dvec.isd = 0
         self.pv.update_continuous_xmeas(self)
-        self.pv.check_criticals(self, self.dvec)
+        self.check_criticals()
 
         if (self.time > 0. and self.dvec.isd == 0):
             #L6500
             for i, xn in enumerate(self.xns): #1-22 inclusive
                 self.pv.xmeas[i] += tesub6(xn) #wtf?
-        
+
         # Temp store for sampled process measurements
         # reactor (stream 6) mol%
-        xcmp[22] = self.stream[6].x[0] * 100  # A
-        xcmp[23] = self.stream[6].x[1] * 100  # B
-        xcmp[24] = self.stream[6].x[2] * 100  # C
-        xcmp[25] = self.stream[6].x[3] * 100  # D
-        xcmp[26] = self.stream[6].x[4] * 100  # E
-        xcmp[27] = self.stream[6].x[5] * 100  # F
+        xcmp[22:28] = [i * 100 for i in self.streams[6].x[0:6]]
         # purge (stream 9) mol%
-        xcmp[28] = self.stream[8].x[0] * 100  # A
-        xcmp[29] = self.stream[8].x[1] * 100  # B
-        xcmp[30] = self.stream[8].x[2] * 100  # C
-        xcmp[31] = self.stream[8].x[3] * 100  # D
-        xcmp[32] = self.stream[8].x[4] * 100  # E
-        xcmp[33] = self.stream[8].x[5] * 100  # F
-        xcmp[34] = self.stream[8].x[6] * 100  # G
-        xcmp[35] = self.stream[8].x[7] * 100  # H
+        xcmp[28:36] = [i * 100 for i in self.streams[8].x]
         # product (stream 10) mol%.  Fixed off-by-TWO error
-        xcmp[36] = self.stream[10].x[3] * 100 # D
-        xcmp[37] = self.stream[10].x[4] * 100 # E
-        xcmp[38] = self.stream[10].x[5] * 100 # F
-        xcmp[39] = self.stream[10].x[6] * 100 # G
-        xcmp[40] = self.stream[10].x[7] * 100 # H
+        xcmp[36:] = [i * 100 for i in self.streams[10].x[3:]] 
 
         if (self.time == 0.): #init?
             #L7010
-            #self.pv.update_sampled_xmeas(xcmp)
+            self.pv.update_sampled_xmeas(xcmp)
             for i in range(22, 41): # was 23
                 #WHY?????
                 self.xdel[i] = xcmp[i]
@@ -466,7 +379,8 @@ class TEprob():
         if (self.time >= self.tgas):
             #L7020
             #reactor feed and purge analysis
-            #self.pv.update_sampled_xmeas(xcmp)
+            #self.update_sampled_xmeas()
+            #self.update_gas_xmeas()
             for i in range(22, 36):
                 self.pv.xmeas[i] = self.xdel[i] + tesub6(self.xns[i])
                 self.xdel[i] = xcmp[i]
@@ -474,9 +388,9 @@ class TEprob():
 
         if (self.time >= self.tprod):
             #L7030
-            #self.pv.update_product()
-            #self.pv.update_sampled_xmeas("product", xcmp, self)
-            #PRODUCT FEED
+            #self.update_product_xmeas()
+            #self.update_sampled_xmeas()
+            #product analysis
             for i in range(36, 41):
                 self.pv.xmeas[i] = self.xdel[i] + tesub6(self.xns[i])
                 self.xdel[i] = xcmp[i]
@@ -484,38 +398,38 @@ class TEprob():
 
         #L9010
         for i in range(8):
-            self.derivatives[i] = (self.stream[6].flow_frac[i] 
-                     - self.stream[7].flow_frac[i]
-                     + self.crxr[i])
-            self.derivatives[i + 9] = (self.stream[7].flow_frac[i] - self.stream[8].flow_frac[i] 
-                         - self.stream[9].flow_frac[i] - self.stream[10].flow_frac[i])
-            self.derivatives[i + 18] = self.stream[11].flow_frac[i] - self.stream[12].flow_frac[i]
-            self.derivatives[i + 27] = (self.stream[0].flow_frac[i] + self.stream[1].flow_frac[i]  
-                          + self.stream[2].flow_frac[i] + self.stream[4].flow_frac[i]  
-                          + self.stream[8].flow_frac[i] - self.stream[5].flow_frac[i])
+            self.derivatives[i] = (self.streams[6].flow_frac[i] 
+                     - self.streams[7].flow_frac[i]
+                     + self.delta_xr[i])
+            self.derivatives[i + 9] = (self.streams[7].flow_frac[i] - self.streams[8].flow_frac[i] 
+                         - self.streams[9].flow_frac[i] - self.streams[10].flow_frac[i])
+            self.derivatives[i + 18] = self.streams[11].flow_frac[i] - self.streams[12].flow_frac[i]
+            self.derivatives[i + 27] = (self.streams[0].flow_frac[i] + self.streams[1].flow_frac[i]  
+                          + self.streams[2].flow_frac[i] + self.streams[4].flow_frac[i]  
+                          + self.streams[8].flow_frac[i] - self.streams[5].flow_frac[i])
 
-        self.derivatives[9] = (self.stream[6].H * self.stream[6].flow 
-                         - self.stream[7].H * self.stream[7].flow 
+        self.derivatives[9] = (self.streams[6].H * self.streams[6].flow 
+                         - self.streams[7].H * self.streams[7].flow 
                          + self.rh + self.R.underflow)
         #     Here is the "correct" version of the separator energy balance:
         #     Original off-by-two.
-        self.derivatives[18] = (self.stream[6].H * self.stream[6].ftm
-                                - (self.stream[7].H * self.stream[7].ftm - self.compressor_work)
-                                - self.stream[8].H * self.stream[8].ftm
-                                - self.stream[9].H * self.stream[9].ftm
+        self.derivatives[18] = (self.streams[6].H * self.streams[6].ftm
+                                - (self.streams[7].H * self.streams[7].ftm - self.compressor.work)
+                                - self.streams[8].H * self.streams[8].ftm
+                                - self.streams[9].H * self.streams[9].ftm
                                 - self.S.underflow)
-        self.derivatives[27] = (self.stream[3].H 
-                  * self.stream[3].flow + self.stream[10].H 
-                  * self.stream[10].flow - self.stream[4].H 
-                  * self.stream[4].flow - self.stream[12].H 
-                  * self.stream[12].flow + self.C.underflow)
-        self.derivatives[36] = (self.stream[0].H
-                  * self.stream[0].flow + self.stream[1].H 
-                  * self.stream[1].flow + self.stream[2].H 
-                  * self.stream[2].flow + self.stream[4].H 
-                  * self.stream[4].flow + self.stream[8].H 
-                  * self.stream[8].flow - self.stream[5].H 
-                  * self.stream[5].flow)
+        self.derivatives[27] = (self.streams[3].H 
+                  * self.streams[3].flow + self.streams[10].H 
+                  * self.streams[10].flow - self.streams[4].H 
+                  * self.streams[4].flow - self.streams[12].H 
+                  * self.streams[12].flow + self.C.underflow)
+        self.derivatives[36] = (self.streams[0].H
+                  * self.streams[0].flow + self.streams[1].H 
+                  * self.streams[1].flow + self.streams[2].H 
+                  * self.streams[2].flow + self.streams[4].H 
+                  * self.streams[4].flow + self.streams[8].H 
+                  * self.streams[8].flow - self.streams[5].H 
+                  * self.streams[5].flow)
         self.derivatives[37] = ((self.fwr * 500.53 
                    * (self.tcwr - self.twr) 
                    - self.R.underflow * 1e6 / 1.8) 
@@ -544,11 +458,64 @@ class TEprob():
                            / self.vtau[i])
         if (self.time > 0. and self.dvec.isd != 0):
             #L9030.
-            #WHAT?!
             self.derivatives = [0.] * len(self.state)
 
-###############################################################################
-"""
+# end (run)
+####################################################################################################
+
+    def set_reaction_rates(self, r1f, r2f):
+        #Arrhenius variant.  should be A*exp(-E_act/RT)
+        self.rr = [exp(31.5859536 - 20130.85052843482 / self.R.T_K) * r1f, #A(g) + C(g) + D(g) -> G(l
+                   exp(3.00094014 - 10065.42526421741 / self.R.T_K) * r2f, #A(g) + D(g) + E(g) -> H(l)
+                   exp(53.4060443 - 30196.27579265224 / self.R.T_K),       #A(g) + E(g) -> F(l)
+                   self.rr[2] * .767488334]                                #3D(g) -> 2F(l)
+
+        if (self.R.pp[0] > 0. and self.R.pp[2] > 0.): #so, usually.
+            r1f = self.R.pp[0] ** constants.b73
+            r2f = self.R.pp[2] ** constants.b74
+            self.rr[0] *=  r1f * r2f * self.R.pp[3]
+            self.rr[1] *=  r1f * r2f * self.R.pp[4]
+        else:
+            self.rr[0] = 0.
+            self.rr[1] = 0.
+
+        self.rr[2] *=  self.R.pp[0] * self.R.pp[4]
+        self.rr[3] *=  self.R.pp[0] * self.R.pp[3]
+
+        for i in range(len(self.rr)):
+            self.rr[i] *= self.R.vv
+
+    def set_delta_xrs(self):
+        #why no B? Why D consumption not affected by rr[1]?
+        self.delta_xr["A"] = -self.rr[0] - self.rr[1] - self.rr[2] # was [0]. A consumed by [0,1,2]
+        self.delta_xr["C"] = -self.rr[0] - self.rr[1] # was [2].  D consumed by [0,1]
+        self.delta_xr["D"] = -self.rr[0] - self.rr[3] * 1.5 # was [2].  Should include rr[1]?
+        self.delta_xr["E"] = -self.rr[1] - self.rr[2] # E consumed by [1,2]
+        self.delta_xr["F"] = self.rr[2] + self.rr[3] # was [5]
+        self.delta_xr["G"] = self.rr[0]
+        self.delta_xr["H"] = self.rr[1]
+
+    def check_criticals(self):
+        if (self.xmeas[6] > REACTOR_P_HIGH): 
+            raise ProcessException(1, "High Reactor Pressure")
+        if (self.xmeas[7] / 35.3145 > REACTOR_LEVEL_HIGH): #check units
+            raise ProcessException(2, "High Reactor Liquid Level")
+        if (self.xmeas[7] / 35.3145 < REACTOR_LEVEL_LOW):
+            raise ProcessException(3, "Low Reactor Liquid Level")
+        if (self.xmeas[8] > REACTOR_T_HIGH):
+            raise ProcessException(4, "High Reactor Temperature")
+        if (self.xmeas[11] / 35.3145 > SEP_LEVEL_HIGH):
+            raise ProcessException(5, "High Separator Liquid Level")
+        if (self.xmeas[11] / 35.3145 < SEP_LEVEL_LOW):
+            raise ProcessException(6, "Low Separator Liquid Level")
+        if (self.xmeas[14] / 35.3145 > STRIP_LEVEL_HIGH):
+            raise ProcessException(7, "High Stripper Liquid Level")
+        if (self.xmeas[14] / 35.3145 < STRIP_LEVEL_LOW):
+            raise ProcessException(8, "Low Stripper Liquid Level")
+
+class PV:
+
+    """
     41 Process Measurements (XMEAS) 
     Continuous Process Measurements
 
@@ -643,66 +610,45 @@ class TEprob():
     XMV(12)    Agitator Speed
 """
 
-class PV():
+    def __init__(self):
+        self.xmeas = [None] * 41
+        self.xmv = [None] * 12
 
-    def __init__(self, state):
-        self.xmeas = [None] *41
-        #self.xmeas = [Sensor("A feed"), Sensor("D feed"), Sensor("E feed"), Sensor()]
-        self.xmv = state[38:50]
+    def update_continuous_xmeas(self):
+        self.xmeas[0] = self.streams[0].flow_kscmh              # A feed stream 0 kscmh
+        self.xmeas[1] = self.streams[1].flow * self.xmws[0] * .454     # D feed stream 1 kg/hr
+        self.xmeas[2] = .stream[2].flow * self.xmws[1] * .454   # E feed stream 2 kg/hr
+        self.xmeas[3] = self.streams[3].flow_kscmh              # A and C stream 4 kscmh
+        self.xmeas[4] = self.streams[8].flow_kscmh              # recycle stream 8 kscmh
+        self.xmeas[5] = self.streams[5].flow_kscmh              # reactor feed stream 6 kscmh
+        self.xmeas[6] = self.R.P_kPag                           # reactor P kPa gauge
+        self.xmeas[7] = (self.R.level - 84.6) / 666.7 * 100.    # reactor level %
+        self.xmeas[8] = self.R.T                                # reactor T deg C
+        self.xmeas[9] = self.streams[9].flow_kscmh              # purge stream 9 kscmh
+        self.xmeas[10] = self.S.T                               # separator T deg C
+        self.xmeas[11] = (self.S.level - 27.5) / 290. * 100.    # separator level %
+        self.xmeas[12] = self.S.P_kPag                          # separator P kPa gauge
+        self.xmeas[13] = self.flow[10] / self.dls / 35.3145     # separator underflow stream 10 m3/hr
+        self.xmeas[14] = (self.C.level - 78.25) / self.V.Volume * 100. # stripper level %.  What?!!!!
+        self.xmeas[15] = self.C.P_kPag                          # stripper P kPa gauge
+        self.xmeas[16] = self.flow[12] / self.dlc / 35.3145     # stripper underflow stream 11 m3/hr
+        self.xmeas[17] = self.C.T                               # stripper T deg C
+        self.xmeas[18] = self.C.underflow* 1040. * .454         # stripper flow kg/hr
+        self.xmeas[19] = self.compressor.work * 293.07          # compressor work kWh
+        self.xmeas[20] = self.twr                               # reactor coolant outlet T deg C
+        self.xmeas[21] = self.tws                               # separator coolant outlet T deg C
 
-    def update_continuous_xmeas(self, teproc):
-        self.xmeas[0] = teproc.stream[0].flow_kscmh               # A feed stream 0 kscmh
-        self.xmeas[1] = teproc.stream[1].flow * teproc.xmws[0] * .454     # D feed stream 1 kg/hr
-        self.xmeas[2] = teproc.stream[2].flow * teproc.xmws[1] * .454     # E feed stream 2 kg/hr
-        self.xmeas[3] = teproc.stream[3].flow_kscmh               # A and C stream 4 kscmh
-        self.xmeas[4] = teproc.stream[8].flow_kscmh               # recycle stream 8 kscmh
-        self.xmeas[5] = teproc.stream[5].flow_kscmh               # reactor feed stream 6 kscmh
-        self.xmeas[6] = teproc.R.P_kPag                     # reactor P kPa gauge
-        self.xmeas[7] = (teproc.R.level - 84.6) / 666.7 * 100.    # reactor level %
-        self.xmeas[8] = teproc.R.T                                # reactor T deg C
-        self.xmeas[9] = teproc.stream[9].flow_kscmh               # purge stream 9 kscmh
-        self.xmeas[10] = teproc.S.T                               # separator T deg C
-        self.xmeas[11] = (teproc.S.level - 27.5) / 290. * 100.    # separator level %
-        self.xmeas[12] = teproc.S.P_kPag                           # separator P kPa gauge
-        self.xmeas[13] = teproc.flow[10] / teproc.dls / 35.3145    # separator underflow stream 10 m3/hr
-        self.xmeas[14] = (teproc.C.level - 78.25) / teproc.V.Volume * 100. # stripper level %.  What?!!!!
-        self.xmeas[15] = teproc.C.P_kPag                          # stripper P kPa gauge
-        self.xmeas[16] = teproc.flow[12] / teproc.dlc / 35.3145    # stripper underflow stream 11 m3/hr
-        self.xmeas[17] = teproc.C.T                               # stripper T deg C
-        self.xmeas[18] = teproc.C.underflow* 1040. * .454               # stripper flow kg/hr
-        #self.xmeas[19] = teproc.cpdh * 392.7                     # compressor work kW?
-        self.xmeas[19] = teproc.compressor_work * 293.07          # compressor work kW 
-        self.xmeas[20] = teproc.twr                               # reactor coolant outlet T deg C
-        self.xmeas[21] = teproc.tws                               # separator coolant outlet T deg C
-
-    def update_gas(self):
+    def update_gas_xmeas(self):
         pass
 
     def update_product_xmeas(self):
         pass
 
-    def check_criticals(self, teproc, dvec):
-        if (self.xmeas[6] > REACTOR_P_HIGH): 
-            raise ProcessException(1, "High Reactor Pressure")
-        if (self.xmeas[7] / 35.3145 > REACTOR_LEVEL_HIGH): #check units
-            raise ProcessException(2, "High Reactor Liquid Level")
-        if (self.xmeas[7] / 35.3145 < REACTOR_LEVEL_LOW):
-            raise ProcessException(3, "Low Reactor Liquid Level")
-        if (self.xmeas[8] > REACTOR_T_HIGH):
-            raise ProcessException(4, "High Reactor Temperature")
-        if (self.xmeas[11] / 35.3145 > SEP_LEVEL_HIGH):
-            raise ProcessException(5, "High Separator Liquid Level")
-        if (self.xmeas[11] / 35.3145 < SEP_LEVEL_LOW):
-            raise ProcessException(6, "Low Separator Liquid Level")
-        if (self.xmeas[14] / 35.3145 > STRIP_LEVEL_HIGH):
-            raise ProcessException(7, "High Stripper Liquid Level")
-        if (self.xmeas[14] / 35.3145 < STRIP_LEVEL_LOW):
-            raise ProcessException(8, "Low Stripper Liquid Level")
-
 class ProcessException(Exception):
     #processException will need to set DVEC.isd, and print f"{msg}!! Shutting Down".
     pass
 
+class DVEC():
 """
     20 Process Disturbances
 
@@ -728,187 +674,19 @@ class ProcessException(Exception):
     IDV(19)  Unknown  
     IDV(21)  Cyberattack?
 """
-
-class DVEC():
     #L500
     def __init__(self):
         self.idv = [0] * 20
         self.isd = 0 #general isError flag
 
-    def set_IDVs_0_or_1(self):
-        self.idv = [1 if i > 0 else 0 for i in self.idv] 
+####################################################################################################
 
-class TEproc():
-
-    def __init__(self, pv):
+#     def __init__(self, pv):
         # self.[a-z]{3,4}\[[0-9]{1,2}\] = (\(float\))?
-        self.vpos = [None] * 12
-        self.vrng = [400., 400., 100., 1500.,
-                     None, None, 1500., 1e3,
-                     .03, 1e3, 1200., None]
-
-        self.R = Vessel("Reactor", 1300.) #src=5, dst=6
-        self.S = Vessel("Separator", 3500.) #src=6? dst=[8,9]
-        self.C = Vessel("Stripper", 156.5) #src=9, dst=10
-        self.V = Vessel("V", 5e3) # Condensor?
-
-        self.rr = [0.] * 4 #? so, per vessel.  Reaction rate???
-        self.crxr = {"A": None, "B": None, "C": None, "D": None, 
-                     "E": None, "F": None, "G": None, "H": None}
-
-        self.htr = [.06899381054, .05]
-
-        self.hwr = 7060.
-        self.hws = 11138.
-
-        self.sfr = [.995, .991, .99, .916, 
-                    .936, .938, .058, .0301]
-
-        self.stream = {"A": Stream("A", 5, "gas", [.9999, 1e-4, 0., 0., 0., 0., 0., 0.], 45.), 
-                       "D": Stream("D", 5, "gas", [0., 1e-4, 0., .9999, 0., 0., 0., 0.], 45.), 
-                       "E": Stream("E", 5, "gas", [0., 0., 0., 0., .9999, 1e-4, 0., 0.], 45.), 
-                       "C": Stream("C", "Stripper", "gas", [.485, .005, .51, 0., 0., 0., 0., 0.], 45.), #3
-                       "Strp": Stream("Stripper", 7, "gas"), #4
-                       "R in": Stream(["A","D","E",7], "Reactor", "gas"), #5
-                       "R out": Stream("Reactor","Condensor","gas"), #6
-                       "Recirc": Stream([4,"Compressor"], 5, "gas"), #7
-                       "Purge": Stream("Separator", "Purge", "gas"), #8
-                       "S out": Stream("Separator", "Stripper", "liquid"), #9
-                       "Product": Stream("Stripper", "Product", "liquid"), #10
-                       } #11, 12 removed as coolant
-
-        self.cpflmx = 280275.
-        self.cpprmx = 1.3
-
-        #L300
-        self.vtau = [i / 3600 for i in [8., 8., 6., 9., 
-                                        7., 5., 5., 5., 
-                                        120., 5., 5., 5.]]
-
-        self.xns = [.0012, 18., 22., .05, .2, .21, .3, .5,
-                    .01, .0017, .01, 1., .3, .125, 1., .3,
-                    .115, .01, 1.15, .2, .01, .01, .25, .1, 
-                    .25, .1, .25, .025, .25, .1, .25, .1,
-                    .25, .025, .05, .05, .01, .01, .01, .5, 
-                    .5] #41, so... xmeas property?
-        self.xdel = [None] * 41
-        self.xmws = [None] * 13 #make stream property
-
-        self.vcv = pv.xmv
-        self.vst = [2.] * 12
-        self.ivst = [0] * 12
-        self.stream_include = (0,1,2,3,5,7,8,9,10,12) #makes no sense
-
-    def set_reaction_rates(self, r1f, r2f):
-        #Arrhenius variant.  should be A*exp(-E_act/RT)
-        self.rr = [exp(31.5859536 - 20130.85052843482 / self.R.T_K) * r1f, #A(g) + C(g) + D(g) -> G(l
-                   exp(3.00094014 - 10065.42526421741 / self.R.T_K) * r2f, #A(g) + D(g) + E(g) -> H(l)
-                   exp(53.4060443 - 30196.27579265224 / self.R.T_K),       #A(g) + E(g) -> F(l)
-                   self.rr[2] * .767488334]                                #3D(g) -> 2F(l)
-
-        if (self.R.pp[0] > 0. and self.R.pp[2] > 0.): #so, usually.
-            r1f = self.R.pp[0] ** constants.b73
-            r2f = self.R.pp[2] ** constants.b74
-            self.rr[0] *=  r1f * r2f * self.R.pp[3]
-            self.rr[1] *=  r1f * r2f * self.R.pp[4]
-        else:
-            self.rr[0] = 0.
-            self.rr[1] = 0.
-
-        self.rr[2] *=  self.R.pp[0] * self.R.pp[4]
-        self.rr[3] *=  self.R.pp[0] * self.R.pp[3]
-
-        for i in range(len(self.rr)):
-            self.rr[i] *= self.R.vv
-
-    def set_crxrs(self):
-        #why no B? Why D consumption not affected by rr[1]?
-        self.crxr["A"] = -self.rr[0] - self.rr[1] - self.rr[2] # was [0]. A consumed by [0,1,2]
-        self.crxr["C"] = -self.rr[0] - self.rr[1] # was [2].  D consumed by [0,1]
-        self.crxr["D"] = -self.rr[0] - self.rr[3] * 1.5 # was [2].  Should include rr[1]?
-        self.crxr["E"] = -self.rr[1] - self.rr[2] # E consumed by [1,2]
-        self.crxr["F"] = self.rr[2] + self.rr[3] # was [5]
-        self.crxr["G"] = self.rr[0]
-        self.crxr["H"] = self.rr[1]
 
     def update_fractional_flows(self):
-        for s in self.stream_include:
-            self.stream[s].set_fractional_flow()
-
-class WLK():
-
-    def __init__(self):
-        self.hspan = [.2, .7, .25, .7, 
-                      .15, .15, 1., 1.,
-                      .4, 1.5, 2., 1.5]
-        self.hzero = [.5, 1., .5, 1., 
-                      .25, .25, 2., 2., 
-                      .5, 2., 3., 2.]
-        self.sspan = [.03, .003, 10.,10., 
-                      10., 10., .25, .25, 
-                      .25, 0., 0., 0.]
-        self.szero = [.485, .005, 45., 45., 
-                      35., 40., 1., 1., 
-                      0., 0., 0., 0.]
-        self.spspan = [0.] * 12
-        self.tlast = [0.] * 12
-        self.tnext = [.1] * 12
-        #L550
-        self.idvwlk = np.zeros(12)
-        self.reset()
-
-    def reset(self):
-        #do we need this method at all?
-        self.adist = self.szero
-        self.bdist = [0.] * 12
-        self.cdist = [0.] * 12
-        self.ddist = [0.] * 12
-        #self.tlast = [0.] * 12
-        #self.tnext = [.1] * 12
-
-    def set_idvwlk(self, dvec):
-        self.idvwlk[0] = self.idvwlk[1] = dvec.idv[7]
-        self.idvwlk[2] = dvec.idv[8]
-        self.idvwlk[3] = dvec.idv[9]
-        self.idvwlk[4] = dvec.idv[10]
-        self.idvwlk[5] = dvec.idv[11]
-        self.idvwlk[6] = self.idvwlk[7] = dvec.idv[12]
-        self.idvwlk[8] = dvec.idv[15]
-        self.idvwlk[9] = dvec.idv[16]
-        self.idvwlk[10] = dvec.idv[17]
-        self.idvwlk[11] = dvec.idv[19]
-
-    def get_h_s_spwlk(self, i):
-        hwlk = self.tnext[i] - self.tlast[i]
-        swlk = (self.adist[i] 
-                + hwlk * (self.bdist[i] + hwlk 
-                          * (self.cdist[i] + hwlk * self.ddist[i])))
-        spwlk = (self.bdist[i] 
-                 + hwlk * (self.cdist[i] * 2. 
-                            + hwlk * 3. * self.ddist[i]))
-        return (hwlk, swlk, spwlk)
-        
-    def sub5(self, i, s, sp):
-        idvflag = self.idvwlk[i]
-        h = self.hspan[i] * tesub7(i) + self.hzero[i]
-        s1 = self.sspan[i] * tesub7(i) * idvflag + self.szero[i]
-        s1p = self.spspan[i] * tesub7(i) * idvflag
-        self.adist[i] = s
-        self.bdist[i] = sp
-        # Computing 2nd power 
-        self.cdist[i] = ((s1 - s) * 3 - h * (s1p + sp * 2)) / (h**2)
-        # Computing 3rd power 
-        self.ddist[i] = ((s - s1) * 2 + h * (s1p + sp)) / (h**3)
-        self.tnext[i] = self.tlast[i] + h
-
-    # called as (1=i, time=t)
-    def sub8(self, i, t):
-        h = t - self.tlast[i]
-        return (self.adist[i] 
-                + h * (self.bdist[i] 
-                    + h * (self.cdist[i] + h * self.ddist[i])))
-###############################################################################
-#  new classes
+        for s in self.streams_include:
+            self.streams[s].set_fractional_flow()
 
 class Sensor():
     pass
@@ -916,8 +694,28 @@ class Sensor():
 class Coolant():
     pass
 
+####################################################################################################
+
 """
 13 Streams:
+
+    R -> 7 -> S -> 8 ----------------------------> |
+    |         | -> 10 ->  |                        |
+    |         |     3 ->  C -> 4 ----------------> V <- 0, 1, 2
+    |         |           | -> 11 -> C             |
+    |         |           | -> 12 -> product       |
+    |         -> 9 -> purge                        |
+    <- 6 <------------------------------------- 5 <-
+
+C is more like:
+
+    11 -> C -> 12
+
+     4 -> |
+    11 -> fin -> 12
+          fin * sfr -> 5
+
+TODO: check these
 
     0 -> A input to 5                  / 0/     A feed
     1 -> D input to 5                  / 1/     D feed
@@ -935,9 +733,32 @@ class Coolant():
 
 """
 
-class Stream():
+class FeedStream(Stream):
 
-    def __init__(self, src, dst, state, component_fractions = None, T = None):
+    #CAN accept teprob as argument
+    def set_flow(self, vpos, vrng):
+        self.flow = vpos * vrng / 100
+
+class LiquidStream(Stream):
+
+    def set_heat(self):
+        self.H = sum(self.T 
+                         * constants.xmw[i] 
+                         * (self.T * (constants.ah[i] + constants.bh[i] * self.T / 2 
+                                     + constants.ch[i] * (self.T**2) / 3) 
+                                     * 1.8) 
+                        for i in range(8))
+
+class PurgeStream(Stream):
+
+    def set_flow(self, src, flcoef): #dst is atmosphere
+        dlp = max(self.src.P - self.dst.P, 0)
+        flms = sqrt(dlp) * flcoef
+        self.flow = flms / self.xmws
+
+class Stream:
+
+    def __init__(self, component_fractions = None, T = None):
         self.source = src
         self.sink = dst
         self.state = state #(liquid or gas)
@@ -949,29 +770,24 @@ class Stream():
         self.x = component_fractions #unitless
         #self.flow_frac = [None] * 8 #@property?
 
+    #called as &self.streams[1]=z, &self.tst[1]=t, &self.streams[1]=h, &1=ity
+    #for streams 0,1,2,3,4,5,7,8, ITY = 1. For streams 10, 11, 12 ITY = 0 (liquid?)
+    def set_heat(self, ity): #was sub1
+        #L100
+        self.H = sum(self.T 
+                        * constants.xmw[i]
+                        * ((self.T * (constants.ag[i] + constants.bg[i] * self.T / 2 
+                        + constants.cg[i] * (self.T**2) / 3) * 1.8) + constants.av[i])
+                        for i in range(8))
+
+    def set_flow(self, src, dst, flcoef):
+        dlp = max(self.src.P - self.dst.P, 0)
+        flms = sqrt(dlp) * flcoef
+        self.flow = flms / self.xmws
+
     @property
     def T_K(self):
-        return self.T + 273.15 
-
-    #called as &self.stream[1]=z, &self.tst[1]=t, &self.stream[1]=h, &1=ity
-    def set_heat(self, ity): #was sub1
-        if (ity == 0):
-            self.H = sum(self.T 
-                         * constants.xmw[i] 
-                         * (self.T * (constants.ah[i] + constants.bh[i] * self.T / 2 
-                                     + constants.ch[i] * (self.T**2) / 3) 
-                                     * 1.8) 
-                        for i in range(8))
-            #L100
-        else:
-            self.H = sum(self.T 
-                         * constants.xmw[i]
-                         * ((self.T * (constants.ag[i] + constants.bg[i] * self.T / 2 
-                            + constants.cg[i] * (self.T**2) / 3) * 1.8) + constants.av[i])
-                         for i in range(8))
-                #L200
-        if (ity == 2):
-            self.H -= 3.57696e-6 * self.T_K
+        return self.T + 273.15
 
     @property
     def flow_frac(self): #was fcm, units same as flow
@@ -981,8 +797,129 @@ class Stream():
     def flow_kscmh(self):
         return self.flow * .359 / 35.3145 #1m3 = 35.3145 ft3
 
-class Vessel():
+####################################################################################################
+class Compressor:
 
+    def __init__(self, max_flow, max_PR):
+        self.max_flow = max_flow
+        self.max_PR = max_PR
+
+    def set_work(self, S, V, xmws):
+        pr = min(max(1, self.V.P / self.S.P), self.max_PR)
+        flcoef = self.max_flow / 1.197 
+        flow = self.max_flow + flcoef * (1 - pr * (pr**2))
+        self.work = (flow * S.T_K * 1.8e-6 * 1.9872 
+                            * (V.P - S.P) 
+                            / (xmws[8] * S.P))
+
+class Coolant:
+
+    def __init__(self, T_out, hw):
+        # self.T_in = 
+        self.T_out = 
+        # self.flow = 
+        self.hw = hw
+        pass
+
+class Reactor(Vessel):
+
+    def __init__(self, state, coolant, vt):
+        self.ucv = state[0:4]
+        self.ucl = state[4:9]
+        self.et = state[9]
+        self.vt = vt
+        self.coolant = coolant
+
+    def set_pressure(self):
+        pass
+
+    def set_heat_transfer(self):
+        if (self.level / 7.8 > 50.):
+            uarlev = 1.
+        elif (self.level / 7.8 < 10.):
+            uarlev = 0.
+        else:
+            uarlev = self.level * .025 / 7.8 - .25
+        uar = (uarlev * (self.agitator_speed**2 * -0.5 
+                         + self.agitator_speed * 2.75 - 2.5) 
+                      * .85549)
+        self.qu = (uar * (self.T_out - self.T) 
+                       * (1 - self.wlk.sub8(10, self.time) * .35))
+
+class Separator(Vessel):
+
+    def __init__(self, state, coolant, vt):
+        self.ucv = state[0:4]
+        self.ucl = state[4:9]
+        self.et = state[9]
+        self.vt = vt
+
+    def set_heat_transfer(self, streams):
+         uas = .404655 * (1 - 1 / ((streams[7].flow / 3528.73)**4 + 1)) 
+         self.qu = (uas * (self.T_out - self.streams[7].T) 
+                        * (1 - self.wlk.sub8(11, self.time) * .25))
+
+class C(Vessel):
+
+    def __init__(self, state, vt):
+        self.ucl = state[0:9]
+        self.et = state[9]
+        self.vt = vt
+
+    def set_heat_transfer(self):
+        uac = (self.vpos[8] * self.vrng[8] * (self.wlk.sub8(9, self.time) + 1.) / 100.)
+        self.qu = (uac * (100. - self.C.T) if self.C.T < 100 else 0)
+
+class V(Vessel):
+
+    def __init__(self, state, vt):
+        self.ucv = state[0:9]
+        self.et = state[9]
+        self.vt = vt
+
+    @property
+    def es(self):
+        return self.et / self.utv
+
+    @property
+    def P(self):
+        return self.utv * constants.rg * self.T_K / self.Volume
+
+    @property
+    def utv(self):
+        return sum(self.ucv)
+
+    def calc_vessel_heat(self):
+        return -(3.57696e-6 * self.T_K)
+
+    def calc_delta_h(self):
+        return sum(self.xv[i] 
+                * constants.xmw[i]
+                * (1.8 * (constants.ag[i] 
+                        + constants.bg[i] * self.T 
+                        + constants.cg[i] * (self.T ** 2)))
+                for i in range(8)) - 3.57696e-6
+
+    # was tesub2. V calculates vessel heat and delta_h uniquely.
+    def set_vessel_temperature(self):
+        #mutates self.T, INCLUDING when initialised with T=0
+        T_in = self.T
+        converged = False
+        #L250
+        for _ in range(100):
+            htest = self.calc_vessel_heat() #sub1
+            err = htest - self.es #recall we think es is heat!
+            dh = self.calc_delta_h(dh)
+            dt = -err / dh
+            #mutate T
+            self.T += dt
+            if (abs(dt) < 1e-12):
+                converged = True
+                break #L300
+        if not (converged):
+            self.T = T_in
+
+class Vessel():
     """ 
     A note on name schemes:
 
@@ -1015,37 +952,9 @@ class Vessel():
 
     """
 
-    def __init__(self, name, V):
-        self.name = name
-        self.dl = None
-        self.et = None       # primitive
-        self.pp = [None] * 8       # partial pressure
-        self.underflow = None       # underflow related
-        #TODO: where is T initialised? Not clear in Fortran code
-        self.T = None        # temp in degC
-        self.Volume = V      # total
-        self.ucl = [None] * 8
-        self.ucv = [None] * 8 # V only?
-
-    def load(self, state):
-        if self.name == "Reactor":
-            self.ucv = state[1:4] 
-            self.ucl = state[4:9]
-            self.et = state[9]
-        elif self.name == "Separator":
-            self.ucv = state[10:13]
-            self.ucl = state[13:18]
-            self.et = state[18]
-        elif self.name == "Stripper":
-            self.ucl = state[19:27]
-            self.et = state[27]
-        elif self.name == "V":
-            self.ucv = state[28:36]
-            self.et = state[36]
-
     @property
     def es(self):
-        return (self.et / self.utv if self.name == "V" else self.et / self.utl)
+        return self.et / self.utl
 
     @property
     def level(self):
@@ -1053,8 +962,7 @@ class Vessel():
 
     @property
     def P(self):
-        return (self.utv * constants.rg * self.T_K / self.Volume if self.name == "V" 
-                 else sum(self.pp))
+        return else sum(self.pp)
 
     @property
     def P_kPag(self): #check operator precendece
@@ -1070,8 +978,7 @@ class Vessel():
 
     @property
     def utv(self): #only used for V?
-        return (sum(self.ucv) if self.name == "V"
-                else self.P * self.vv * constants.rg / self.T_K)
+        return else self.P * self.vv * constants.rg / self.T_K
 
     @property
     def vv(self):
@@ -1085,65 +992,44 @@ class Vessel():
     def xv(self):
         return [p / self.P for p in self.pp]
 
-    #both of these methods only associated with sub3.  Move back in?
-    def get_htest(self, ity): #was sub3
-        if (ity == 0):
-            return sum(self.T 
-                        * constants.xmw[i] 
-                        * (self.T * (constants.ah[i] + constants.bh[i] * self.T / 2 
-                                    + constants.ch[i] * (self.T**2) / 3) * 1.8) 
-                        for i in range(8))
-        else:
-            return sum(self.T 
-                        * constants.xmw[i]
-                        * ((self.T * (constants.ag[i] + constants.bg[i] * self.T / 2 
-                            + constants.cg[i] * (self.T**2) / 3) * 1.8) + constants.av[i])
-                        for i in range(8))
-        if (ity == 2):
-            # WOAH what's this weirdness
-            return  - (3.57696e-6 * self.T_K)
+    # was tesub1.
+    def calc_vessel_heat(self):
+        return sum(self.T 
+                    * constants.xmw[i] 
+                    * (self.T * (constants.ah[i] + constants.bh[i] * self.T / 2 
+                                + constants.ch[i] * (self.T**2) / 3) * 1.8) 
+                    for i in range(8))
 
-    def get_dh(self, dh, ity):
-            if (ity == 0):
-                return sum(self.xl[i] 
-                        * constants.xmw[i]
-                        * (1.8 * (constants.ah[i] 
-                                + constants.bh[i] * self.T 
-                                + constants.ch[i] * (self.T ** 2)))
-                        for i in range(8))
-            #L100
-            elif (ity != 2): #check these switches with returns
-                return sum(self.xl[i] 
-                        * constants.xmw[i]
-                        * (1.8 * (constants.ag[i] 
-                                + constants.bg[i] * self.T 
-                                + constants.cg[i] * (self.T ** 2))) 
-                        for i in range(8))
-            #L200
-            if (ity == 2):
-                return dh - 3.57696e-6
+    # was tesub3.
+    def calc_delta_h(self, dh):
+        return sum(self.xl[i] 
+                * constants.xmw[i]
+                * (1.8 * (constants.ah[i] 
+                        + constants.bh[i] * self.T 
+                        + constants.ch[i] * (self.T ** 2)))
+                for i in range(8))
 
-    # called with args xl[c|r|s|v]=z, tc[x]=*t, es[x]=*h, ity).
-    # V ONLY calls with ity==2
-    def sub2(self, ity=0):
-        #mutates self.T.  INCLUDING when initialised with T=0
-        tin = self.T
-        dh = 0
+    # was tesub2.
+    def set_vessel_temperature(self):
+        #mutates self.T, INCLUDING when initialised with T=0
+        T_in = self.T
+        converged = False
         #L250
         for _ in range(100): #needs a Stream() to connect to
-            htest = self.get_htest(ity) #sub1
+            htest = self.calc_vessel_heat() #sub1
             err = htest - self.es #recall we think es is heat!
-            dh = self.get_dh(dh, ity) #sub3
+            dh = self.calc_delta_h(dh)
             dt = -err / dh
             #mutate T
             self.T += dt
             if (abs(dt) < 1e-12):
+                converged = True
                 break #L300
-        # this makes no sense.  Spend all that time mutating T, then just reassign it?
-        self.T = tin
+        if not (converged):
+            self.T = T_in
 
-    # called as: (self.xl[rcsv]=x, &self.R.T=t, &self.dlr=r)
-    def sub4(self):
+    # was tesub4. called as: (self.xl[rcsv]=x, &self.R.T=t, &self.dlr=r)
+    def set_vessel_density(self):
         #L10
         v = sum(self.xl[i] * constants.xmw[i] 
                 / (constants.ad[i] + (constants.bd[i] + constants.cd[i] * self.T)
@@ -1155,16 +1041,7 @@ class Vessel():
 
 # called as (&self.xns[i]=*std, &xmns = *x)
 def tesub6(xn):
-    return (sum(tesub7(i) for i in range(12)) - 6) * xn
-
-# called as (self.dvec.isd=i) OR with raw ints.  
-# TODO: Global randsd is mutated! consider chucking this whole method for random()
-def tesub7(i):
-    global randsd
-    randsd = (randsd * 9228907.) % constants.b78
-    return (randsd / constants.b78 if i >= 0 
-            else randsd * 2 / constants.b78 - 1)
-
+    return (sum(random() for i in range(12)) - 6) * xn
 
 if __name__ == "__main__":
     te = TEprob()

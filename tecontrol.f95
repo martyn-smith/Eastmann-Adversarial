@@ -82,7 +82,7 @@ subroutine contrlinit
 
 end subroutine contrlinit
 
-subroutine contrl
+subroutine contrl()
     save 
 !   discrete control algorithms
 
@@ -101,9 +101,6 @@ subroutine contrl
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20), delta_t
 
     real(kind=8) :: err
-!    dimension icount(20)
-!    data icount /20*0/
-!    data istart /0/
 
 !   example PI controller:
 !     stripper level controller
@@ -134,70 +131,60 @@ subroutine contrl
         endif
     endif
 
-!   reactor temperature control (reactor temperature to cooling water flow)
+!   reactor temperature control (reactor temperature -> reactor coolant flow)
     err=setpt(1)-xmeas(9)
     xmv(10) = xmv(10) &
             + gain(1)*((err-errold(1))+err*delta_t*60./taui(1))
     errold(1)=err
     xmv(10)=max(0.,min(100.,xmv(10)))
-!   reactor level control:
+!   reactor level control (reactor level -> D feed)
     err=setpt(2)-fxmeas(8)
     xmv(2)=xmv(2) &
             + gain(2)*((err-errold(2))+err*delta_t*60./taui(2))
     errold(2)=err
     xmv(2)=max(0.,min(100.,xmv(2)))
-!   product separator level control:
+!   product separator level control (sep level -> condensor coolant flow)
     err=setpt(3)-fxmeas(12)
     xmv(11)=xmv(11) &
             + gain(3)*((err-errold(3))+err*delta_t*60./taui(3))
     errold(3)=err
     xmv(11)=max(0.,min(100.,xmv(11)))
-!   stripper level control:
+!   stripper level control (strip level -> sep pot flow)
     err=setpt(4)-fxmeas(15)
     xmv(7)=xmv(7) &
             + gain(4)*((err-errold(4))+err*delta_t*60./taui(4))
     errold(4)=err
     xmv(7)=max(0.,min(100.,xmv(7)))
-!   stripper underflow control:
+!   stripper underflow control (strip underflow -> product flow)
     err=setpt(5)-xmeas(17)
     xmv(8)=xmv(8) &
                 + gain(5)*((err-errold(5))+err*delta_t*60./taui(5))
     errold(5)=err
     xmv(8)=max(0.,min(100.,xmv(8)))
-!   g/h ratio control:
+!   g/h ratio control (ratio -> a feed)
     err=setpt(6)-xmeas(42)
     xmv(1)=xmv(1) &
             + gain(6)*((err-errold(6))+err*delta_t*60./taui(6))
     errold(6)=err
     xmv(1)=max(0.,min(100.,xmv(1)))
-!   reactor pressure control:
+!   reactor pressure control (reactor pressure -> A and C feed)
     err=setpt(7)-xmeas(7)
     xmv(4)=xmv(4) &
             + gain(7)*((err-errold(7))+err*delta_t*60./taui(7))
     errold(7)=err
     xmv(4)=max(0.,min(100.,xmv(4)))
-!   purge gas b component control:
+!   purge gas b component control (b -> reactor feed rate)
     err=setpt(8)-xmeas(30)
     xmv(6)=xmv(6) &
             + gain(8)*((err-errold(8))+err*delta_t*60./taui(8))
     errold(8)=err
     xmv(6)=max(0.,min(100.,xmv(6)))
-!   reactor feed a component control:
+!   reactor feed a component control (reactor feed A -> E feed)
     err=setpt(9)-xmeas(23)
     xmv(3)=xmv(3) &
             + gain(9)*((err-errold(9))+err*delta_t*60./taui(9))
     errold(9)=err
     xmv(3)=max(0.,min(100.,xmv(3)))
 
-!   gives a bounded random variable dummy
-!   dummy=rand1()
-
-!   if want to use a random binary signal of clockwidth equal to n
-!   samples and upper limit 1, lower limit 0 could add
-!     icount(1)=icount(1)+1
-!     n=10
-!     if(mod(icount(1),n) ==  0)bdummy=dnint(dummy)
-!     write(6,*) dummy,bdummy
-!    istart=1
     return
 end subroutine contrl

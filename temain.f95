@@ -134,7 +134,8 @@ subroutine outputinit
                 "reactor_feed_e_prct  ","reactor_feed_f_prct  ", &
                 "purge_a_prct  ", "purge_b_prct  ", "purge_c_prct  ", "purge_d_prct  ", &
                 "purge_e_prct  ", "purge_f_prct  ", "purge_g_prct  ", "purge_h_prct  ", &
-                "prod_d_prct  ", "prod_e_prct  ", "prod_f_prct  ", "prod_g_prct  ",  "prod_h_prct"
+                "prod_d_prct  ", "prod_e_prct  ", "prod_f_prct  ", "prod_g_prct  ",  "prod_h_prct  ", &
+                "prod_g_h_ratio"
 !   manipulated variables
     open(unit=50,file='inpt.dat',status='unknown')
     write(50, *) "time  ", "a_feed  ", "d_feed  ", "e_feed  ", "a_c_feed  ", "compressor_valve  ", &
@@ -212,13 +213,13 @@ subroutine set_idvs
     logical :: init
     integer :: i
     real(kind=8) :: aggression, rand
-    character(len=10) :: aggression_param
+    !character(len=10) :: aggression_param
     data init /.FALSE./
-    aggression = 0.1
+    aggression = 0.01
 
-    call get_command_argument(1, aggression_param)
-    read(aggression_param,'(f10.0)') aggression
-    aggression = 1 / aggression
+    ! call get_command_argument(1, aggression_param)
+    ! read(aggression_param,'(f10.0)') aggression
+    ! aggression = 1 / aggression
     idv = 0
     if (init) then
         do i=1,size(idv)
