@@ -22,8 +22,9 @@
 !
 !===============================================================================
 !
-include "teprob.f95"
 include "tecontrol.f95"
+include "tewalk.f95"
+include "teprob.f95"
 
 !  layout of state vector:
 
@@ -33,8 +34,19 @@ include "tecontrol.f95"
 !  | 37|| 38||   39-50   |,
 !  |twr||tws|| vcv/vpos? |,
 
+! module filtering
+!     type filter
+!         real(kind=8) :: alpha(22), fxmeas(22), taufil(22), xmv0(12)
+!     end type filter
+!     contains
+!         subroutine filterinit
+!             taufil = 5.0
+!         end subroutine filterinit
+
+! end module filtering
+
 program temain
-!   TODO: fix delta_t, xmeas(42), general output format
+!   TODO: fix delta_t, xmeas(42), general output format, move in argparse
     implicit none
 !   measurement and valve common block
     real(kind=8) :: xmeas, xmv, fxmeas, xmv0, taufil, alpha
@@ -58,8 +70,8 @@ program temain
     integer :: i, npts
     real(kind=8) :: time, state(50), derivative(50)
 
-!   initialise filter times (seconds)
-    taufil = 5.0
+!   display help, if necessary
+    call helptext
 !   open files for output
     call outputinit
 
@@ -70,23 +82,19 @@ program temain
 !   integrator step size:  1 second converted to hours (time-base of simulation)
     delta_t = 1. / 3600.00001
 
+!   filter init
 !   specify some parameters for the relay identification plus some
 !   parameters for the filter
 !   references: i)seborg ii) astrom, automatica, 1984, 20, 645-651
 !   taufil  = filter constant for xmeas(i)
+!   initialise filter times (seconds)
+    taufil = 5.0
     do i=1,22
          alpha(i) = delta_t*3600./taufil(i)
     end do
 
-!   initialise random number generator
-!   dummy = rand1()
-
 !   initialize process (sets time to zero)
     call teinit(state, size(state), derivative, time)
-
-!   mass flow g/ mass flow h =
-!        (molecular weight*mol%g/molecular weight*mol%h)
-    xmeas(42)=(62.0*xmeas(40))/(76*xmeas(41))
 
 !   set the filtered variables equal to the steady-state values
     call filter_xmeas(time)
@@ -114,6 +122,20 @@ program temain
 end program TEmain
 
 !===============================================================================
+subroutine helptext
+    character(len=6) :: flag
+    call get_command_argument(1, flag)
+    if (flag == "-h" .or. flag == "--help") then
+        print *, "usage: te [OPTIONS]/n/n", &
+            "Options:\n", &
+            "\t-h, --help/tDisplay this message/n", &
+            "\t-a [AGGR], --aggression [AGGR]/tRun with aggression parameter AGGR\n", &
+            "\t-p [FNAME]/tRun with disturbances predetermined by FNAME\n", &
+            "\t-xmeas [X] [MAX,MIN]/tRun with XMEAS set to max/min\n", &
+            "\t-xmv [X] [MAX,MIN]/tRun with XMV set to max/min"
+    end if
+end subroutine helptext
+
 subroutine outputinit
     open(unit=30,file='out.dat',status='unknown')
     write(30, *) "time  ", "reactor_level  ", "reactor_temperature  ", "product_sep_level  ", &
@@ -160,7 +182,7 @@ subroutine output(time)
     common /dvec/ idv(24)
     data icount /0/
 
-!   write matlab output every n samples
+!   write output every n samples
     n=1
     if(mod(icount,n) == 0) then
         write(30,101) time, xmeas(8),xmeas(9),xmeas(12),xmeas(15), &
@@ -172,8 +194,8 @@ subroutine output(time)
         write(60,104) time, (idv(k), k=1,24)
     end if
     icount=icount+1
-!   use this sort of format statement for output for matlab (all data on a single
-!   line), the first number is the number of data entries
+
+!   format statements for 
 101 format(21e23.15)
 102 format(43e23.15)
 103 format(13e23.15)
@@ -207,26 +229,32 @@ end subroutine filter_xmeas
 
 subroutine set_idvs
 
+!    use tewalk
     integer :: idv
     common /dvec/ idv(24)
 
     logical :: init
     integer :: i
-    real(kind=8) :: aggression, rand
-    !character(len=10) :: aggression_param
+    real(kind=8) :: aggression = 0.01, rand
+    character(len=8) :: arg
+    character(len=255) :: filename
     data init /.FALSE./
-    aggression = 0.01
 
-    ! call get_command_argument(1, aggression_param)
-    ! read(aggression_param,'(f10.0)') aggression
-    ! aggression = 1 / aggression
-    idv = 0
-    if (init) then
-        do i=1,size(idv)
-            call random_number(rand)
-            if (rand + aggression > 1.) idv(i) = 1
-        end do
-    else
-        init = .TRUE.
-    end if
+    call get_command_argument(1, arg)
+    select case (arg)
+        case ("-a")
+            call get_command_argument(2, arg)
+            read(arg, *) aggression
+            idv = 0
+            if (init) then
+                do i=1,size(idv)
+                    call random_number(rand)
+                    if (rand + aggression > 1.) idv(i) = 1
+                end do
+            end if
+        case ("-p") ! program
+            call get_command_argument(2, filename)
+        case default !"-walk"
+    end select
+    init = .TRUE.
 end subroutine set_idvs

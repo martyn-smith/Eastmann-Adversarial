@@ -37,44 +37,6 @@
 !     reactor -> condensor -> separator -> stripper -> product
 !           <- compressor <- purge <-
 !           <---------------------------------
-
-! High-level overview of run():
-
-! 1 ) set IDVs
-! 2 ) set wlk values
-! 3 ) set Reactor ES, stream[3] properties (the latter by calling sub8)
-! 4 ) load some state into Vessels
-! 5 ) calculate XL from UCL
-! 6 ) sub2?
-! 7 ) sub4? 
-! 8 ) set VL
-! 9 ) calculate Pressure of A,B,C
-! 10) calculate Pressure of D,E,F,G,H
-! 11) calculate XVs from PPs
-! 12) calculate whatever RRs are 
-! 13) ditto delta_xr, XMWs
-! 14) Set temps
-! 15) set_heat on streams()
-! 16) calculate flows
-! 17) calculate flms
-! 18) calculate flow mass fracs
-! 19) calculate flow concs
-! 20) temp and heat conservation
-! 21) underflow
-! 22) XMEAS update
-! 23) errors (based on GROUND TRUTH - change to XMEAS)
-! 24) Separator Energy Balance?
-! 25) VCVs, whatever they are 
-! 26) update derivatives
-
-! ############################################################################### 
-!
-! Four core loops:
-
-!     Reactor.T <- Coolant flow
-!     Reactor.level <- E feed flow
-!     Separator.level <- Condensor Coolant flow
-!     Stripper.level <- Stripper liquid efflux valve
 !
 !  manipulated variables
 !
@@ -205,8 +167,6 @@
 !    sm(13) C (Stripper) -> prod
 !===============================================================================
 
-include "tewalk.f95"
-
 module constants
     real, parameter :: r_gas = 8.314472
     real, parameter :: r_gas_kcal = 1.987e-3
@@ -227,8 +187,8 @@ module constants
     real, parameter :: xmw(8) = [2.0, 25.4, 28.0, 32.0, 46.0, 48.0, 62.0, 76.0] ! definitely gmol-1
     real, parameter :: htr(2) = [0.06899381054, 0.05] !in calmol-1 !
     real, parameter :: x_costs(8) = [2.206, 0., 6.177, 22.06, 14.56, 17.89, 30.44, 22.94] !$kgmol-1 . B is incorrect?
-    real, parameter :: compressor_cost = 0.0536 ! /kWh
-    real, parameter :: strip_steam_cost = 0.0318 ! /kg
+    real, parameter :: compressor_cost = 0.0536 ! /kWh-1
+    real, parameter :: strip_steam_cost = 0.0318 ! /kg-1
 end module constants
 
 module entities
@@ -323,8 +283,6 @@ subroutine teinit(state, nn, derivative, time)
     common /dvec/ idv(24)
 
     common /wlk/ wlk
-    ! adist(12), bdist(12), cdist(12), ddist(12), tlast(12), tnext(12), &
-    ! hspan(12), hzero(12), sspan(12), szero(12), spspan(12), idvwlk(12)
 !    common block
 
     integer, intent(in) :: nn
@@ -386,7 +344,7 @@ subroutine teinit(state, nn, derivative, time)
 !  | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
 
 !  | 37|| 38||   39-50   |,
-!  |twr||tws|| vcv/vpos? |,
+!  |twr||tws|| vcv/vpos  |,
 
     state = [10.40491389,  4.363996017,    7.570059737, .4230042431,   24.15513437, &
              2.942597645,  154.3770655,    159.186596,  2.808522723,   63.75581199, &
@@ -790,7 +748,8 @@ subroutine tefunc(state, nn, derivative, time)
         end do
         t_prod = t_prod+0.25
     end if
-!   g/h ratio
+!   mass flow g/ mass flow h =
+!        (molecular weight*mol%g/molecular weight*mol%h)
     xmeas(42) = (62.0*xmeas(40))/(76*xmeas(41))
 
     do i=1,8 !label 9010

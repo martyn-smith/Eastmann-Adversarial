@@ -1,12 +1,11 @@
+!module controller
+!end module
+
 subroutine contrlinit
 !   measurement and valve common block
     real(kind=8) :: xmeas, xmv, fxmeas, xmv0, taufil, alpha
     common /pv/ xmeas(42), xmv(12)
     common /filter/ alpha(22), fxmeas(22), taufil(22), xmv0(12)
-
-!   disturbance vector common block
-    integer :: idv
-    common /dvec/ idv(24)
 
 !   controller common block
     real(kind=8) :: setpt, gain, taui, errold, delta_t
@@ -185,6 +184,5 @@ subroutine contrl()
             + gain(9)*((err-errold(9))+err*delta_t*60./taui(9))
     errold(9)=err
     xmv(3)=max(0.,min(100.,xmv(3)))
-
     return
 end subroutine contrl

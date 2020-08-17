@@ -89,17 +89,9 @@ High-level overview of run():
 #   | 37|| 38|| 39-50|,
 #   |twr||tws|| vpos |,
 
-So: ]R, C, S].ucv, ucl, et, twr, tws, vpos are INHERENT. All others can be derived?
+So: [R, C, S].ucv, ucl, et, twr, tws, vpos are INHERENT. All others can be derived?
 """
 
-"""
-Four core loops:
-
-    Reactor.T <- Coolant flow
-    Reactor.level <- E feed flow
-    Separator.level <- Condensor Coolant flow
-    Stripper.level <- Stripper liquid efflux valve
-"""
 import numpy as np
 from math import exp, sqrt
 from random import random
@@ -134,12 +126,12 @@ class TEprob():
         #self.dvec = DVEC()   
         self.time = 0.
         self.delta_t = 1. / 3600.0
-        self.R, self.S, self.C, self.V = (Reactor(state[0:9], 
-                                                  Coolant(state[36], 7060.), 1300.), 
-                                          Separator(state[9:18], 
-                                                  Coolant(state[37], 11138.), 3500.), 
-                                          C(state[18:27], 256.5), 
-                                          V(state[27:36], 5000.))
+        self.R, self.S, self.C, self.V = (Reactor(self.state[0:9],
+                                                  Coolant(self.state[36], 7060.), 1300.), 
+                                          Separator(self.state[9:18],
+                                                  Coolant(self.state[37], 11138.), 3500.), 
+                                          C(self.state[18:27], 256.5), 
+                                          V(self.state[27:36], 5000.))
         self.streams = ( FeedStream([.9999, 1e-4, 0., 0., 0., 0., 0., 0.], 45.), 
                          FeedStream([0., 1e-4, 0., .9999, 0., 0., 0., 0.], 45.), 
                          FeedStream([0., 0., 0., 0., .9999, 1e-4, 0., 0.], 45.), 
@@ -172,7 +164,7 @@ class TEprob():
         #xcmp = [None] * 41 #?
         #L500, L900, L910, L950 gone
         #stream num and IDV matches
-        self.streams[3].x[0] = (self.wlk.sub8(1, self.time) 
+        self.streams[3].x[0] = (random()
                                            - self.dvec.idv[0] * .03        #A/C feed
                                            - self.dvec.idv[1] * .00243719) #B composition
         self.streams[3].x[1] = self.wlk.sub8(2, self.time) + self.dvec.idv[1] * .005
@@ -542,7 +534,7 @@ class PV:
     XMEAS(20)  Reactor Cooling Water Outlet Temp     Deg C
     XMEAS(21)  Separator Cooling Water Outlet Temp   Deg C
 
-  Sampled Process Measurements
+    Sampled Process Measurements
 
     Reactor Feed Analysis (Stream 5)
         Sampling Frequency = 0.1 hr
@@ -608,7 +600,7 @@ class PV:
     XMV(10)    Reactor Cooling Water Flow
     XMV(11)    Condenser Cooling Water Flow
     XMV(12)    Agitator Speed
-"""
+    """
 
     def __init__(self):
         self.xmeas = [None] * 41
@@ -617,7 +609,7 @@ class PV:
     def update_continuous_xmeas(self):
         self.xmeas[0] = self.streams[0].flow_kscmh              # A feed stream 0 kscmh
         self.xmeas[1] = self.streams[1].flow * self.xmws[0] * .454     # D feed stream 1 kg/hr
-        self.xmeas[2] = .stream[2].flow * self.xmws[1] * .454   # E feed stream 2 kg/hr
+        self.xmeas[2] = self.streams[2].flow * self.xmws[1] * .454   # E feed stream 2 kg/hr
         self.xmeas[3] = self.streams[3].flow_kscmh              # A and C stream 4 kscmh
         self.xmeas[4] = self.streams[8].flow_kscmh              # recycle stream 8 kscmh
         self.xmeas[5] = self.streams[5].flow_kscmh              # reactor feed stream 6 kscmh
@@ -649,7 +641,7 @@ class ProcessException(Exception):
     pass
 
 class DVEC():
-"""
+    """
     20 Process Disturbances
 
     IDV(0)   A/C Feed Ratio, B Composition Constant (Stream 4)          Step
@@ -673,7 +665,7 @@ class DVEC():
     IDV(18)  Unknown              affects IVSTs 5,7,8,9   (Implied) Sticking
     IDV(19)  Unknown  
     IDV(21)  Cyberattack?
-"""
+    """
     #L500
     def __init__(self):
         self.idv = [0] * 20
@@ -732,36 +724,12 @@ TODO: check these
     12 -> condenser coolant out        / /      Stripper output
 
 """
-
-class FeedStream(Stream):
-
-    #CAN accept teprob as argument
-    def set_flow(self, vpos, vrng):
-        self.flow = vpos * vrng / 100
-
-class LiquidStream(Stream):
-
-    def set_heat(self):
-        self.H = sum(self.T 
-                         * constants.xmw[i] 
-                         * (self.T * (constants.ah[i] + constants.bh[i] * self.T / 2 
-                                     + constants.ch[i] * (self.T**2) / 3) 
-                                     * 1.8) 
-                        for i in range(8))
-
-class PurgeStream(Stream):
-
-    def set_flow(self, src, flcoef): #dst is atmosphere
-        dlp = max(self.src.P - self.dst.P, 0)
-        flms = sqrt(dlp) * flcoef
-        self.flow = flms / self.xmws
-
 class Stream:
 
     def __init__(self, component_fractions = None, T = None):
-        self.source = src
-        self.sink = dst
-        self.state = state #(liquid or gas)
+        #self.source = src
+        #self.sink = dst
+        #self.state = state #(liquid or gas)
         self.flow = None #was ftm,
         self.H = None
         self.T = T #was tst, units degC
@@ -797,6 +765,29 @@ class Stream:
     def flow_kscmh(self):
         return self.flow * .359 / 35.3145 #1m3 = 35.3145 ft3
 
+class FeedStream(Stream):
+
+    #CAN accept teprob as argument
+    def set_flow(self, vpos, vrng):
+        self.flow = vpos * vrng / 100
+
+class LiquidStream(Stream):
+
+    def set_heat(self):
+        self.H = sum(self.T 
+                         * constants.xmw[i] 
+                         * (self.T * (constants.ah[i] + constants.bh[i] * self.T / 2 
+                                     + constants.ch[i] * (self.T**2) / 3) 
+                                     * 1.8) 
+                        for i in range(8))
+
+class PurgeStream(Stream):
+
+    def set_flow(self, src, flcoef): #dst is atmosphere
+        dlp = max(self.src.P - self.dst.P, 0)
+        flms = sqrt(dlp) * flcoef
+        self.flow = flms / self.xmws
+
 ####################################################################################################
 class Compressor:
 
@@ -816,108 +807,11 @@ class Coolant:
 
     def __init__(self, T_out, hw):
         # self.T_in = 
-        self.T_out = 
+        self.T_out = T_out
         # self.flow = 
         self.hw = hw
-        pass
 
-class Reactor(Vessel):
-
-    def __init__(self, state, coolant, vt):
-        self.ucv = state[0:4]
-        self.ucl = state[4:9]
-        self.et = state[9]
-        self.vt = vt
-        self.coolant = coolant
-
-    def set_pressure(self):
-        pass
-
-    def set_heat_transfer(self):
-        if (self.level / 7.8 > 50.):
-            uarlev = 1.
-        elif (self.level / 7.8 < 10.):
-            uarlev = 0.
-        else:
-            uarlev = self.level * .025 / 7.8 - .25
-        uar = (uarlev * (self.agitator_speed**2 * -0.5 
-                         + self.agitator_speed * 2.75 - 2.5) 
-                      * .85549)
-        self.qu = (uar * (self.T_out - self.T) 
-                       * (1 - self.wlk.sub8(10, self.time) * .35))
-
-class Separator(Vessel):
-
-    def __init__(self, state, coolant, vt):
-        self.ucv = state[0:4]
-        self.ucl = state[4:9]
-        self.et = state[9]
-        self.vt = vt
-
-    def set_heat_transfer(self, streams):
-         uas = .404655 * (1 - 1 / ((streams[7].flow / 3528.73)**4 + 1)) 
-         self.qu = (uas * (self.T_out - self.streams[7].T) 
-                        * (1 - self.wlk.sub8(11, self.time) * .25))
-
-class C(Vessel):
-
-    def __init__(self, state, vt):
-        self.ucl = state[0:9]
-        self.et = state[9]
-        self.vt = vt
-
-    def set_heat_transfer(self):
-        uac = (self.vpos[8] * self.vrng[8] * (self.wlk.sub8(9, self.time) + 1.) / 100.)
-        self.qu = (uac * (100. - self.C.T) if self.C.T < 100 else 0)
-
-class V(Vessel):
-
-    def __init__(self, state, vt):
-        self.ucv = state[0:9]
-        self.et = state[9]
-        self.vt = vt
-
-    @property
-    def es(self):
-        return self.et / self.utv
-
-    @property
-    def P(self):
-        return self.utv * constants.rg * self.T_K / self.Volume
-
-    @property
-    def utv(self):
-        return sum(self.ucv)
-
-    def calc_vessel_heat(self):
-        return -(3.57696e-6 * self.T_K)
-
-    def calc_delta_h(self):
-        return sum(self.xv[i] 
-                * constants.xmw[i]
-                * (1.8 * (constants.ag[i] 
-                        + constants.bg[i] * self.T 
-                        + constants.cg[i] * (self.T ** 2)))
-                for i in range(8)) - 3.57696e-6
-
-    # was tesub2. V calculates vessel heat and delta_h uniquely.
-    def set_vessel_temperature(self):
-        #mutates self.T, INCLUDING when initialised with T=0
-        T_in = self.T
-        converged = False
-        #L250
-        for _ in range(100):
-            htest = self.calc_vessel_heat() #sub1
-            err = htest - self.es #recall we think es is heat!
-            dh = self.calc_delta_h(dh)
-            dt = -err / dh
-            #mutate T
-            self.T += dt
-            if (abs(dt) < 1e-12):
-                converged = True
-                break #L300
-        if not (converged):
-            self.T = T_in
+###############################################################################
 
 class Vessel():
     """ 
@@ -962,7 +856,7 @@ class Vessel():
 
     @property
     def P(self):
-        return else sum(self.pp)
+        return sum(self.pp)
 
     @property
     def P_kPag(self): #check operator precendece
@@ -978,7 +872,7 @@ class Vessel():
 
     @property
     def utv(self): #only used for V?
-        return else self.P * self.vv * constants.rg / self.T_K
+        return self.P * self.vv * constants.rg / self.T_K
 
     @property
     def vv(self):
@@ -1035,6 +929,104 @@ class Vessel():
                 / (constants.ad[i] + (constants.bd[i] + constants.cd[i] * self.T)
                 * self.T) for i in range(8))
         self.dl = 1 / v #r__
+
+class Reactor(Vessel):
+
+    def __init__(self, state, coolant, vt):
+        self.ucv = state[0:4]
+        self.ucl = state[4:8]
+        self.et = state[8]
+        self.vt = vt
+        self.coolant = coolant
+
+    def set_pressure(self):
+        pass
+
+    def set_heat_transfer(self):
+        if (self.level / 7.8 > 50.):
+            uarlev = 1.
+        elif (self.level / 7.8 < 10.):
+            uarlev = 0.
+        else:
+            uarlev = self.level * .025 / 7.8 - .25
+        uar = (uarlev * (self.agitator_speed**2 * -0.5 
+                         + self.agitator_speed * 2.75 - 2.5) 
+                      * .85549)
+        self.qu = (uar * (self.T_out - self.T) 
+                       * (1 - self.wlk.sub8(10, self.time) * .35))
+
+class Separator(Vessel):
+
+    def __init__(self, state, coolant, vt):
+        self.ucv = state[0:4]
+        self.ucl = state[4:8]
+        self.et = state[8]
+        self.vt = vt
+
+    def set_heat_transfer(self, streams):
+         uas = .404655 * (1 - 1 / ((streams[7].flow / 3528.73)**4 + 1)) 
+         self.qu = (uas * (self.T_out - self.streams[7].T) 
+                        * (1 - self.wlk.sub8(11, self.time) * .25))
+
+class C(Vessel):
+
+    def __init__(self, state, vt):
+        self.ucl = state[0:8]
+        self.et = state[8]
+        self.vt = vt
+
+    def set_heat_transfer(self):
+        uac = (self.vpos[8] * self.vrng[8] * (self.wlk.sub8(9, self.time) + 1.) / 100.)
+        self.qu = (uac * (100. - self.C.T) if self.C.T < 100 else 0)
+
+class V(Vessel):
+
+    def __init__(self, state, vt):
+        self.ucv = state[0:8]
+        self.et = state[8]
+        self.vt = vt
+
+    @property
+    def es(self):
+        return self.et / self.utv
+
+    @property
+    def P(self):
+        return self.utv * constants.rg * self.T_K / self.Volume
+
+    @property
+    def utv(self):
+        return sum(self.ucv)
+
+    def calc_vessel_heat(self):
+        return -(3.57696e-6 * self.T_K)
+
+    def calc_delta_h(self):
+        return sum(self.xv[i] 
+                * constants.xmw[i]
+                * (1.8 * (constants.ag[i] 
+                        + constants.bg[i] * self.T 
+                        + constants.cg[i] * (self.T ** 2)))
+                for i in range(8)) - 3.57696e-6
+
+    # was tesub2. V calculates vessel heat and delta_h uniquely.
+    def set_vessel_temperature(self):
+        #mutates self.T, INCLUDING when initialised with T=0
+        T_in = self.T
+        converged = False
+        #L250
+        for _ in range(100):
+            htest = self.calc_vessel_heat() #sub1
+            err = htest - self.es #recall we think es is heat!
+            dh = self.calc_delta_h(dh)
+            dt = -err / dh
+            #mutate T
+            self.T += dt
+            if (abs(dt) < 1e-12):
+                converged = True
+                break #L300
+        if not (converged):
+            self.T = T_in
 
 ###############################################################################
 # subfuncs
