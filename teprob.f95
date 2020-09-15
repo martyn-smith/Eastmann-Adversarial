@@ -192,7 +192,7 @@ module constants
 end module constants
 
 module entities
-!   C binding conflicts with sequence, which is more necessary.
+!   TODO: C binding conflicts with sequence, which is more necessary.
 !   use iso_c_binding
     type agitator
          sequence
@@ -206,7 +206,7 @@ module entities
 
     type Coolant
             sequence
-            real(kind=8) :: flow, T_in, T_out, h !T_out set by state , h is heat cap?
+            real(kind=8) :: flow, T_in, T_out, h ! T_out set by state vector.  h is heat cap?
     end type Coolant
 
     type Vessel
@@ -233,6 +233,14 @@ module entities
         real(kind=8) :: ftm, fcm(8), x(8), xmws, h, T
     end type Stream
 
+    type Actuator
+        sequence
+        logical :: is_stuck
+        real(kind=8) :: pos, delta_pos, commanded
+    end type Actuator
+
+    type Sensor
+    end type Sensor
 end module entities
 
 subroutine teinit(state, nn, derivative, time)
@@ -286,7 +294,6 @@ subroutine teinit(state, nn, derivative, time)
 !    common block
 
     integer, intent(in) :: nn
-    real :: delta_t
     real(kind=8), intent(out) :: state(nn), derivative(nn), time
 
 !   common /teproc/ assignments. TODO: not all are present, investigate.
@@ -357,9 +364,6 @@ subroutine teinit(state, nn, derivative, time)
              24.64355755,  61.30192144,    22.21,       40.06374673,   38.1003437, &
              46.53415582,  47.44573456,    41.10581288, 18.11349055,   50.]
 
-!   integrator step size:  1 second converted to hours (time-base of simulation)
-    delta_t = 1. / 3600.00001
-
 !   common /pv/ init
 !   label 200
     xmv = state(39:50)
@@ -426,7 +430,8 @@ subroutine tefunc(state, nn, derivative, time)
     integer, intent(in) :: nn
     real(kind=8), intent(in) :: time, state(nn)
     real(kind=8), intent(out) :: derivative(nn)
-    integer :: i, isd
+    logical :: has_failed = .false.
+    integer :: i
     real(kind=8) :: &
     delta_p, flcoef, flms, pr, &
     r1f, r2f, &
@@ -670,47 +675,16 @@ subroutine tefunc(state, nn, derivative, time)
     xmeas(21) = R%cl%T_out ! reactor cooling water outlet temp                 deg c
     xmeas(22) = S%cl%T_out ! separator cooling water outlet temp               deg c
 
-    isd = 0
-    if(xmeas(7) > 3000.0) then
-     isd = 1
-     err_msg = "reactor pressure high"
-    end if
+    call check_failures(has_failed, err_msg)
     if (((R%pt-760.0)/760.0*101.325) > 12000.) then
-        print *, "plant has exploded"
+        has_failed = .true.
+        err_msg = "Reactor has failed"
     end if
-    if(R%vl/35.3145 > 24.0) then 
-        isd=1
-        print *, "Reactor level high"
-    end if
-    if(R%vl/35.3145 < 2.0) then
-        isd=1
-        err_msg = "Reactor level low"
-    end if
-    if(xmeas(9) > 175.0) then
-        isd=1
-        err_msg = "Reactor temp high"
-    end if
-    if(S%vl/35.3145 > 12.0) then 
-        isd=1
-        err_msg = "Sep level high"
-    end if
-    if(S%vl/35.3145 < 1.0) then
-        isd=1
-        err_msg = "Sep level low"
-    end if
-    if(C%vl/35.3145 > 8.0) then
-        isd=1
-        err_msg = "C level high"
-    end if
-    if(C%vl/35.3145 < 1.0) then
-        isd=1
-        err_msg = "C level low"
-    end if
-    if(isd == 1) then
-        print *, err_msg, " at t = ", time
+    if(has_failed) then
+        print *, err_msg, " at t = ", time, " hrs"
         stop
-    end if    
-    if(time > 0.0 .and. isd == 0) then
+    end if
+    if(time > 0.0 .and. .not. has_failed) then
         do i=1,22 !label 6500
             !call tesub6(xns(i),xmns)
             xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
@@ -778,21 +752,19 @@ subroutine tefunc(state, nn, derivative, time)
 !   twr and tws
     derivative(37) = (R%cl%flow * 500.53 * (R%cl%T_in - R%cl%T_out) - R%qu*1.e6/1.8) / R%cl%h !delta_T in degC, 1.8 is F->C
     derivative(38) = (S%cl%flow * 500.53 * (S%cl%T_in - S%cl%T_out) - S%qu*1.e6/1.8) / S%cl%h
-    ivst(10) = idv(14)
-    ivst(11) = idv(15)
-    ivst(5) = idv(19)
-    ivst(7) = idv(19)
-    ivst(8) = idv(19)
-    ivst(9) = idv(19)
+!   sticking idvs
+    ivst(10) = idv(14) !reactor cooling valve sticks
+    ivst(11) = idv(15) !condensor cooling valve sticks
+    ivst(5) = idv(19)  !recycle flow valve sticks
+    ivst(7) = idv(19)  !separator underflow sticks
+    ivst(8) = idv(19)  !stripper underflow sticks
+    ivst(9) = idv(19)  !stripper recirc?
     do i=1,12 !label 9020
-        if(time == 0. .or. abs(vcv(i)-xmv(i)) > vst(i)*ivst(i)) then
-            vcv(i)=xmv(i)
-        end if 
-        if(vcv(i) < 0.0) vcv(i) = 0.0
-        if(vcv(i) > 100.0) vcv(i) = 100.0
-        derivative(i+38) = (vcv(i)-vpos(i))/vtau(i)
+        if (abs(vcv(i)-xmv(i)) > vst(i)*ivst(i)) vcv(i) = xmv(i)
+        vcv(i) = min(max(vcv(i), 0.0), 100.0)
+        derivative(i+38) = (vcv(i)-vpos(i)) / vtau(i)
     end do
-    if(isd /= 0) then
+    if(has_failed) then
         !label 9030
         derivative = 0.
     end if

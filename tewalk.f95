@@ -1,3 +1,130 @@
+subroutine perturb_xmv(time)
+
+    real(kind=8) :: xmeas, xmv
+    common /pv/ xmeas(42), xmv(12)
+
+    real(kind=8), intent(in) :: time
+    logical :: init = .false.
+    integer :: i = 0, j = 0
+    real(kind=8) :: period, amp
+    character(len=10) :: tmp, mode = ""
+
+        if (.not. init) then
+            do j = 1, command_argument_count()
+                call get_command_argument(j, tmp)
+                if (tmp == "--xmv") exit
+            end do
+            call get_command_argument(j+1, tmp)
+            read(tmp, *) i
+            call get_command_argument(j+2, tmp)
+            read(tmp, *) mode
+        end if
+        select case (mode)
+            case ("MAX")
+                xmv(i) = 100.
+            case ("MIN")
+                xmv(i) = 0.
+            case ("STICK")
+            case ("SINE")
+                call get_command_argument(j+3, tmp)
+                read(tmp, *) period
+                call get_command_argument(j+4, tmp)
+                read(tmp, *) amp
+                xmv(i) = xmv(i) + amp * sin(2 * 3.14159 * (time * 3600.) / period)
+                xmv(i) = max(0., min(100.,xmv(i)))
+            case ("SQUARE")
+                call get_command_argument(j+3, tmp)
+                read(tmp, *) period
+                call get_command_argument(j+4, tmp)
+                read(tmp, *) amp
+                xmv(i) = xmv(i) + amp * (-1) ** floor(2 * (time * 3600.) / period)
+                xmv(i) = max(0., min(100.,xmv(i)))
+        end select
+    init = .true.
+end subroutine perturb_xmv
+
+subroutine perturb_xmeas(time)
+
+    real(kind=8) :: xmeas, xmv
+    common /pv/ xmeas(42), xmv(12)
+
+    real(kind=8), intent(in) :: time
+    logical :: init = .false.
+    integer :: i = 0, j = 1
+    real(kind=8) :: period, amp
+    character(len=10) :: tmp, mode = ""
+
+    if (.not. init) then
+        do j = 1, command_argument_count()
+            call get_command_argument(j, tmp)
+            if (tmp == "--xmeas") exit
+        end do
+        call get_command_argument(j+1, tmp)
+        read(tmp, *) i
+        call get_command_argument(j+2, tmp)
+        read(tmp, *) mode
+    end if
+    select case (mode)
+        case ("MAX")
+            xmeas(i) = 200.
+        case ("MIN")
+            xmeas(i) = -10.
+        case ("STICK")
+        case ("SINE")
+            call get_command_argument(j+3, tmp)
+            read(tmp, *) period
+            call get_command_argument(j+4, tmp)
+            read(tmp, *) amp
+            xmeas(i) = xmeas(i) + amp * sin(2 * 3.14159 * (time * 3600.) / period)
+            xmeas(i) = max(0., min(100.,xmeas(i)))
+        case ("SQUARE")
+            call get_command_argument(j+3, tmp)
+            read(tmp, *) period
+            call get_command_argument(j+4, tmp)
+            read(tmp, *) amp
+            xmeas(i) = xmeas(i) + amp * (-1) ** floor(2 * (time * 3600.) / period)
+            xmeas(i) = max(0., min(100.,xmeas(i)))
+    end select ! xmeas variations
+    init = .true.
+end subroutine perturb_xmeas
+
+
+subroutine zero_idvs()
+    integer :: idv
+    common /dvec/ idv(24)
+
+    idv = 0
+end subroutine zero_idvs
+
+subroutine set_idvs()
+
+    integer :: idv
+    common /dvec/ idv(24)
+
+    logical :: init = .false.
+    integer :: i, j !, k=0
+    real(kind=8) :: rand
+    real(kind=8) :: aggression = 0.01
+    character(len=10) :: tmp, aggression_param
+    !character(len=255) :: filename
+
+    idv = 0
+    if (.not. init) then
+        do j = 1, command_argument_count()
+            call get_command_argument(j, tmp)
+            if (tmp == "-a" .or. tmp == "--aggression") exit
+        end do
+        call get_command_argument(j+1, aggression_param)
+        if (aggression_param /= "") read(aggression_param, *) aggression
+        init = .true.
+    else
+        do i=1,size(idv)
+            call random_number(rand)
+            if (rand + aggression > 1.) idv(i) = 1
+        end do
+    end if
+end subroutine set_idvs
+
 module tewalk
     type walk
         sequence

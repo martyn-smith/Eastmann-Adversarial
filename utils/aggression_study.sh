@@ -1,7 +1,11 @@
-for i in {5..1} ; do
+echo "testing aggression"
+results='aggression_ttf.txt'
+aggression_levels='0.00001 0.0001 0.001 0.01 0.1'
+touch $results
+for i in $aggression_levels; do
     echo "testing" $i
-    echo $i >> aggression_ttf.txt
+    echo $i >> $results
     for j in {1..100} ; do
-    ./bin/aggression_adjustable.out $((10 ** i)) >> aggression_ttf.txt
+    ./builds/te_$(date +"%d%m%y") -a $i >> $results
     done
 done

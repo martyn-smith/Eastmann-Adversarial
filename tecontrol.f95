@@ -3,34 +3,13 @@
 
 subroutine contrlinit
 !   measurement and valve common block
-    real(kind=8) :: xmeas, xmv, fxmeas, xmv0, taufil, alpha
+    real(kind=8) :: xmeas, xmv, fxmeas, taufil, alpha
     common /pv/ xmeas(42), xmv(12)
-    common /filter/ alpha(22), fxmeas(22), taufil(22), xmv0(12)
+    common /filter/ alpha(22), fxmeas(22), taufil(22)
 
 !   controller common block
-    real(kind=8) :: setpt, gain, taui, errold, delta_t
-    common /ctrl/ setpt(20), gain(20), taui(20), errold(20), delta_t
-
-!   specify the relay common block
-    integer :: rlout, rlin
-    real(kind=8) :: dumm, pert, signp, rlset
-    common /relay/ dumm, pert, rlset, signp, rlout, rlin
-
-!   set up the relay if desired.
-!   dumm = dummy variable...
-!   dumm= 1 ----> relay is active
-!   dumm = 0 ----> relay is inactive
-    dumm = 0.
-!   and the perturbation size
-    pert = 5.
-!   sign of steady-state process gain (if increasing manipulated variable
-!   increases measured variable then signp=1. else signp=-1.)
-    signp = -1.
-!   measured variable
-    rlout = 9
-!   manipulated variable
-    rlin = 10
-    rlset = fxmeas(rlout)
+    real(kind=8) :: setpt, gain, taui, errold
+    common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
 !   set controller parameters
 !   reactor temperature control
@@ -78,28 +57,25 @@ subroutine contrlinit
     errold(9)=0.
     gain(9)=4.1
     taui(9)=81.9
-
 end subroutine contrlinit
 
-subroutine contrl()
+subroutine contrl(delta_t)
     save 
 !   discrete control algorithms
 
 !   measurement and valve common block
-    real(kind=8) :: xmeas, xmv, fxmeas, xmv0, taufil, alpha
+    real(kind=8) :: xmeas, xmv, fxmeas, taufil, alpha
     common /pv/ xmeas(42), xmv(12)
-    common /filter/ alpha(22), fxmeas(22), taufil(22), xmv0(12)
-
-!   relay common block
-    integer :: rlout, rlin
-    real(kind=8) :: dumm, rlset, pert, signp
-    common /relay/ dumm, pert, rlset, signp, rlout, rlin
+    common /filter/ alpha(22), fxmeas(22), taufil(22)
 
 !   controller common block
-    real(kind=8) :: setpt, gain, taui, errold, delta_t
-    common /ctrl/ setpt(20), gain(20), taui(20), errold(20), delta_t
+    real(kind=8) :: setpt, gain, taui, errold
+    common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
+    real(kind=8), intent(in) :: delta_t
+    integer :: target
     real(kind=8) :: err
+    character(len=5) :: flag
 
 !   example PI controller:
 !     stripper level controller
@@ -121,15 +97,12 @@ subroutine contrl()
 !
 !       xmv(8)=max(0.,min(100.,xmv(8)))      
 
-!   relay testing
-    if(dumm > 0.5)then
-        if(fxmeas(rlout) > rlset)then
-            xmv(rlin)=xmv0(rlin)-signp*pert         
-        elseif(fxmeas(rlout) < rlset)then
-            xmv(rlin)=xmv0(rlin)+signp*pert          
-        endif
-    endif
-
+!   reactor pressure control (reactor pressure -> A and C feed)
+    err=setpt(7)-xmeas(7)
+    xmv(4)=xmv(4) &
+            + gain(7)*((err-errold(7))+err*delta_t*60./taui(7))
+    errold(7)=err
+    xmv(4)=max(0.,min(100.,xmv(4)))
 !   reactor temperature control (reactor temperature -> reactor coolant flow)
     err=setpt(1)-xmeas(9)
     xmv(10) = xmv(10) &
@@ -166,12 +139,6 @@ subroutine contrl()
             + gain(6)*((err-errold(6))+err*delta_t*60./taui(6))
     errold(6)=err
     xmv(1)=max(0.,min(100.,xmv(1)))
-!   reactor pressure control (reactor pressure -> A and C feed)
-    err=setpt(7)-xmeas(7)
-    xmv(4)=xmv(4) &
-            + gain(7)*((err-errold(7))+err*delta_t*60./taui(7))
-    errold(7)=err
-    xmv(4)=max(0.,min(100.,xmv(4)))
 !   purge gas b component control (b -> reactor feed rate)
     err=setpt(8)-xmeas(30)
     xmv(6)=xmv(6) &
@@ -184,5 +151,66 @@ subroutine contrl()
             + gain(9)*((err-errold(9))+err*delta_t*60./taui(9))
     errold(9)=err
     xmv(3)=max(0.,min(100.,xmv(3)))
+!   set attacks
+    call get_command_argument(1, flag)
+    if (flag == "-xmv") then
+        call get_command_argument(2, flag)
+        read(flag, *) target
+        if (target <= size(xmv)) then
+            call get_command_argument(3, flag)
+            select case (flag)
+                case ("MAX")
+                    xmv(target) = 100.0
+                case ("MIN")
+                    xmv(target) = 0.0
+                case default
+            end select
+        else !invalid target
+            print *, "invalid target"
+        endif
+    endif
     return
 end subroutine contrl
+
+subroutine check_failures(has_failed, err_msg)
+!   common block
+    real(kind=8) :: xmeas, xmv
+    common /pv/ xmeas(42), xmv(12)
+!   common block
+
+    logical, intent(inout) :: has_failed
+    character(len=25), intent(inout) :: err_msg
+
+    if(xmeas(7) > 3000.0) then
+        has_failed = .true.
+        err_msg = "Reactor pressure high"
+    end if
+    if(xmeas(8) > 114.4 ) then ! 24.0 m^3
+           has_failed = .true.
+           err_msg = "Reactor level high"
+    end if
+    if(xmeas(8) < -2.0) then ! 2.0m^3
+           has_failed = .true.
+           err_msg = "Reactor level low"
+    end if
+    if(xmeas(9) > 175.0) then
+           has_failed = .true.
+           err_msg = "Reactor temp high"
+    end if
+    if(xmeas(12) > 137.0) then ! 12.0 m^3
+           has_failed = .true.
+           err_msg = "Sep level high"
+    end if
+    if(xmeas(12) < 2.7) then ! 1.0 m^3
+           has_failed = .true.
+           err_msg = "Sep level low"
+    end if
+    if(xmeas(15) > 131.0) then ! 8.0 m^3
+          has_failed = .true.
+           err_msg = "Stripper level high"
+    end if
+    if(xmeas(15) < -2.7) then ! 1.0 m^3
+           has_failed = .true.
+           err_msg = "Stripper level low"
+    end if
+end subroutine check_failures
