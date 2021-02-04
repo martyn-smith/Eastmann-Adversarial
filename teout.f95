@@ -4,7 +4,7 @@ subroutine outputinit
                 "strip_level  ", "reactor_pressure  ", "strip_underflow  ", "b_purge_prct  ", &
                 "prod_g/h  ", "d_feed  ", "reactor_cool  ", "condensor_cool  ", & 
                 "sep_prod_flow  ", "a_c_feed  ", "strip_prod_flow  ", "purge_valve  ", &
-                "a_feed  ", "reactor_a/c  ", "e_feed" 
+                "a_feed  ", "reactor_a/c  ", "e_feed"
 !   filtered measurements
     open(unit=40,file='fout.dat',status='unknown')
     write(40,*) "time  ", &
@@ -43,10 +43,11 @@ subroutine output(time)
     common /dvec/ idv(24)
 
 !   write output every n samples
-    write(30,101) time, xmeas(8),xmeas(9),xmeas(12),xmeas(15), &
-        xmeas(7),xmeas(17),xmeas(30),xmeas(40)/xmeas(41),xmv(2), &
-        xmv(10),xmv(11),xmv(7),xmv(4),xmv(8),xmv(6),xmv(1), &
-        xmeas(23)/xmeas(25),xmv(3)
+    write(30,101) time, xmeas(8), xmeas(9), xmeas(12), &
+        xmeas(15), xmeas(7), xmeas(17), xmeas(30), &
+        xmeas(42), xmv(2), xmv(10), xmv(11), &
+        xmv(7), xmv(4), xmv(8), xmv(6), &
+        xmv(1), xmeas(23)/xmeas(25), xmv(3)
     write(40,102) time, (fxmeas(k), k=1,22),(xmeas(k),k=23,42)
     write(50,103) time, (xmv(k),k=1,12)
     write(60,104) time, (idv(k), k=1,24)

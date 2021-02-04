@@ -77,7 +77,8 @@ program temain
             call outputinit
             verbose = .true.
         end if
-        if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression"])) exit
+        if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression", &
+                 flag == "--mode"])) exit
     end do
 
 !   integrator step size:  1 second converted to hours (time-base of simulation)
@@ -94,6 +95,7 @@ program temain
 !   simulation loop
     do i = 1, npts
         if (flag == "--xmeas") call perturb_xmeas(time)
+        if (flag == "--mode") call perturb_mode(time)
         call contrl(delta_t)
         if (flag == "--xmv") call perturb_xmv(time)
         if (mod(i, 3600) == 0 .and. (flag == "-a" .or. flag == "--aggression")) call set_idvs()
@@ -101,7 +103,7 @@ program temain
         if (verbose) call output(time)
         if (realtime) then 
             call sleep(1)
-            print *, state(1:7)
+            print *, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
         end if
         call intgtr(state, size(state), derivative, time, delta_t)
         call filter_xmeas(time)
@@ -118,13 +120,17 @@ subroutine helptext
         "  -v                          outputs to file (slow)", char(10), &
         "  -r                          Run realtime and print state to STDOUT", char(10), &
         "  --xmeas [X] [OPTIONS]       Run with XMEAS set to [options], or ",  char(10), &
-        "  --xmv [X] [OPTIONS]         Run with XMV set to max/min", char(10), &
+        "  --xmv [X] [OPTIONS]         Run with XMV set to [options]", char(10), &
+        "  --mode [X] [OPTIONS]        Run with setpoints set to [options]", char(10), &
         "  xmeas/xmv options:", char(10), &
         "    MAX, MIN                  Maximum or minimum values respectively", char(10), &
         "    STICK                     Sticks at random point in time", char(10), &
-        "    FIX  [VALUE]              Custom value", char(10), &
         "    SINE [PERIOD, AMP]        Sinusoidal deviation", char(10), &
-        "    SQUARE [PERIOD, AMP]      Square wave deviation"
+        "    SQUARE [PERIOD, AMP]      Square wave deviation", &
+        "  mode options:", char(10), &
+        "    SET [VALUE]               New set value", char(10), &
+        "    SINE, ", char(10), &
+        "    SQUARE [PERIOD, AMP]      As with xmeas/xmv" 
     call exit(0)
 end subroutine helptext
 

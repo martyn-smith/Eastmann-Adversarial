@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 echo "testing minmax"
 results='./minmax_ttf.txt'
 touch $results

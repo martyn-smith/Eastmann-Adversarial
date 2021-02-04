@@ -1,0 +1,25 @@
+setpoint
+/ntesting setpoint 1 -25.0 999.0
+ Sep level low             at t =   0.19305555555555309       hrs
+ Reactor pressure high     at t =    5.0000000000000031E-002  hrs
+/ntesting setpoint 2 0.0 199.0
+ Reactor pressure high     at t =    1.3777777777778990       hrs
+ Sep level low             at t =   0.65444444444445271       hrs
+/ntesting setpoint 3 0.0 199.0
+ Sep level low             at t =    2.9911111111114845       hrs
+ Sep level high            at t =   0.76333333333335862       hrs
+/ntesting setpoint 4 0.0 199.0
+ Stripper level high       at t =   0.59722222222222154       hrs
+/ntesting setpoint 5 0.0 999.0
+ Reactor level high        at t =    1.2788888888889947       hrs
+ Sep level low             at t =   0.15277777777777707       hrs
+/ntesting setpoint 6 0.0 99.0
+ Sep level low             at t =    3.0275000000003791       hrs
+/ntesting setpoint 7 0.0 9999.0
+ Reactor pressure high     at t =   0.96111111111116732       hrs
+ Reactor pressure high     at t =   0.11388888888888933       hrs
+/ntesting setpoint 8 0.0 99.0
+ Reactor pressure high     at t =    8.4377777777776029       hrs
+/ntesting setpoint 9 0.0 99.0
+ Sep level low             at t =    4.2219444444450103       hrs
+ Reactor pressure high     at t =    2.9041666666670265       hrs

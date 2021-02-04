@@ -189,6 +189,7 @@ module constants
     real, parameter :: x_costs(8) = [2.206, 0., 6.177, 22.06, 14.56, 17.89, 30.44, 22.94] !$kgmol-1 . B is incorrect?
     real, parameter :: compressor_cost = 0.0536 ! /kWh-1
     real, parameter :: strip_steam_cost = 0.0318 ! /kg-1
+!    real, parameter :: setpt_max = [,,,,, 100.0,]
 end module constants
 
 module entities
@@ -264,7 +265,7 @@ subroutine teinit(state, nn, derivative, time)
     sfr, &
     xdel, xns, t_gas, t_prod, vst
 !   Reactor properties (24)
-!   Seperator properties (20)
+!   Separator properties (20)
 !   Stripper properties? (10)
 !   Condensor properties? (9)
     type(agitator) :: agtatr

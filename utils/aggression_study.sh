@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 echo "testing aggression"
 results='aggression_ttf.txt'
 aggression_levels='0.00001 0.0001 0.001 0.01 0.1'

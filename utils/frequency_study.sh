@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 echo "testing sine wave disturbances"
 results='./periodic_sine_ttf_2.txt'
 amplitudes='50.0 20.0 10.0 5.0 2.0 1.0 0.5 0.2 0.1 0.01'

@@ -51,7 +51,7 @@ subroutine perturb_xmeas(time)
     real(kind=8), intent(in) :: time
     logical :: init = .false.
     integer :: i = 0, j = 1
-    real(kind=8) :: period, amp
+    real(kind=8) :: period, amp, stick = 0., aggression = 0.9999, r
     character(len=10) :: tmp, mode = ""
 
     if (.not. init) then
@@ -66,10 +66,17 @@ subroutine perturb_xmeas(time)
     end if
     select case (mode)
         case ("MAX")
-            xmeas(i) = 200.
+            xmeas(i) = 100.
         case ("MIN")
-            xmeas(i) = -10.
+            xmeas(i) = 0.
         case ("STICK")
+            call random_number(r)
+            if (r > aggression) then
+                stick = xmeas(i)
+            end if
+            if (stick > 0.0) then
+                xmeas(i) = stick
+            end if
         case ("SINE")
             call get_command_argument(j+3, tmp)
             read(tmp, *) period
@@ -87,6 +94,54 @@ subroutine perturb_xmeas(time)
     end select ! xmeas variations
     init = .true.
 end subroutine perturb_xmeas
+
+subroutine perturb_mode(time)
+
+    real(kind=8) :: setpt, gain, taui, errold
+    common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
+
+    real(kind=8), intent(in) :: time
+    logical :: init = .false.
+    integer :: i = 0, j = 1
+    real(kind=8) :: period, amp, set
+    character(len=10) :: tmp, mode = ""
+
+    if (.not. init) then
+        do j = 1, command_argument_count()
+            call get_command_argument(j, tmp)
+            if (tmp == "--mode") exit
+        end do
+        call get_command_argument(j+1, tmp)
+        read(tmp, *) i
+        call get_command_argument(j+2, tmp)
+        read(tmp, *) mode
+    end if
+    select case (mode)
+        !case ("MAX")
+        !    setpt(i) = setpt_max(i)
+        !case ("MIN")
+        !    setpt(i) = setpt_min(i)
+        case ("SET")
+            call get_command_argument(j+3, tmp)
+            read(tmp, *) set
+            setpt(i) = set
+        case ("SINE")
+            call get_command_argument(j+3, tmp)
+            read(tmp, *) period
+            call get_command_argument(j+4, tmp)
+            read(tmp, *) amp
+            setpt(i) = setpt(i) + amp * sin(2 * 3.14159 * (time * 3600.) / period)
+            setpt(i) = max(0., min(100., setpt(i)))
+        case ("SQUARE")
+            call get_command_argument(j+3, tmp)
+            read(tmp, *) period
+            call get_command_argument(j+4, tmp)
+            read(tmp, *) amp
+            setpt(i) = setpt(i) + amp * (-1) ** floor(2 * (time * 3600.) / period)
+            setpt(i) = max(0., min(100.,setpt(i)))
+    end select ! setpt variations
+    init = .true.
+end subroutine perturb_mode
 
 
 subroutine zero_idvs()
