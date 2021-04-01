@@ -96,6 +96,7 @@ program temain
     do i = 1, npts
         if (flag == "--xmeas") call perturb_xmeas(time)
         if (flag == "--mode") call perturb_mode(time)
+        if (flag == "-i") call load_state()
         call contrl(delta_t)
         if (flag == "--xmv") call perturb_xmv(time)
         if (mod(i, 3600) == 0 .and. (flag == "-a" .or. flag == "--aggression")) call set_idvs()
@@ -103,12 +104,17 @@ program temain
         if (verbose) call output(time)
         if (realtime) then 
             call sleep(1)
-            print *, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
+            print *, time, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
         end if
         call intgtr(state, size(state), derivative, time, delta_t)
         call filter_xmeas(time)
     end do
 end program temain
+
+!===============================================================================
+subroutine load_state()
+! TODO
+end
 
 !===============================================================================
 subroutine helptext
@@ -119,6 +125,7 @@ subroutine helptext
         "  -p [FNAME]                  Run with disturbances predetermined by FNAME",  char(10), &
         "  -v                          outputs to file (slow)", char(10), &
         "  -r                          Run realtime and print state to STDOUT", char(10), &
+        "  -i                          Interactive: each cycle loads state from STDIN and prints to STDOUT", &
         "  --xmeas [X] [OPTIONS]       Run with XMEAS set to [options], or ",  char(10), &
         "  --xmv [X] [OPTIONS]         Run with XMV set to [options]", char(10), &
         "  --mode [X] [OPTIONS]        Run with setpoints set to [options]", char(10), &
