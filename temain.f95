@@ -43,7 +43,6 @@ include "teprob.f95"
 !         subroutine filterinit
 !             taufil = 5.0
 !         end subroutine filterinit
-
 ! end module filtering
 
 program temain
@@ -63,7 +62,7 @@ program temain
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
 !   local variables
-    logical :: realtime = .false., verbose = .false.
+    logical :: load = .false., realtime = .false., verbose = .false.
     integer :: i, npts 
     real(kind=8) :: time, delta_t, state(50), derivative(50)
     character(len=20) :: flag
@@ -72,6 +71,7 @@ program temain
     do i = 1, command_argument_count()
         call get_command_argument(i, flag)
         if (flag == "-h" .or. flag == "--help") call helptext
+        if (flag == "-l") load = .true. 
         if (flag == "-r") realtime = .true.
         if (flag == "-v") then 
             call outputinit
@@ -87,8 +87,10 @@ program temain
 !   set the number of points to simulate
     npts = 48*3600
 
+    
     call filterinit(delta_t)
     call teinit(state, size(state), derivative, time)
+    if (load) call load_state
     call filter_xmeas(time)
     call contrlinit
 
@@ -96,7 +98,6 @@ program temain
     do i = 1, npts
         if (flag == "--xmeas") call perturb_xmeas(time)
         if (flag == "--mode") call perturb_mode(time)
-        if (flag == "-i") call load_state()
         call contrl(delta_t)
         if (flag == "--xmv") call perturb_xmv(time)
         if (mod(i, 3600) == 0 .and. (flag == "-a" .or. flag == "--aggression")) call set_idvs()
@@ -113,7 +114,10 @@ end program temain
 
 !===============================================================================
 subroutine load_state()
-! TODO
+!   TODO
+    real(kind=8) :: xmeas, xmv
+    common /pv/ xmeas(42), xmv(12)
+    read(*,*) xmeas
 end
 
 !===============================================================================
