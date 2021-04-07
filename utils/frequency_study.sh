@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#tests affect of sinusoidal disturbances
 
 echo "testing sine wave disturbances"
 results='./periodic_sine_ttf_2.txt'

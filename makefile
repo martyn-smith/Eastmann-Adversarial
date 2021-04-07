@@ -1,11 +1,11 @@
 #all: TE results
 
 TE:
-	gfortran -g3 -o debug.out -fall-intrinsics -fbacktrace -fdefault-real-8 \
+	gfortran -g3 -o tedbg_$$(date +"%d%m%y") -fall-intrinsics -fbacktrace -fdefault-real-8 \
 	    -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none  \
 		-Wall -static -std=f2003 temain.f95;
-	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$(date +"%d%m%y") temain.f95;
-	./te_$(date +"%d%m%y");
+	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$$(date +"%d%m%y") temain.f95;
+	./te_$$(date +"%d%m%y");
 
 results:
 	@echo "making output folder"

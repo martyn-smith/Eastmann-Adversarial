@@ -244,7 +244,7 @@ module entities
     end type Sensor
 end module entities
 
-subroutine teinit(state, nn, derivative, time)
+subroutine teinit(state, nn, derivative, time, load)
 !   initialization
 !
 !   inputs:
@@ -258,6 +258,7 @@ subroutine teinit(state, nn, derivative, time)
     use entities
     use tewalk
 
+!   common block
     integer :: ivst
     real(kind=8) :: &
     delta_xr, reaction_rate, reaction_heat, &
@@ -272,7 +273,6 @@ subroutine teinit(state, nn, derivative, time)
     type(vessel) :: r, s, c, v
     type(stream) :: sm
     type(compressor) :: cmpsr
-    type(walk) :: wlk
     common /teproc/ &
     r, s, c, v, &
     delta_xr(8), reaction_rate(4), reaction_heat, &
@@ -282,8 +282,10 @@ subroutine teinit(state, nn, derivative, time)
     sm(13), &
     sfr(8), &
     cmpsr, &
-    agtatr, xdel(41), xns(41), &
-    t_gas, t_prod, vst(12), ivst(12)
+    agtatr, &
+    xdel(41), xns(41), &
+    t_gas, t_prod, &
+    vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)
@@ -291,9 +293,11 @@ subroutine teinit(state, nn, derivative, time)
     integer :: idv
     common /dvec/ idv(24)
 
+    type(walk) :: wlk
     common /wlk/ wlk
-!    common block
 
+!   local variables
+    logical, intent(in) :: load
     integer, intent(in) :: nn
     real(kind=8), intent(out) :: state(nn), derivative(nn), time
 
@@ -365,6 +369,8 @@ subroutine teinit(state, nn, derivative, time)
              24.64355755,  61.30192144,    22.21,       40.06374673,   38.1003437, &
              46.53415582,  47.44573456,    41.10581288, 18.11349055,   50.]
 
+    if (load) call teload(state)
+
 !   common /pv/ init
 !   label 200
     xmv = state(39:50)
@@ -380,6 +386,17 @@ subroutine teinit(state, nn, derivative, time)
     call tefunc(state, nn, derivative, time)
     return
 end subroutine teinit
+
+subroutine teload(state)
+    integer :: io, k
+    real(kind=8), intent(inout) :: state(50)
+
+    read (*, "(50e23.15)", IOSTAT=io) (state(k), k=1,50)
+    if (io > 0) then 
+        print *, "Couldn't load state. empty file?"
+    end if
+    return
+end subroutine teload
 
 !==============================================================================
 subroutine tefunc(state, nn, derivative, time)

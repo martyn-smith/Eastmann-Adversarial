@@ -1,4 +1,5 @@
+#!/usr/bin/env bash
+#replace middle spaces, probably unnecessary
 
-#replace middle spaces
 sed -i 's/ /","/g' $file
 

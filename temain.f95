@@ -35,19 +35,12 @@ include "teprob.f95"
 !  | 37|| 38||   39-50   |,
 !  |twr||tws|| vcv/vpos? |,
 
-! module filtering
-!     type filter
-!         real(kind=8) :: alpha(22), fxmeas(22), taufil(22)
-!     end type filter
-!     contains
-!         subroutine filterinit
-!             taufil = 5.0
-!         end subroutine filterinit
-! end module filtering
-
 program temain
-!   TODO: fix delta_t, xmeas(42), general output format, move in argparse
+!   TODO: 
+!   fix delta_t to use one second by default (requires changing some hard-coded constants!)
+!   use argparse (debatably necessary)
     implicit none
+
 !   measurement and valve common block
     real(kind=8) :: xmeas, xmv, fxmeas, taufil, alpha
     common /pv/ xmeas(42), xmv(12)
@@ -74,8 +67,8 @@ program temain
         if (flag == "-l") load = .true. 
         if (flag == "-r") realtime = .true.
         if (flag == "-v") then 
-            call outputinit
             verbose = .true.
+            call outputinit
         end if
         if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression", &
                  flag == "--mode"])) exit
@@ -87,22 +80,24 @@ program temain
 !   set the number of points to simulate
     npts = 48*3600
 
-    
     call filterinit(delta_t)
-    call teinit(state, size(state), derivative, time)
-    if (load) call load_state
+    call teinit(state, size(state), derivative, time, load)
     call filter_xmeas(time)
     call contrlinit
 
 !   simulation loop
     do i = 1, npts
-        if (flag == "--xmeas") call perturb_xmeas(time)
+        if (load .and. realtime) call teload(state)
+
         if (flag == "--mode") call perturb_mode(time)
+
+        if (flag == "--xmeas") call perturb_xmeas(time)
         call contrl(delta_t)
         if (flag == "--xmv") call perturb_xmv(time)
+
         if (mod(i, 3600) == 0 .and. (flag == "-a" .or. flag == "--aggression")) call set_idvs()
         call tefunc(state, size(state), derivative, time)
-        if (verbose) call output(time)
+        if (verbose) call output(time, state)
         if (realtime) then 
             call sleep(1)
             print *, time, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
@@ -113,20 +108,12 @@ program temain
 end program temain
 
 !===============================================================================
-subroutine load_state()
-!   TODO
-    real(kind=8) :: xmeas, xmv
-    common /pv/ xmeas(42), xmv(12)
-    read(*,*) xmeas
-end
-
-!===============================================================================
 subroutine helptext
     print *, "usage: te [OPTIONS]", char(10), &
         "Options:", char(10), &
         "  -h, --help                  Display this message",  char(10), &
         "  -a AGGR, --aggression AGGR  Run with aggression parameter AGGR (default 0.01)",  char(10), &
-        "  -p [FNAME]                  Run with disturbances predetermined by FNAME",  char(10), &
+        "  -l                          Load state from STDIN before running", &
         "  -v                          outputs to file (slow)", char(10), &
         "  -r                          Run realtime and print state to STDOUT", char(10), &
         "  -i                          Interactive: each cycle loads state from STDIN and prints to STDOUT", &
@@ -144,6 +131,8 @@ subroutine helptext
         "    SQUARE [PERIOD, AMP]      As with xmeas/xmv" 
     call exit(0)
 end subroutine helptext
+
+!==============================================================================
 
 subroutine filterinit(delta_t)
 !   specify some parameters for the relay identification plus some
@@ -165,9 +154,10 @@ end subroutine
 
 subroutine filter_xmeas(time)
 !   filter measurements
-!   alpha = filter constant, see e.g. seeborg pp. 539-540 for more details.  Currently set to ~0.2)
+!   alpha = filter constant, see e.g. seeborg pp. 539-540 for more details.  
 !   alpha = 1,   no filtering
 !   alpha = 0,   complete filtering (measurement is ignored)
+!    Currently set to ~0.2)
     integer :: k
     real(kind=8) :: alpha, fxmeas, taufil, time
     real(kind=8) :: xmeas, xmv

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#study of affect of different aggression levels
 
 echo "testing aggression"
 results='aggression_ttf.txt'
