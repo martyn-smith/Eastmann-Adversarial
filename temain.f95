@@ -55,7 +55,7 @@ program temain
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
 !   local variables
-    logical :: load = .false., realtime = .false., verbose = .false.
+    logical :: dvec = .false., load = .false., realtime = .false., verbose = .false.
     integer :: i, npts 
     real(kind=8) :: time, delta_t, state(50), derivative(50)
     character(len=20) :: flag
@@ -63,6 +63,7 @@ program temain
 !   display help, if necessary
     do i = 1, command_argument_count()
         call get_command_argument(i, flag)
+        if (flag == "-d") dvec = .true.
         if (flag == "-h" .or. flag == "--help") call helptext
         if (flag == "-l") load = .true. 
         if (flag == "-r") realtime = .true.
@@ -86,7 +87,9 @@ program temain
     call contrlinit
 
 !   simulation loop
+
     do i = 1, npts
+        
         if (load .and. realtime) call teload(state)
 
         if (flag == "--mode") call perturb_mode(time)
@@ -96,13 +99,20 @@ program temain
         if (flag == "--xmv") call perturb_xmv(time)
 
         if (mod(i, 3600) == 0 .and. (flag == "-a" .or. flag == "--aggression")) call set_idvs()
+
+        if (dvec) call set_idv()
+
         call tefunc(state, size(state), derivative, time)
+        
         if (verbose) call output(time, state)
+        
         if (realtime) then 
             call sleep(1)
             print *, time, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
         end if
+        
         call intgtr(state, size(state), derivative, time, delta_t)
+        
         call filter_xmeas(time)
     end do
 end program temain
@@ -113,6 +123,7 @@ subroutine helptext
         "Options:", char(10), &
         "  -h, --help                  Display this message",  char(10), &
         "  -a AGGR, --aggression AGGR  Run with aggression parameter AGGR (default 0.01)",  char(10), &
+        "  -d DIST                     Permanently set disturbance number DIST", &
         "  -l                          Load state from STDIN before running", &
         "  -v                          outputs to file (slow)", char(10), &
         "  -r                          Run realtime and print state to STDOUT", char(10), &
@@ -143,13 +154,11 @@ subroutine filterinit(delta_t)
 
     real(kind=8) :: alpha, fxmeas, taufil
     common /filter/ alpha(22), fxmeas(22), taufil(22)
+
     real(kind=8), intent(in) :: delta_t
-    integer :: i
 
     taufil = 5.0
-    do i=1,22
-         alpha(i) = delta_t*3600./taufil(i)
-    end do
+    alpha = delta_t*3600. / taufil
 end subroutine
 
 subroutine filter_xmeas(time)
@@ -158,19 +167,14 @@ subroutine filter_xmeas(time)
 !   alpha = 1,   no filtering
 !   alpha = 0,   complete filtering (measurement is ignored)
 !    Currently set to ~0.2)
-    integer :: k
     real(kind=8) :: alpha, fxmeas, taufil, time
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)
     common /filter/ alpha(22), fxmeas(22), taufil(22)
 
     if (time /= 0) then
-        do k=1,22
-            fxmeas(k) = alpha(k)*xmeas(k)+(1-alpha(k))*fxmeas(k)
-        end do 
+        fxmeas = alpha*xmeas(1:22)+(1-alpha)*fxmeas
     else
-        do k=1,22
-            fxmeas(k) = xmeas(k)
-        end do 
+        fxmeas = xmeas(1:22)
     end if
 end subroutine filter_xmeas

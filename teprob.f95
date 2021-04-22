@@ -465,7 +465,7 @@ subroutine tefunc(state, nn, derivative, time)
     sm(4)%x(2) = random_dist(2, time) + idv(2)*0.005
     sm(4)%x(3) = 1. - sm(4)%x(1) - sm(4)%x(2)
     sm(1)%T = random_dist(3, time) + idv(3)*5.
-    sm(4)%T =random_dist(4, time)
+    sm(4)%T = random_dist(4, time)
     R%cl%T_in = random_dist(5, time) + idv(4)*5.
     S%cl%T_in = random_dist(6, time) + idv(5)*5.
 
@@ -546,14 +546,14 @@ subroutine tefunc(state, nn, derivative, time)
         reaction_rate(i) = reaction_rate(i)*R%vv
     end do
 !   consumption / generation
-    delta_xr(1)=-reaction_rate(1)-reaction_rate(2)-reaction_rate(3) ! A consumption
-    delta_xr(3)=-reaction_rate(1)-reaction_rate(2) ! C consumption.  Should be by rr(1) only!?
-    delta_xr(4)=-reaction_rate(1)-1.5*reaction_rate(4) ! D consumed by rr(1), rr(2), rr(4)
-    delta_xr(5)=-reaction_rate(2)-reaction_rate(3) ! E consumed by rr(2), rr(3)
-    delta_xr(6)=reaction_rate(3)+reaction_rate(4) ! F created by rr(3), rr(4)
-    delta_xr(7)=reaction_rate(1) ! A + C + D -> G
-    delta_xr(8)=reaction_rate(2) ! A + D + E -> H
-    reaction_heat=reaction_rate(1)*htr(1)+reaction_rate(2)*htr(2)
+    delta_xr(1) = -reaction_rate(1)-reaction_rate(2)-reaction_rate(3) ! A consumption
+    delta_xr(3) = -reaction_rate(1)-reaction_rate(2) ! C consumption.  Should be by rr(1) only!?
+    delta_xr(4) = -reaction_rate(1)-1.5*reaction_rate(4) ! D consumed by rr(1), rr(2), rr(4)
+    delta_xr(5) = -reaction_rate(2)-reaction_rate(3) ! E consumed by rr(2), rr(3)
+    delta_xr(6) = reaction_rate(3)+reaction_rate(4) ! F created by rr(3), rr(4)
+    delta_xr(7) = reaction_rate(1) ! A + C + D -> G
+    delta_xr(8) = reaction_rate(2) ! A + D + E -> H
+    reaction_heat = reaction_rate(1)*htr(1)+reaction_rate(2)*htr(2)
 
 !   label 2010 vectorised
     sm(6)%x = V%xv

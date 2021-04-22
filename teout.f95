@@ -5,7 +5,7 @@ subroutine outputinit
     open(unit=4, file="idvs.dat", status="unknown")
 
 
-    write(1,"(a23)") "Time (hrs)", "Reactor", "Separator", "Stripper", "Junction", "TWR", "TWS", "VCV"
+    write(1,"(8(a23))") "Time (hrs)", "Reactor", "Separator", "Stripper", "Junction", "TWR", "TWS", "VCV"
     ! ) "Time (hrs) |24 --- 93||93 --- 207|208||231 - 299||300 - 414|| 415 ||438 - 621|| 622 ||28 - 35|| 36 |", &
     !            "| R.ucv || R.ucl ||  R.et || S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|",&
     !   "| 37|| 38||   39-50   |",&

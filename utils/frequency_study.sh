@@ -12,7 +12,7 @@ for i in {1..12} ; do
     for amp in $amplitudes; do
         for period in $periods; do
             echo -n $'\n' $i ' ' $amp ' ' $period >> $results
-            ./builds/te_$(date +"%d%m%y") --xmv $i SINE $period $amp >> $results
+            ../builds/te_$(date +"%d%m%y") --xmv $i SINE $period $amp >> $results
         done
     done
 done
@@ -25,7 +25,7 @@ for i in {1..12} ; do
     for amp in $amplitudes; do
         for period in $periods; do
             echo -n $'\n' $i ' ' $amp ' ' $period >> $results
-            ./builds/te_$(date +"%d%m%y") --xmv $i SQUARE $period $amp >> $results
+            ../builds/te_$(date +"%d%m%y") --xmv $i SQUARE $period $amp >> $results
         done
     done
 done

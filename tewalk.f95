@@ -143,13 +143,35 @@ subroutine perturb_mode(time)
     init = .true.
 end subroutine perturb_mode
 
-
 subroutine zero_idvs()
     integer :: idv
     common /dvec/ idv(24)
 
     idv = 0
 end subroutine zero_idvs
+
+subroutine set_idv()
+    
+    integer :: idv
+    common /dvec/ idv(24)
+
+    logical :: init = .false.
+    integer :: i, active
+    character(len=2) :: tmp, active_param
+
+    if (.not. init) then
+        do i = 1, command_argument_count()
+            call get_command_argument(i, tmp)
+            if (tmp == "-d") exit
+        end do
+        call get_command_argument(i+1, active_param)
+        if (active_param /= "") read(active_param, *) active
+        init = .true.
+    end if
+
+    idv = 0
+    idv(active) = 1
+end subroutine set_idv
 
 subroutine set_idvs()
 
