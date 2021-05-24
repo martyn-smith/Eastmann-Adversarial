@@ -56,7 +56,7 @@ program temain
 
 !   local variables
     logical :: dvec = .false., load = .false., realtime = .false., verbose = .false.
-    integer :: i, npts 
+    integer :: i, k, npts 
     real(kind=8) :: time, delta_t, state(50), derivative(50)
     character(len=20) :: flag
 
@@ -108,7 +108,8 @@ program temain
         
         if (realtime) then 
             call sleep(1)
-            print *, time, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
+            print "(43e23.15)", time, (xmeas(k), k=1,42)
+            !print *, time, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
         end if
         
         call intgtr(state, size(state), derivative, time, delta_t)

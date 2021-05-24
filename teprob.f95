@@ -139,13 +139,13 @@
 !    idv(13)  reaction kinetics                                    slow drift
 !    idv(14)  reactor cooling water valve                            sticking
 !    idv(15)  condenser cooling water valve                          sticking
-!    idv(16)  random xmeas                                   Failure, 0.012 to 0.027 hr
-!    idv(17)  unknown
-!    idv(18)  unknown
-!    idv(19)  unknown
-!    idv(20)  unknown
+!    idv(16)  random xmeas                                  Failure, 0.012 to 0.027 hr
+!    idv(17)  none
+!    idv(18)  none
+!    idv(19)  multiple valves stick
+!    idv(20)  none
 !    idv(21)  Reactor T (°C),                                 Integrity attack, 0.012 to 0.027 hr
-!    idv(22)  mv 7, xmeas(14), xmeas(16)                      DDoS, 663 to 25019 hr
+!    idv(22)  xmv 7, xmeas(14), xmeas(16)                     DDoS, 663 to 25019 hr
 !    idv(23)  D feed flow (mv(0))                             DDoS, 10 hr
 !    idv(24)  C feed (mv(3)), Purge flow (mv(5)), Stripper underflow (meas(16)),
 !             Stripper steam (xmeas(8))                       Noise, 7,727 to 71,291 h.
@@ -449,7 +449,7 @@ subroutine tefunc(state, nn, derivative, time)
     real(kind=8), intent(in) :: time, state(nn)
     real(kind=8), intent(out) :: derivative(nn)
     logical :: has_failed = .false.
-    integer :: i
+    integer :: i, xmeas_tgt
     real(kind=8) :: &
     delta_p, flcoef, flms, pr, &
     r1f, r2f, &
@@ -464,10 +464,10 @@ subroutine tefunc(state, nn, derivative, time)
     sm(4)%x(1) = random_dist(1, time) - idv(1)*0.03 - idv(2)*2.43719e-3
     sm(4)%x(2) = random_dist(2, time) + idv(2)*0.005
     sm(4)%x(3) = 1. - sm(4)%x(1) - sm(4)%x(2)
-    sm(1)%T = random_dist(3, time) + idv(3)*5.
-    sm(4)%T = random_dist(4, time)
-    R%cl%T_in = random_dist(5, time) + idv(4)*5.
-    S%cl%T_in = random_dist(6, time) + idv(5)*5.
+    sm(1)%T = random_dist(3, time) + idv(3)*5. + idv(9)*rand()*5.
+    sm(4)%T = random_dist(4, time) + idv(10)*rand()*5.
+    R%cl%T_in = random_dist(5, time) + idv(4)*5. + idv(11)*rand()*5.
+    S%cl%T_in = random_dist(6, time) + idv(5)*5. + idv(12)*rand()*5.
 
 !   download new molar amounts from state vector.
 !   labels 1010, 1020, 1030
@@ -694,9 +694,11 @@ subroutine tefunc(state, nn, derivative, time)
     xmeas(22) = S%cl%T_out ! separator cooling water outlet temp               deg c
 
     call check_failures(has_failed, err_msg)
+
+!   check the true Reactor Pressure has not exceeded yield
     if (((R%pt-760.0)/760.0*101.325) > 12000.) then
         has_failed = .true.
-        err_msg = "Reactor has failed"
+        err_msg = "Reactor has exploded"
     end if
     if(has_failed) then
         print *, err_msg, " at t = ", time, " hrs"
@@ -707,6 +709,19 @@ subroutine tefunc(state, nn, derivative, time)
             !call tesub6(xns(i),xmns)
             xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
         end do
+    end if
+    if (idv(16) == 1) then
+        if (xmeas_tgt == 0) then
+            xmeas_tgt = ceiling(rand() * 42.0)
+        end if
+        if (time > 0.012 .and. time < 0.027 ) then
+            xmeas(xmeas_tgt) = 0.0
+        end if
+    end if
+    if (idv(21) == 1) then
+        if (time > 0.012 .and. time < 0.027 ) then
+            xmeas(9) = 500.0
+        end if
     end if
     xcmp(23:28) = sm(7)%x(1:6)*100.0
     xcmp(29:36) = sm(10)%x*100.0
