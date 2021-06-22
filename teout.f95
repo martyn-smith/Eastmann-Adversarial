@@ -20,11 +20,12 @@ end subroutine outputinit
 
 subroutine output(time, state)
 !   measurement and valve common block
+    logical :: auto
     integer :: idv, k
     real(kind=8) :: xmeas, xmv, fxmeas, taufil, alpha
     common /pv/ xmeas(42), xmv(12)
     common /filter/ alpha(22), fxmeas(22), taufil(22)
-    common /dvec/ idv(24)
+    common /dvec/ idv(24), auto
 
 !   local variables
     real(kind=8), intent(in) :: time, state(50)

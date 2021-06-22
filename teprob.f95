@@ -290,8 +290,9 @@ subroutine teinit(state, nn, derivative, time, load)
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)
 
+    logical :: auto
     integer :: idv
-    common /dvec/ idv(24)
+    common /dvec/ idv(24), auto
 
     type(walk) :: wlk
     common /wlk/ wlk
@@ -438,8 +439,9 @@ subroutine tefunc(state, nn, derivative, time)
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)
 
+    logical :: auto
     integer :: idv
-    common /dvec/ idv(24)
+    common /dvec/ idv(24), auto
 
     type(walk) :: wlk
     common /wlk/ wlk

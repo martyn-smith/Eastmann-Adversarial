@@ -47,8 +47,9 @@ program temain
     common /filter/ alpha(22), fxmeas(22), taufil(22)
 
 !   disturbance vector common block
+    logical :: auto
     integer :: idv
-    common /dvec/ idv(24)
+    common /dvec/ idv(24), auto
 
 !   controller common block
     real(kind=8) :: setpt, gain, taui, errold

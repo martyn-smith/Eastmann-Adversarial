@@ -144,16 +144,17 @@ subroutine perturb_mode(time)
 end subroutine perturb_mode
 
 subroutine zero_idvs()
+    logical :: auto
     integer :: idv
-    common /dvec/ idv(24)
+    common /dvec/ idv(24), auto
 
     idv = 0
 end subroutine zero_idvs
 
 subroutine set_idv()
-    
+    logical :: auto
     integer :: idv
-    common /dvec/ idv(24)
+    common /dvec/ idv(24), auto
 
     logical :: init = .false.
     integer :: i, active
@@ -174,9 +175,9 @@ subroutine set_idv()
 end subroutine set_idv
 
 subroutine set_idvs()
-
+    logical :: auto
     integer :: idv
-    common /dvec/ idv(24)
+    common /dvec/ idv(24), auto
 
     logical :: init = .false.
     integer :: i, j !, k=0
@@ -321,8 +322,9 @@ module tewalk
         
     subroutine set_idvwlk()
     !   common block
+        logical :: auto
         integer :: idv
-        common /dvec/ idv(24)
+        common /dvec/ idv(24), auto
         type(walk) :: wlk
         common /wlk/ wlk
     !   common block
