@@ -71,7 +71,6 @@ program temain
         if (flag == "-rd") verbose = .true.
         if (flag == "-v") then 
             verbose = .true.
-            call outputinit
         end if
         if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression", &
                  flag == "--mode"])) exit
@@ -87,6 +86,7 @@ program temain
     call teinit(state, size(state), derivative, time, load)
     call filter_xmeas(time)
     call contrlinit
+    if (verbose) call outputinit
 
 !   simulation loop
 
@@ -111,7 +111,7 @@ program temain
         if (realtime) then 
             call sleep(1)
             if (verbose) then
-                print "(43e23.15)", time, (state(k), k=1,50)
+                print "(51e23.15)", time, (state(k), k=1,50)
             else
                 print "(43e23.15)", time, (xmeas(k), k=1,42)
             end if
