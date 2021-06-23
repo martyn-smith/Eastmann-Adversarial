@@ -87,12 +87,11 @@ program temain
     call filter_xmeas(time)
     call contrlinit
     if (verbose) call outputinit
+    if (load) call teload(state)
 
 !   simulation loop
 
     do i = 1, npts
-        
-        if (load) call teload(state)
 
         if (flag == "--mode") call perturb_mode(time)
 
