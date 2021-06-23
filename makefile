@@ -5,6 +5,7 @@ TE:
 	    -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none  \
 		-Wall -static -std=f2003 temain.f95;
 	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$$(date +"%d%m%y") temain.f95;
+	ln -s -f te_$$(date +"%d%m%y") te;
 	./te_$$(date +"%d%m%y");
 
 results:

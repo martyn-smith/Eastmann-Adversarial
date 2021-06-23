@@ -451,7 +451,7 @@ subroutine tefunc(state, nn, derivative, time)
     real(kind=8), intent(in) :: time, state(nn)
     real(kind=8), intent(out) :: derivative(nn)
     logical :: has_failed = .false.
-    integer :: i, xmeas_tgt
+    integer :: i, xmeas_tgt = 0
     real(kind=8) :: &
     delta_p, flcoef, flms, pr, &
     r1f, r2f, &

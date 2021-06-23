@@ -67,7 +67,8 @@ program temain
         if (flag == "-d") dvec = .true.
         if (flag == "-h" .or. flag == "--help") call helptext
         if (flag == "-l") load = .true. 
-        if (flag == "-r") realtime = .true.
+        if (flag == "-r" .or. flag == "-rd") realtime = .true.
+        if (flag == "-rd") verbose = .true.
         if (flag == "-v") then 
             verbose = .true.
             call outputinit
@@ -91,7 +92,7 @@ program temain
 
     do i = 1, npts
         
-        if (load .and. realtime) call teload(state)
+        if (load) call teload(state)
 
         if (flag == "--mode") call perturb_mode(time)
 
@@ -109,7 +110,11 @@ program temain
         
         if (realtime) then 
             call sleep(1)
-            print "(43e23.15)", time, (xmeas(k), k=1,42)
+            if (verbose) then
+                print "(43e23.15)", time, (state(k), k=1,50)
+            else
+                print "(43e23.15)", time, (xmeas(k), k=1,42)
+            end if
             !print *, time, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
         end if
         
@@ -121,6 +126,8 @@ end program temain
 
 !===============================================================================
 subroutine helptext
+    ! TODO: debug mode (prints whole state), interactive (single step)
+    ! testing these options
     print *, "usage: te [OPTIONS]", char(10), &
         "Options:", char(10), &
         "  -h, --help                  Display this message",  char(10), &
@@ -128,8 +135,8 @@ subroutine helptext
         "  -d DIST                     Permanently set disturbance number DIST", &
         "  -l                          Load state from STDIN before running", &
         "  -v                          outputs to file (slow)", char(10), &
-        "  -r                          Run realtime and print state to STDOUT", char(10), &
-        "  -i                          Interactive: each cycle loads state from STDIN and prints to STDOUT", &
+        "  -r                          Run realtime and prints measurements to STDOUT", char(10), &
+        "  -rd                         Run realtime and print state to STDOUT", char(10), &
         "  --xmeas [X] [OPTIONS]       Run with XMEAS set to [options], or ",  char(10), &
         "  --xmv [X] [OPTIONS]         Run with XMV set to [options]", char(10), &
         "  --mode [X] [OPTIONS]        Run with setpoints set to [options]", char(10), &
