@@ -83,11 +83,11 @@ program temain
     npts = 48*3600
 
     call filterinit(delta_t)
-    call teinit(state, size(state), derivative, time, load)
+    call teinit(state, size(state), derivative, time)
     call filter_xmeas(time)
     call contrlinit
     if (verbose) call outputinit
-    if (load) call teload(state)
+    if (load) call teload(state, idv)
 
 !   simulation loop
 
@@ -110,7 +110,7 @@ program temain
         if (realtime) then 
             call sleep(1)
             if (verbose) then
-                print "(51e23.15)", time, (state(k), k=1,50)
+                print "(51e23.15,24i3)", time, (state(k), k=1,50), (idv(k), k=1,24)
             else
                 print "(43e23.15)", time, (xmeas(k), k=1,42)
             end if
@@ -147,7 +147,7 @@ subroutine helptext
         "  mode options:", char(10), &
         "    SET [VALUE]               New set value", char(10), &
         "    SINE, ", char(10), &
-        "    SQUARE [PERIOD, AMP]      As with xmeas/xmv" 
+        "    SQUARE [PERIOD, AMP]      As with xmeas/xmv"
     call exit(0)
 end subroutine helptext
 

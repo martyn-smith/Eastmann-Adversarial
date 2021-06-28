@@ -244,7 +244,7 @@ module entities
     end type Sensor
 end module entities
 
-subroutine teinit(state, nn, derivative, time, load)
+subroutine teinit(state, nn, derivative, time)
 !   initialization
 !
 !   inputs:
@@ -298,7 +298,6 @@ subroutine teinit(state, nn, derivative, time, load)
     common /wlk/ wlk
 
 !   local variables
-    logical, intent(in) :: load
     integer, intent(in) :: nn
     real(kind=8), intent(out) :: state(nn), derivative(nn), time
 
@@ -370,8 +369,6 @@ subroutine teinit(state, nn, derivative, time, load)
              24.64355755,  61.30192144,    22.21,       40.06374673,   38.1003437, &
              46.53415582,  47.44573456,    41.10581288, 18.11349055,   50.]
 
-    if (load) call teload(state)
-
 !   common /pv/ init
 !   label 200
     xmv = state(39:50)
@@ -388,13 +385,21 @@ subroutine teinit(state, nn, derivative, time, load)
     return
 end subroutine teinit
 
-subroutine teload(state)
+subroutine teload(state, idv)
+
     integer :: io, k
+    integer, intent(inout) :: idv(24)
     real(kind=8), intent(inout) :: state(50)
 
-    read (*, "(50e23.15)", IOSTAT=io) (state(k), k=1,50)
+!   state must be loaded if called, but idv's are optional.
+!   Afraid this is the best way I can see of checking the latter.
+    read (*, "(50e23.15,24i3)", IOSTAT=io) (state(k), k=1,50), (idv(k), k=1,24)
     if (io > 0) then 
         print *, "Couldn't load state. empty file?"
+    end if
+    ! read (*, "(24i3)") (idv(k), k=1,24)
+    if (any(abs(idv) > 1)) then
+        idv = 0
     end if
     return
 end subroutine teload
