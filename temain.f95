@@ -56,7 +56,7 @@ program temain
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
 !   local variables
-    logical :: dvec = .false., load = .false., realtime = .false., verbose = .false.
+    logical :: aggression = .true., dvec = .false., load = .false., realtime = .false., verbose = .false.
     integer :: i, k, npts 
     real(kind=8) :: time, delta_t, state(50), derivative(50)
     character(len=20) :: flag
@@ -64,6 +64,7 @@ program temain
 !   display help, if necessary
     do i = 1, command_argument_count()
         call get_command_argument(i, flag)
+        if (flag == "-a" .or. flag == "--aggression") aggression = .true.
         if (flag == "-d") dvec = .true.
         if (flag == "-h" .or. flag == "--help") call helptext
         if (flag == "-l") load = .true. 
@@ -99,7 +100,7 @@ program temain
         call contrl(delta_t)
         if (flag == "--xmv") call perturb_xmv(time)
 
-        if (mod(i, 3600) == 0 .and. (flag == "-a" .or. flag == "--aggression")) call set_idvs()
+        if (mod(i, 3600) == 0 .and. aggression) call set_idvs()
 
         if (dvec) call set_idv()
 
