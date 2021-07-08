@@ -56,7 +56,7 @@ program temain
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
 !   local variables
-    logical :: aggression = .true., dvec = .false., load = .false., realtime = .false., verbose = .false.
+    logical :: aggression = .true., dvec = .false., load = .false., file = .false., realtime = .false., verbose = .false.
     integer :: i, k, npts 
     real(kind=8) :: time, delta_t, state(50), derivative(50)
     character(len=20) :: flag
@@ -68,11 +68,11 @@ program temain
         if (flag == "-d") dvec = .true.
         if (flag == "-h" .or. flag == "--help") call helptext
         if (flag == "-l") load = .true. 
-        if (flag == "-r" .or. flag == "-rd") realtime = .true.
-        if (flag == "-rd") verbose = .true.
-        if (flag == "-v") then 
-            verbose = .true.
-        end if
+        if (flag == "-o") file = .true.
+        if (flag == "-r") realtime = .true.
+        if (flag == "-v") verbose = .true.
+        !if (flag == "-vv") veryverbose = .true.
+        !if (flag == "--danger") disable safeguards and run to failure
         if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression", &
                  flag == "--mode"])) exit
     end do
@@ -87,7 +87,7 @@ program temain
     call teinit(state, size(state), derivative, time)
     call filter_xmeas(time)
     call contrlinit
-    if (verbose) call outputinit
+    if (file) call outputinit
     if (load) call teload(state, idv)
 
 !   simulation loop
@@ -105,15 +105,15 @@ program temain
         if (dvec) call set_idv()
 
         call tefunc(state, size(state), derivative, time)
-        
-        if (verbose) call output(time, state)
+
+        if (file) call output(time, state)
         
         if (realtime) then 
             call sleep(1)
             if (verbose) then
                 print "(51e23.15,24i3)", time, (state(k), k=1,50), (idv(k), k=1,24)
             else
-                print "(43e23.15)", time, (xmeas(k), k=1,42)
+                print "(55e23.15)", time, (xmeas(k), k=1,42), (xmv(k), k=1,12)
             end if
             !print *, time, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
         end if
@@ -134,9 +134,10 @@ subroutine helptext
         "  -a AGGR, --aggression AGGR  Run with aggression parameter AGGR (default 0.01)",  char(10), &
         "  -d DIST                     Permanently set disturbance number DIST", &
         "  -l                          Load state from STDIN before running", &
-        "  -v                          outputs to file (slow)", char(10), &
+        "  -o                          outputs to file (slow)", char(10), &
         "  -r                          Run realtime and prints measurements to STDOUT", char(10), &
-        "  -rd                         Run realtime and print state to STDOUT", char(10), &
+        "  -v                          Outputs more information", char(10), &
+        "  --danger                    Danger mode: safety cutouts disabled", char(10), &
         "  --xmeas [X] [OPTIONS]       Run with XMEAS set to [options], or ",  char(10), &
         "  --xmv [X] [OPTIONS]         Run with XMV set to [options]", char(10), &
         "  --mode [X] [OPTIONS]        Run with setpoints set to [options]", char(10), &
