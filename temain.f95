@@ -21,11 +21,13 @@
 !
 !
 !===============================================================================
-!
+
+include "entities.f95"
 include "tecontrol.f95"
 include "teout.f95"
 include "tewalk.f95"
 include "teprob.f95"
+!include "tesense.f95"
 
 !  layout of state vector:
 
@@ -38,7 +40,6 @@ include "teprob.f95"
 program temain
 !   TODO: 
 !   fix delta_t to use one second by default (requires changing some hard-coded constants!)
-!   use argparse (debatably necessary)
     implicit none
 
 !   measurement and valve common block
@@ -56,10 +57,12 @@ program temain
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
 !   local variables
-    logical :: aggression = .true., dvec = .false., load = .false., file = .false., realtime = .false., verbose = .false.
-    integer :: i, k, npts 
+    logical :: aggression = .false., danger = .false., dvec = .false., file = .false., &
+               has_failed = .false., load = .false., realtime = .false., verbose = .false.
+    integer :: i, k, npts = 48*3600
     real(kind=8) :: time, delta_t, state(50), derivative(50)
     character(len=20) :: flag
+    character(len=25) :: err_msg
 
 !   display help, if necessary
     do i = 1, command_argument_count()
@@ -70,9 +73,10 @@ program temain
         if (flag == "-l") load = .true. 
         if (flag == "-o") file = .true.
         if (flag == "-r") realtime = .true.
+        if (flag == "-t") call set_timer(npts)
         if (flag == "-v") verbose = .true.
         !if (flag == "-vv") veryverbose = .true.
-        !if (flag == "--danger") disable safeguards and run to failure
+        if (flag == "--danger") danger = .true.
         if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression", &
                  flag == "--mode"])) exit
     end do
@@ -81,7 +85,7 @@ program temain
     delta_t = 1. / 3600.0
 
 !   set the number of points to simulate
-    npts = 48*3600
+!   npts = 48*3600
 
     call filterinit(delta_t)
     call teinit(state, size(state), derivative, time)
@@ -91,7 +95,6 @@ program temain
     if (load) call teload(state, idv)
 
 !   simulation loop
-
     do i = 1, npts
 
         if (flag == "--mode") call perturb_mode(time)
@@ -101,10 +104,25 @@ program temain
         if (flag == "--xmv") call perturb_xmv(time)
 
         if (mod(i, 3600) == 0 .and. aggression) call set_idvs()
+!       if (mod(i, 3600) == 0) print *, i
 
         if (dvec) call set_idv()
 
         call tefunc(state, size(state), derivative, time)
+
+!        call measure()
+
+        if (.not. danger) then
+            call check_safety(has_failed, err_msg)
+        end if
+
+        call check_danger(has_failed, err_msg)
+
+    !   check the true Reactor Pressure has not exceeded yield
+        if(has_failed) then
+            print *, err_msg, " at t = ", time, " hrs"
+            stop
+        end if
 
         if (file) call output(time, state)
         
@@ -126,8 +144,9 @@ end program temain
 
 !===============================================================================
 subroutine helptext
-    ! TODO: debug mode (prints whole state), interactive (single step)
-    ! testing these options
+!   TODO: danger mode
+!   TODO: better testing of these options, 
+!   TODO: argparse (debtable)
     print *, "usage: te [OPTIONS]", char(10), &
         "Options:", char(10), &
         "  -h, --help                  Display this message",  char(10), &
@@ -136,6 +155,7 @@ subroutine helptext
         "  -l                          Load state from STDIN before running", &
         "  -o                          outputs to file (slow)", char(10), &
         "  -r                          Run realtime and prints measurements to STDOUT", char(10), &
+        "  -t                          Set timer (default 48 hr)", char(10), &
         "  -v                          Outputs more information", char(10), &
         "  --danger                    Danger mode: safety cutouts disabled", char(10), &
         "  --xmeas [X] [OPTIONS]       Run with XMEAS set to [options], or ",  char(10), &
@@ -155,6 +175,21 @@ end subroutine helptext
 
 !==============================================================================
 
+subroutine set_timer(npts)
+    integer :: ierr, j
+    integer, intent(inout) :: npts
+    character(3) :: tmp
+
+    do j = 1, command_argument_count()
+        call get_command_argument(j, tmp)
+        if (tmp == "--t" ) exit
+    end do
+    call get_command_argument(j+1, tmp)
+    if (tmp == "inf") npts = 999999999
+    if (tmp /= "") read(tmp, *, iostat=ierr) j
+    if (ierr == 0) npts = j * 3600
+
+end subroutine set_timer
 subroutine filterinit(delta_t)
 !   specify some parameters for the relay identification plus some
 !   parameters for the filter
@@ -176,7 +211,7 @@ subroutine filter_xmeas(time)
 !   alpha = filter constant, see e.g. seeborg pp. 539-540 for more details.  
 !   alpha = 1,   no filtering
 !   alpha = 0,   complete filtering (measurement is ignored)
-!    Currently set to ~0.2)
+!   currently set to ~0.2
     real(kind=8) :: alpha, fxmeas, taufil, time
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)

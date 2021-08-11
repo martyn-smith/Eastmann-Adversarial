@@ -186,63 +186,11 @@ module constants
     real, parameter :: cg(8) = [6.0e-13, -3.98e-13, -3.93e-14, -3.12e-13, -3.27e-13,-3.12e-13, 0., 0.]
     real, parameter :: xmw(8) = [2.0, 25.4, 28.0, 32.0, 46.0, 48.0, 62.0, 76.0] ! definitely gmol-1
     real, parameter :: htr(2) = [0.06899381054, 0.05] !in calmol-1 !
-    real, parameter :: x_costs(8) = [2.206, 0., 6.177, 22.06, 14.56, 17.89, 30.44, 22.94] !$kgmol-1 . B is incorrect?
-    real, parameter :: compressor_cost = 0.0536 ! /kWh-1
-    real, parameter :: strip_steam_cost = 0.0318 ! /kg-1
+    real, parameter :: x_costs(8) = [2.206, 0., 6.177, 22.06, 14.56, 17.89, 30.44, 22.94] !kgmol-1 . B is incorrect?
+    real, parameter :: compressor_cost = 0.0536 ! kWh-1
+    real, parameter :: strip_steam_cost = 0.0318 ! kg-1
 !    real, parameter :: setpt_max = [,,,,, 100.0,]
 end module constants
-
-module entities
-!   TODO: C binding conflicts with sequence, which is more necessary.
-!   use iso_c_binding
-    type agitator
-         sequence
-         real(kind=8) :: speed
-    end type agitator
-
-    type Compressor
-        sequence
-        real(kind=8) :: max_PR, max_flow, work
-    end type Compressor
-
-    type Coolant
-            sequence
-            real(kind=8) :: flow, T_in, T_out, h ! T_out set by state vector.  h is heat cap?
-    end type Coolant
-
-    type Vessel
-        sequence
-        real(kind=8) :: utl, utv, &    ! total molar amounts in liquid and gas phase
-                        et, &          ! PRIMARY: total heat?
-                        es, &          ! total and liquid phase heat?
-                        tc, tk, &      ! temps (C and K)
-                        density, &     ! self-explanatory
-                        vt, vl, vv, &  ! total, liquid and vapour volumes
-                        pt, &          ! total pressure
-                        qu             ! work?
-        real(kind=8), dimension(8) :: ucl, ucv, &    ! PRIMARY: molar components amounts in liquid and gas phase 
-                                                     ! (only liquid for C, only gas for V)
-                                      xl, xv, &      ! concentrations in liquid and gas phase
-                                      pp             ! partial pressure
-        type(Coolant) :: cl
-        !contains
-        !   procedure, pass :: set_temperature
-    end type Vessel
-
-    type Stream
-        sequence
-        real(kind=8) :: ftm, fcm(8), x(8), xmws, h, T
-    end type Stream
-
-    type Actuator
-        sequence
-        logical :: is_stuck
-        real(kind=8) :: pos, delta_pos, commanded
-    end type Actuator
-
-    type Sensor
-    end type Sensor
-end module entities
 
 subroutine teinit(state, nn, derivative, time)
 !   initialization
@@ -455,7 +403,6 @@ subroutine tefunc(state, nn, derivative, time)
     integer, intent(in) :: nn
     real(kind=8), intent(in) :: time, state(nn)
     real(kind=8), intent(out) :: derivative(nn)
-    logical :: has_failed = .false.
     integer :: i, xmeas_tgt = 0
     real(kind=8) :: &
     delta_p, flcoef, flms, pr, &
@@ -463,7 +410,6 @@ subroutine tefunc(state, nn, derivative, time)
     fin(8), &
     vpos(12), &
     xcmp(41)
-    character(len=25) :: err_msg
 
 !   label 500 abstracted, idv is a logical now.
     call next_walk(time)
@@ -615,8 +561,8 @@ subroutine tefunc(state, nn, derivative, time)
     flms = 4574.21*sqrt(delta_p)*(1.-0.25*random_dist(12,time))
     sm(8)%ftm = flms / sm(8)%xmws ! mass flow = volume / mean mass?
 
-    delta_p = max(S%pt-760.0, 0.) ! sep - atmosphere
-    flms = vpos(6)*0.151169*sqrt(delta_p)
+    delta_p = S%pt-760.0 ! sep - atmosphere
+    flms = vpos(6)*0.151169*sqrt(abs(delta_p)) * sign(1.0, delta_p)
     sm(10)%ftm = flms / sm(10)%xmws
 
     pr = min(max(V%pt/S%pt, 1.), cmpsr%max_PR)
@@ -672,6 +618,12 @@ subroutine tefunc(state, nn, derivative, time)
     call set_reactor_heat_transfer(R, agtatr, time)
     call set_sep_heat_transfer(S, sm(8), time)
     call set_C_heat_transfer(C, vpos, vrng, time)
+
+!   part of measurement?
+    xcmp(23:28) = sm(7)%x(1:6)*100.0
+    xcmp(29:36) = sm(10)%x*100.0
+    xcmp(37:41) = sm(13)%x(4:8)*100.0
+
 !   sm(3) -> stream 1, sm(1) -> stream 2, sm(2) -> stream 3
 !   note vessel "C", apparently part of the stripper, is never pressurised (the original code has no PTC slot)
 !   print *, time, sm(1)%ftm, sm(2)%ftm, sm(3)%ftm, sm(4)%ftm, sm(5)%ftm, sm(6)%ftm, sm(7)%ftm, &
@@ -700,18 +652,7 @@ subroutine tefunc(state, nn, derivative, time)
     xmeas(21) = R%cl%T_out ! reactor cooling water outlet temp                 deg c
     xmeas(22) = S%cl%T_out ! separator cooling water outlet temp               deg c
 
-    call check_failures(has_failed, err_msg)
-
-!   check the true Reactor Pressure has not exceeded yield
-    if (((R%pt-760.0)/760.0*101.325) > 12000.) then
-        has_failed = .true.
-        err_msg = "Reactor has exploded"
-    end if
-    if(has_failed) then
-        print *, err_msg, " at t = ", time, " hrs"
-        stop
-    end if
-    if(time > 0.0 .and. .not. has_failed) then
+    if(time > 0.) then
         do i=1,22 !label 6500
             !call tesub6(xns(i),xmns)
             xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
@@ -730,9 +671,6 @@ subroutine tefunc(state, nn, derivative, time)
             xmeas(9) = 500.0
         end if
     end if
-    xcmp(23:28) = sm(7)%x(1:6)*100.0
-    xcmp(29:36) = sm(10)%x*100.0
-    xcmp(37:41) = sm(13)%x(4:8)*100.0
 
 !    print *, metric_gauge(R%pt), S%pt, C%pt, metric_gauge(V%pt)
 
@@ -804,10 +742,6 @@ subroutine tefunc(state, nn, derivative, time)
         vcv(i) = min(max(vcv(i), 0.0), 100.0)
         derivative(i+38) = (vcv(i)-vpos(i)) / vtau(i)
     end do
-    if(has_failed) then
-        !label 9030
-        derivative = 0.
-    end if
     return
 end subroutine tefunc   
 

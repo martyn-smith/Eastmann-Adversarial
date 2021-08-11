@@ -172,7 +172,7 @@ subroutine contrl(delta_t)
     return
 end subroutine contrl
 
-subroutine check_failures(has_failed, err_msg)
+subroutine check_safety(has_failed, err_msg)
 !   common block
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)
@@ -213,4 +213,45 @@ subroutine check_failures(has_failed, err_msg)
            has_failed = .true.
            err_msg = "Stripper level low"
     end if
-end subroutine check_failures
+end subroutine check_safety
+
+subroutine check_danger(has_failed, err_msg)
+
+    use entities
+!   common block
+    integer :: ivst
+    real(kind=8) :: &
+    delta_xr, reaction_rate, reaction_heat,  &
+    vcv, vrng, vtau, &
+    sfr, &
+    xdel, xns, &
+    t_gas, t_prod, vst
+    type(agitator) :: agtatr
+    type(vessel) :: r, s, c, v
+    type(stream) :: sm
+    type(compressor) :: cmpsr
+    common /teproc/ &
+    r, s, c, v, &
+    delta_xr(8), reaction_rate(4), reaction_heat, &
+    vcv(12), vrng(12), vtau(12), &
+    sm(13), &
+    sfr(8), &
+    cmpsr, &
+    agtatr, xdel(41), xns(41), &
+    t_gas, t_prod, vst(12), ivst(12)
+    real(kind=8) :: xmeas, xmv
+    common /pv/ xmeas(42), xmv(12)
+!   common block
+
+    logical, intent(inout) :: has_failed
+    character(len=25), intent(inout) :: err_msg
+
+    if (((R%pt-760.0)/760.0*101.325) > 12000.) then
+        has_failed = .true.
+        err_msg = "Reactor has exploded"
+    end if
+    if (sm(10)%ftm < 0.) then
+        has_failed = .true.
+        err_msg = "purge reverse flow"
+    end if
+end subroutine check_danger

@@ -6,3 +6,6 @@ Pythonised/
 *.so
 *.out
 test.*
+te
+te_*
+tedbg_*
