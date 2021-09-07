@@ -59,7 +59,8 @@ program temain
 !   local variables
     logical :: aggression = .false., danger = .false., dvec = .false., file = .false., &
                has_failed = .false., load = .false., realtime = .false., verbose = .false.
-    integer :: i, k, npts = 48*3600
+    integer :: i, k
+    integer :: npts = 48*3600
     real(kind=8) :: time, delta_t, state(50), derivative(50)
     character(len=20) :: flag
     character(len=25) :: err_msg
@@ -73,7 +74,7 @@ program temain
         if (flag == "-l") load = .true. 
         if (flag == "-o") file = .true.
         if (flag == "-r") realtime = .true.
-        if (flag == "-t") call set_timer(npts)
+        if (flag == "--long") npts = huge(npts)
         if (flag == "-v") verbose = .true.
         !if (flag == "-vv") veryverbose = .true.
         if (flag == "--danger") danger = .true.
@@ -84,9 +85,12 @@ program temain
 !   integrator step size:  1 second converted to hours (time-base of simulation)
     delta_t = 1. / 3600.0
 
+<<<<<<< HEAD
 !   set the number of points to simulate
 !   npts = 48*3600
 
+=======
+>>>>>>> 409cec8 (fixed/specified a long (not infinite) runtime mode)
     call filterinit(delta_t)
     call teinit(state, size(state), derivative, time)
     call filter_xmeas(time)
@@ -157,6 +161,7 @@ subroutine helptext
         "  -r                          Run realtime and prints measurements to STDOUT", char(10), &
         "  -t                          Set timer (default 48 hr)", char(10), &
         "  -v                          Outputs more information", char(10), &
+        "  --long                      Runs for longer (~136 years)", char(10), &
         "  --danger                    Danger mode: safety cutouts disabled", char(10), &
         "  --xmeas [X] [OPTIONS]       Run with XMEAS set to [options], or ",  char(10), &
         "  --xmv [X] [OPTIONS]         Run with XMV set to [options]", char(10), &
