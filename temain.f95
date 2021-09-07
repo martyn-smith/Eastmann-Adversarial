@@ -34,8 +34,8 @@ include "teprob.f95"
 !  |1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
 !  | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
 
-!  | 37|| 38||   39-50   |,
-!  |twr||tws|| vcv/vpos? |,
+!  | 37|| 38||   39-50   |, |50 -- 74|
+!  |twr||tws|| vcv/vpos? |, |  idvs  |
 
 program temain
 !   TODO: 
@@ -57,8 +57,8 @@ program temain
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
 !   local variables
-    logical :: aggression = .false., danger = .false., dvec = .false., file = .false., &
-               has_failed = .false., load = .false., realtime = .false., verbose = .false.
+    logical :: aggression = .false., danger = .false., dvec = .false., fileout = .false., finalout = .false., &
+               has_failed = .false., load = .false., mode = .false., realtime = .false., verbose = .false.
     integer :: i, k
     integer :: npts = 48*3600
     real(kind=8) :: time, delta_t, state(50), derivative(50)
@@ -70,14 +70,16 @@ program temain
         call get_command_argument(i, flag)
         if (flag == "-a" .or. flag == "--aggression") aggression = .true.
         if (flag == "-d") dvec = .true.
+        if (flag == "--danger") danger = .true.
+        if (flag == "-f") finalout = .true.
         if (flag == "-h" .or. flag == "--help") call helptext
         if (flag == "-l") load = .true. 
-        if (flag == "-o") file = .true.
-        if (flag == "-r") realtime = .true.
         if (flag == "--long") npts = huge(npts)
+        if (flag == "--mode") mode = .true.
+        if (flag == "-r") realtime = .true.
+        if (flag == "-o") fileout = .true.
         if (flag == "-v") verbose = .true.
         !if (flag == "-vv") veryverbose = .true.
-        if (flag == "--danger") danger = .true.
         if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression", &
                  flag == "--mode"])) exit
     end do
@@ -95,13 +97,12 @@ program temain
     call teinit(state, size(state), derivative, time)
     call filter_xmeas(time)
     call contrlinit
-    if (file) call outputinit
+    if (fileout) call outputinit
     if (load) call teload(state, idv)
+    if (mode) call set_mode
 
 !   simulation loop
     do i = 1, npts
-
-        if (flag == "--mode") call perturb_mode(time)
 
         if (flag == "--xmeas") call perturb_xmeas(time)
         call contrl(delta_t)
@@ -128,7 +129,7 @@ program temain
             stop
         end if
 
-        if (file) call output(time, state)
+        if (fileout) call output(time, state)
         
         if (realtime) then 
             call sleep(1)
@@ -137,13 +138,19 @@ program temain
             else
                 print "(55e23.15)", time, (xmeas(k), k=1,42), (xmv(k), k=1,12)
             end if
-            !print *, time, xmeas(8), xmeas(9), xmeas(7), xmeas(12), xmeas(11), xmeas(13)
         end if
         
         call intgtr(state, size(state), derivative, time, delta_t)
         
         call filter_xmeas(time)
     end do
+    if (finalout) then 
+        if (verbose) then
+            print "(51e23.15,24i3)", time, (state(k), k=1,50), (idv(k), k=1,24)
+        else
+            print "(55e23.15)", time, (xmeas(k), k=1,42), (xmv(k), k=1,12)
+        end if
+    end if
 end program temain
 
 !===============================================================================
@@ -156,16 +163,17 @@ subroutine helptext
         "  -h, --help                  Display this message",  char(10), &
         "  -a AGGR, --aggression AGGR  Run with aggression parameter AGGR (default 0.01)",  char(10), &
         "  -d DIST                     Permanently set disturbance number DIST", &
-        "  -l                          Load state from STDIN before running", &
+        "  -l                          Load state from STDIN (!) before running", &
         "  -o                          outputs to file (slow)", char(10), &
+        "  -f                          print final measurement or state to STDOUT", char(10), &
         "  -r                          Run realtime and prints measurements to STDOUT", char(10), &
         "  -t                          Set timer (default 48 hr)", char(10), &
         "  -v                          Outputs more information", char(10), &
-        "  --long                      Runs for longer (~136 years)", char(10), &
+        "  --long                      Runs for longer", char(10), &
         "  --danger                    Danger mode: safety cutouts disabled", char(10), &
         "  --xmeas [X] [OPTIONS]       Run with XMEAS set to [options], or ",  char(10), &
         "  --xmv [X] [OPTIONS]         Run with XMV set to [options]", char(10), &
-        "  --mode [X] [OPTIONS]        Run with setpoints set to [options]", char(10), &
+        "  --mode [X]                  Run with modes specified in Downs and Vogel", char(10), &
         "  xmeas/xmv options:", char(10), &
         "    MAX, MIN                  Maximum or minimum values respectively", char(10), &
         "    STICK                     Sticks at random point in time", char(10), &

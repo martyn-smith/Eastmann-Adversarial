@@ -95,8 +95,40 @@ subroutine perturb_xmeas(time)
     init = .true.
 end subroutine perturb_xmeas
 
-subroutine perturb_mode(time)
+subroutine set_mode
+!   controller common block
+    real(kind=8) :: setpt, gain, taui, errold
+    common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
+    integer :: i, j
+    character(len=6) :: tmp
+
+    do j = 1, command_argument_count()
+        call get_command_argument(j, tmp)
+        if (tmp == "--mode") exit
+    end do
+    call get_command_argument(j+1, tmp)
+    read(tmp, *) i
+    select case (i)
+        case (1)
+            ! default, do nothing
+        case (2)
+            setpt(6) = 0.1
+        case (3)
+            setpt(6) = 9.0
+        case (4)
+            ! default, do nothing
+        case (5)
+            setpt(6) = 0.1
+        case (6)
+            setpt(6) = 9.0
+    end select
+
+end subroutine set_mode
+
+
+subroutine perturb_mode(time)
+!   not actually used/tested
     real(kind=8) :: setpt, gain, taui, errold
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
