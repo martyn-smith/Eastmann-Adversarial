@@ -39,6 +39,7 @@ subroutine perturb_xmv(time)
                 read(tmp, *) amp
                 xmv(i) = xmv(i) + amp * (-1) ** floor(2 * (time * 3600.) / period)
                 xmv(i) = max(0., min(100.,xmv(i)))
+            !case ("DRIFT")
         end select
     init = .true.
 end subroutine perturb_xmv

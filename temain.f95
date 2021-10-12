@@ -160,10 +160,10 @@ subroutine helptext
 !   TODO: argparse (debtable)
     print *, "usage: te [OPTIONS]", char(10), &
         "Options:", char(10), &
-        "  -h, --help                  Display this message",  char(10), &
-        "  -a AGGR, --aggression AGGR  Run with aggression parameter AGGR (default 0.01)",  char(10), &
-        "  -d DIST                     Permanently set disturbance number DIST", &
-        "  -l                          Load state from STDIN (!) before running", &
+        "  -h, --help                  Display this message", char(10), &
+        "  -a AGGR, --aggression AGGR  Run with aggression parameter AGGR (default 0.01)", char(10), &
+        "  -d DIST                     Permanently set disturbance number DIST", char(10), &
+        "  -l                          Load state from STDIN (!) before running", char(10), &
         "  -o                          outputs to file (slow)", char(10), &
         "  -f                          print final measurement or state to STDOUT", char(10), &
         "  -r                          Run realtime and prints measurements to STDOUT", char(10), &
