@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "TEgym"
+version = "0.1.0"
+description = "Tennessee Eastman module for OpenAIgym"
+authors = ["Martyn"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+gym = "^0.21.0"
+numpy = "^1.21.2"
+colorpy = {git = "https://github.com/markkness/ColorPy.git"}
+#colorpy = {git = "https://github.com/martyn-smith/colorpy.git")
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

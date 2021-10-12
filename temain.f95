@@ -87,12 +87,6 @@ program temain
 !   integrator step size:  1 second converted to hours (time-base of simulation)
     delta_t = 1. / 3600.0
 
-<<<<<<< HEAD
-!   set the number of points to simulate
-!   npts = 48*3600
-
-=======
->>>>>>> 409cec8 (fixed/specified a long (not infinite) runtime mode)
     call filterinit(delta_t)
     call teinit(state, size(state), derivative, time)
     call filter_xmeas(time)

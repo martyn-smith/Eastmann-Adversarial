@@ -1,3 +1,17 @@
+! random_dist default values:
+!  1  0.485
+!  2  0.005
+!  3  45.0
+!  4  45.0
+!  5  35.0
+!  6  40.0
+!  7  1
+!  8  1
+!  9  0
+! 10  0
+! 11  0
+! 12  0
+
 subroutine perturb_xmv(time)
 
     real(kind=8) :: xmeas, xmv
