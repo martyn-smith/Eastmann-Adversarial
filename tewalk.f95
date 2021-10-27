@@ -1,3 +1,4 @@
+!==============================================================================
 ! random_dist default values:
 !  1  0.485
 !  2  0.005
@@ -11,6 +12,9 @@
 ! 10  0
 ! 11  0
 ! 12  0
+!
+! no deviation has been observed within 48 hours
+!==============================================================================
 
 subroutine perturb_xmv(time)
 
@@ -140,7 +144,6 @@ subroutine set_mode
     end select
 
 end subroutine set_mode
-
 
 subroutine perturb_mode(time)
 !   not actually used/tested
