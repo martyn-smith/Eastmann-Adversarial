@@ -1,7 +1,7 @@
 !module controller
 !end module
 
-subroutine contrlinit
+subroutine contrlinit(open)
 !   measurement and valve common block
     real(kind=8) :: xmeas, xmv, fxmeas, taufil, alpha
     common /pv/ xmeas(42), xmv(12)
@@ -11,6 +11,8 @@ subroutine contrlinit
     real(kind=8) :: setpt, gain, taui, errold
     common /ctrl/ setpt(20), gain(20), taui(20), errold(20)
 
+    logical, intent(in) :: open
+    if (.not. open) then
 !   set controller parameters
 !   reactor temperature control
     setpt(1)=120.40
@@ -57,6 +59,9 @@ subroutine contrlinit
     errold(9)=0.
     gain(9)=4.1
     taui(9)=81.9
+    else
+    xmeas = 0.5
+    end if
 end subroutine contrlinit
 
 subroutine contrl(delta_t)
@@ -224,7 +229,7 @@ subroutine check_danger(has_failed, err_msg)
     delta_xr, reaction_rate, reaction_heat,  &
     vcv, vrng, vtau, &
     sfr, &
-    xdel, xns, &
+    xdel, &
     t_gas, t_prod, vst
     type(agitator) :: agtatr
     type(vessel) :: r, s, c, v
@@ -237,8 +242,10 @@ subroutine check_danger(has_failed, err_msg)
     sm(13), &
     sfr(8), &
     cmpsr, &
-    agtatr, xdel(41), xns(41), &
-    t_gas, t_prod, vst(12), ivst(12)
+    agtatr, &
+    xdel(41), &
+    t_gas, t_prod, &
+    vst(12), ivst(12)
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)
 !   common block

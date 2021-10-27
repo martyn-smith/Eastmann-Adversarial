@@ -22,8 +22,9 @@ subroutine measure
     sm(13), &
     sfr(8), &
     cmpsr, &
-    agtatr, xdel(41), xns(41), &
-    t_gas, t_prod, vst(12), ivst(12)
+    agtatr, xdel(41), &
+    t_gas, t_prod, &
+    vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)

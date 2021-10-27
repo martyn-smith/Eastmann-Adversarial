@@ -212,7 +212,7 @@ subroutine teinit(state, nn, derivative, time)
     delta_xr, reaction_rate, reaction_heat, &
     vcv, vrng, vtau, &
     sfr, &
-    xdel, xns, t_gas, t_prod, vst
+    xdel, t_gas, t_prod, vst
 !   Reactor properties (24)
 !   Separator properties (20)
 !   Stripper properties? (10)
@@ -231,7 +231,7 @@ subroutine teinit(state, nn, derivative, time)
     sfr(8), &
     cmpsr, &
     agtatr, &
-    xdel(41), xns(41), &
+    xdel(41), &
     t_gas, t_prod, &
     vst(12), ivst(12)
 
@@ -241,9 +241,6 @@ subroutine teinit(state, nn, derivative, time)
     logical :: auto
     integer :: idv
     common /dvec/ idv(24), auto
-
-    type(walk) :: wlk
-    common /wlk/ wlk
 
 !   local variables
     integer, intent(in) :: nn
@@ -284,15 +281,6 @@ subroutine teinit(state, nn, derivative, time)
     cmpsr%max_flow = 280275.
     cmpsr%max_PR = 1.3
 
-    xns = [0.0012, 18.000, 22.000, 0.0500, 0.2000, &
-           0.2100, 0.3000, 0.5000, 0.0100, 0.0017, &
-           0.0100, 1.0000, 0.3000, 0.1250, 1.0000, &
-           0.3000, 0.1150, 0.0100, 1.1500, 0.2000, &
-           0.0100, 0.0100, 0.250, 0.100, 0.250, &
-           0.100, 0.250, 0.025, 0.250, 0.100, &
-           0.250, 0.100, 0.250, 0.025, 0.050, &
-           0.050, 0.010, 0.010, 0.010, 0.500, &
-           0.500]
 !   note: array assignment!
     vst = 2.
     ivst = 0
@@ -324,9 +312,6 @@ subroutine teinit(state, nn, derivative, time)
 
 !   common /idv/ init
     idv = 0
-
-!   common /wlk/ init
-    call walker_init()
 
     time = 0.
     call tefunc(state, nn, derivative, time)
@@ -373,7 +358,7 @@ subroutine tefunc(state, nn, derivative, time)
     delta_xr, reaction_rate, reaction_heat,  &
     vcv, vrng, vtau, &
     sfr, &
-    xdel, xns, &
+    xdel, &
     t_gas, t_prod, vst
     type(agitator) :: agtatr
     type(vessel) :: r, s, c, v
@@ -386,8 +371,10 @@ subroutine tefunc(state, nn, derivative, time)
     sm(13), &
     sfr(8), &
     cmpsr, &
-    agtatr, xdel(41), xns(41), &
-    t_gas, t_prod, vst(12), ivst(12)
+    agtatr, &
+    xdel(41), &
+    t_gas, t_prod, &
+    vst(12), ivst(12)
 
     real(kind=8) :: xmeas, xmv
     common /pv/ xmeas(42), xmv(12)
@@ -396,8 +383,6 @@ subroutine tefunc(state, nn, derivative, time)
     integer :: idv
     common /dvec/ idv(24), auto
 
-    type(walk) :: wlk
-    common /wlk/ wlk
 !   common block
 
     integer, intent(in) :: nn
@@ -412,15 +397,15 @@ subroutine tefunc(state, nn, derivative, time)
     xcmp(41)
 
 !   label 500 abstracted, idv is a logical now.
-    call next_walk(time)
+!    call next_walk(time)
 !   stream and idvs
-    sm(4)%x(1) = random_dist(1, time) - idv(1)*0.03 - idv(2)*2.43719e-3
-    sm(4)%x(2) = random_dist(2, time) + idv(2)*0.005
+    sm(4)%x(1) = random_dist(1) - idv(1)*0.03 - idv(2)*2.43719e-3
+    sm(4)%x(2) = random_dist(2) + idv(2)*0.005
     sm(4)%x(3) = 1. - sm(4)%x(1) - sm(4)%x(2)
-    sm(1)%T = random_dist(3, time) + idv(3)*5. + idv(9)*rand()*5.
-    sm(4)%T = random_dist(4, time) + idv(10)*rand()*5.
-    R%cl%T_in = random_dist(5, time) + idv(4)*5. + idv(11)*rand()*5.
-    S%cl%T_in = random_dist(6, time) + idv(5)*5. + idv(12)*rand()*5.
+    sm(1)%T = random_dist(3) + idv(3)*5. + idv(9)*rand()*5.
+    sm(4)%T = random_dist(4) + idv(10)*rand()*5.
+    R%cl%T_in = random_dist(5) + idv(4)*5. + idv(11)*rand()*5.
+    S%cl%T_in = random_dist(6) + idv(5)*5. + idv(12)*rand()*5.
 
 !   download new molar amounts from state vector.
 !   labels 1010, 1020, 1030
@@ -478,8 +463,8 @@ subroutine tefunc(state, nn, derivative, time)
 !   setting reactions
 !   rr's 1, 2, 3 consume A, 4 does not
 !   R is in cal.K-1mol-1! first Ea works out to about 167 kJmol-1
-    r1f = random_dist(7, time)
-    r2f = random_dist(8, time)
+    r1f = random_dist(7)
+    r2f = random_dist(8)
     reaction_rate(1) = r1f * 5.219217002265e+13 * exp(-40./(1.987e-3 * R%tk))
     reaction_rate(2) = r2f * 20.27525952163 * exp(-20./(1.987e-3 * R%tk))
     reaction_rate(3) = 1.5629689117665e+23 * exp(-60./(1.987e-3 * R%tk))
@@ -558,7 +543,7 @@ subroutine tefunc(state, nn, derivative, time)
     sm(6)%ftm = flms / sm(6)%xmws ! volume flow per time / m weight = moles / s / density?
 
     delta_p = max(R%pt-S%pt, 0.) ! reactor - separator
-    flms = 4574.21*sqrt(delta_p)*(1.-0.25*random_dist(12,time))
+    flms = 4574.21*sqrt(delta_p)*(1.-0.25*random_dist(12))
     sm(8)%ftm = flms / sm(8)%xmws ! mass flow = volume / mean mass?
 
     delta_p = S%pt-760.0 ! sep - atmosphere
@@ -654,8 +639,7 @@ subroutine tefunc(state, nn, derivative, time)
 
     if(time > 0.) then
         do i=1,22 !label 6500
-            !call tesub6(xns(i),xmns)
-            xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
+            xmeas(i) = xmeas(i)+random_xmeas_noise(i)
         end do
     end if
     if (idv(16) == 1) then
@@ -685,8 +669,7 @@ subroutine tefunc(state, nn, derivative, time)
     if(time >= t_gas) then !purge gas and reactor feed analysis
         do i=23,36 !label 7020
             xmeas(i) = xdel(i)
-            !call tesub6(xns(i),xmns)
-            xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
+            xmeas(i) = xmeas(i)+random_xmeas_noise(i)
             xdel(i) = xcmp(i)
         end do
         t_gas=t_gas+0.1
@@ -694,8 +677,7 @@ subroutine tefunc(state, nn, derivative, time)
     if(time >= t_prod) then !product feed analysis
         do i=37,41 !label 7030
             xmeas(i) = xdel(i)
-            !call tesub6(xns(i),xmns)
-            xmeas(i) = xmeas(i)+random_xmeas_noise(xns(i))
+            xmeas(i) = xmeas(i)+random_xmeas_noise(i)
             xdel(i) = xcmp(i)
         end do
         t_prod = t_prod+0.25
@@ -895,7 +877,7 @@ subroutine set_reactor_heat_transfer(R, agtatr, time)
 
     uarlev = min(max((1. / 312.) * (R%vl - 78.), 0.0), 1.0)
     ua = uarlev * (-0.5*agtatr%speed**2 + 2.75*agtatr%speed - 2.5) * 855490.e-6
-    R%qu = ua * (R%cl%T_out - R%tc) * (1. - 0.35*random_dist(10,time))
+    R%qu = ua * (R%cl%T_out - R%tc) * (1. - 0.35*random_dist(10))
 end subroutine set_reactor_heat_transfer
 
 subroutine set_sep_heat_transfer(S, sm, time)
@@ -907,7 +889,7 @@ subroutine set_sep_heat_transfer(S, sm, time)
     real(kind=8) :: ua
 
     ua = 0.404655 * (1. - 1./(1. + (sm%ftm / 3528.73)**4))
-    S%qu = ua * (S%cl%T_out - sm%T) * (1. - 0.25*random_dist(11,time))
+    S%qu = ua * (S%cl%T_out - sm%T) * (1. - 0.25*random_dist(11))
 end subroutine set_sep_heat_transfer
 
 subroutine set_C_heat_transfer(C, vpos, vrng, time)
@@ -917,7 +899,7 @@ subroutine set_C_heat_transfer(C, vpos, vrng, time)
     type(vessel), intent(inout) :: C
     real(kind=8) :: ua
 
-    ua = vpos(9)*vrng(9)*(1. + random_dist(9,time))/100.0
+    ua = vpos(9)*vrng(9)*(1. + random_dist(9))/100.0
     C%qu = 0.
     if(C%tc < 100.) C%qu = ua*(100.0-C%tc)
 end subroutine set_C_heat_transfer

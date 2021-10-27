@@ -40,6 +40,7 @@ include "teprob.f95"
 program temain
 !   TODO: 
 !   fix delta_t to use one second by default (requires changing some hard-coded constants!)
+    use tewalk
     implicit none
 
 !   measurement and valve common block
@@ -58,7 +59,8 @@ program temain
 
 !   local variables
     logical :: aggression = .false., danger = .false., dvec = .false., fileout = .false., finalout = .false., &
-               has_failed = .false., load = .false., mode = .false., realtime = .false., verbose = .false.
+               has_failed = .false., load = .false., mode = .false., open = .false., realtime = .false., &
+               verbose = .false.
     integer :: i, k
     integer :: npts = 48*3600
     real(kind=8) :: time, delta_t, state(50), derivative(50)
@@ -76,8 +78,10 @@ program temain
         if (flag == "-l") load = .true. 
         if (flag == "--long") npts = huge(npts)
         if (flag == "--mode") mode = .true.
-        if (flag == "-r") realtime = .true.
+        if (flag == "--open") open = .true.
         if (flag == "-o") fileout = .true.
+        if (flag == "-r") realtime = .true.
+        if (flag == "-t") call set_timer(npts, i)
         if (flag == "-v") verbose = .true.
         !if (flag == "-vv") veryverbose = .true.
         if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression", &
@@ -90,7 +94,7 @@ program temain
     call filterinit(delta_t)
     call teinit(state, size(state), derivative, time)
     call filter_xmeas(time)
-    call contrlinit
+    call contrlinit(open)
     if (fileout) call outputinit
     if (load) call teload(state, idv)
     if (mode) call set_mode
@@ -99,7 +103,7 @@ program temain
     do i = 1, npts
 
         if (flag == "--xmeas") call perturb_xmeas(time)
-        call contrl(delta_t)
+        if (.not. open) call contrl(delta_t)
         if (flag == "--xmv") call perturb_xmv(time)
 
         if (mod(i, 3600) == 0 .and. aggression) call set_idvs()
@@ -158,13 +162,16 @@ subroutine helptext
         "  -a AGGR, --aggression AGGR  Run with aggression parameter AGGR (default 0.01)", char(10), &
         "  -d DIST                     Permanently set disturbance number DIST", char(10), &
         "  -l                          Load state from STDIN (!) before running", char(10), &
+        "  --long                      Runs forever", char(10), &
         "  -o                          outputs to file (slow)", char(10), &
         "  -f                          print final measurement or state to STDOUT", char(10), &
         "  -r                          Run realtime and prints measurements to STDOUT", char(10), &
-        "  -t                          Set timer (default 48 hr)", char(10), &
+        "  -t HOURS                    Set timer (default 48 hr) in hours", char(10), &
+        "     -s SECONDS               in seconds", char(10), &
+        "     inf                      Runs forever", char(10), &
         "  -v                          Outputs more information", char(10), &
-        "  --long                      Runs for longer", char(10), &
         "  --danger                    Danger mode: safety cutouts disabled", char(10), &
+        "  --open                      Runs open loop", char(10), &
         "  --xmeas [X] [OPTIONS]       Run with XMEAS set to [options], or ",  char(10), &
         "  --xmv [X] [OPTIONS]         Run with XMV set to [options]", char(10), &
         "  --mode [X]                  Run with modes specified in Downs and Vogel", char(10), &
@@ -182,21 +189,25 @@ end subroutine helptext
 
 !==============================================================================
 
-subroutine set_timer(npts)
-    integer :: ierr, j
+subroutine set_timer(npts, j)
+    integer, intent(in) :: j
+    integer :: ierr, n
     integer, intent(inout) :: npts
     character(3) :: tmp
 
-    do j = 1, command_argument_count()
-        call get_command_argument(j, tmp)
-        if (tmp == "--t" ) exit
-    end do
     call get_command_argument(j+1, tmp)
-    if (tmp == "inf") npts = 999999999
-    if (tmp /= "") read(tmp, *, iostat=ierr) j
-    if (ierr == 0) npts = j * 3600
-
+    if (tmp == "inf") then 
+        npts = huge(npts)
+    else if (tmp == "-s") then
+        call get_command_argument(j+2, tmp)
+        read(tmp, *, iostat=ierr) n
+         if (ierr == 0) npts = n
+    else 
+        read(tmp, *, iostat=ierr) n
+        if (ierr == 0) npts = n * 3600
+    end if
 end subroutine set_timer
+
 subroutine filterinit(delta_t)
 !   specify some parameters for the relay identification plus some
 !   parameters for the filter
