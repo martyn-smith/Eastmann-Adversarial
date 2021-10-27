@@ -41,18 +41,18 @@
 #
 #  manipulated variables
 #
-#    xmv(1)     a feed flow (stream 1)
-#    xmv(2)     d feed flow (stream 2)
-#    xmv(3)     e feed flow (stream 3)
-#    xmv(4)     a and c feed flow (stream 4)
-#    xmv(5)     compressor recycle valve
-#    xmv(6)     purge valve (stream 9)
-#    xmv(7)     separator pot liquid flow (stream 10)
-#    xmv(8)     stripper liquid product flow (stream 11)
-#    xmv(9)     stripper steam valve
-#    xmv(10)    reactor cooling water flow
-#    xmv(11)    condenser cooling water flow
-#    xmv(12)    agitator speed
+#    xmv[0]     a feed flow (stream 0) -> clearly should be different??
+#    xmv[1]     d feed flow (stream 1)
+#    xmv[2]     e feed flow (stream 2)
+#    xmv[3]     a and c feed flow (stream 3)
+#    xmv[4]     compressor recycle valve
+#    xmv[5]     purge valve (stream 8)
+#    xmv[6]     separator pot liquid flow (stream 9)
+#    xmv[7]     stripper liquid product flow (stream 10)
+#    xmv[8]     stripper steam valve
+#    xmv[9]    reactor cooling water flow
+#    xmv[10]    condenser cooling water flow
+#    xmv[11]    agitator speed
 #
 #  continuous process measurements
 #
@@ -153,13 +153,13 @@
 #
 #    Stream mappings
 #
-#    sm[0]  D feed -> V
-#    sm[1]  E feed -> V
-#    sm[2]  A feed -> V
+#    sm[0]  D feed -> J
+#    sm[1]  E feed -> J
+#    sm[2]  A feed -> J
 #    sm[3]  A & C feed -> sm[11]
-#    sm[4]  C (Stripper) -> V (compressor?)
-#    sm[5]  V (compressor) -> sm[6]
-#    sm[6]  V -> R (Reactor)
+#    sm[4]  C (Stripper) -> J (junction)
+#    sm[5]  J (junction) -> sm[6]
+#    sm[6]  -> R (Reactor)
 #    sm[7]  R (Reactor) -> S (Separator)
 #    sm[8]  S (Separator) -> V (compressor?)
 #    sm[9] S (Separator) -> purge
@@ -171,6 +171,7 @@
 from blue import TEprobManager
 from colorpy.blackbody import blackbody_color
 from constants import *
+import copy
 import control
 import enum
 import gym
@@ -181,9 +182,11 @@ import numpy as np
 np.seterr(all="raise")
 from random import choice, uniform
 from red import ThreatAgent
-from sys import exit
+from sys import argv, exit
 
 DELTA_t = 1. / 3600.
+
+log = []
 
 class Action(enum.Enum):
     CONTINUE = 0
@@ -250,17 +253,18 @@ class Vessel:
 
     @property
     def level(self):
-        return (self.vl - 84.6 / 666.7)    
+        return (self.vl - 84.6) / 666.7    
 
     def set_density(self):
         v = sum(self.xl * xmw / (ad + (bd+cd * self.tc) * self.tc))
         self.density = 1.0 / v
 
     def set_P(self):
+        global log
         self.pp = np.zeros(8)
         for i in range(3):  #label 1110 - for R and S only
             self.pp[i] = self.ucv[i] * rg * self.tk / self.vv
-        
+       
         for i in range(3,8): #label 1120 - for R and S only
             self.pp[i] = self.xl[i] * np.exp(avp[i] + bvp[i]/(self.tc + cvp[i])) #Antoine eq.
         self.pt = sum(self.pp) # in mmHga (!)
@@ -276,19 +280,13 @@ class Vessel:
         
         if not hasattr(self, "tc"):
             self.tc = 0.
-        # if debug:
-        #     print("setting T for reactor")
         T_in = self.tc
         for i in range(100):  #label 250
             err = self.H - self.es
             dh = self.delta_H
             dT = -err/dh
             self.tc += dT #main mutator of T
-            # if (debug):
-            #     print(self.tc, self.H, self.delta_H)
             if abs(dT) < 1.e-12:
-                # if debug:
-                #     print("converged")
                 return
         self.tc = T_in
 
@@ -296,11 +294,6 @@ class GasVessel(Vessel):
 
     @property
     def delta_H(self):
-        # dh = 0.
-        # for i in range(8): 
-        #     dhi = 1.8 * (ag(i) + bg(i)*self.tc + cg(i)*self.tc**2)
-        #     dh = dh + self.xv(i)*xmw(i)*dhi
-        # dh = dh 
         return (sum(self.xv * xmw 
                     * 1.8 
                     * (ag + bg * self.tc + cg * self.tc**2)) 
@@ -308,13 +301,6 @@ class GasVessel(Vessel):
 
     @property
     def H(self):
-    #   was tesub1. Split out for when it's used for vessels.
-        # H = 0.
-        # for i in range(8):  #label 200
-        #     hi = 1.8 * self.Tc * (ag(i) + bg(i)*self.Tc/2. + cg(i)*self.Tc**2/3.) + av(i)
-        #     H += self.xv(i)*xmw(i)*hi 
-        # H -= 3.57696e-6 * self.tk
-        # return H
         return (sum(self.xv * xmw 
                    * (1.8 * self.tc 
                      * (ag + bg * self.tc/2. + cg * self.tc**2/3.) 
@@ -340,16 +326,16 @@ class Stream:
 
     #all streams weirdness:
     # set_H() initially called normally for 1,2,3,5,7,8 only
-    # 9 then copies 8
-    # then for 10 and 12 with ity = 0 (i.e. as liquid?)
-    # 4 (ity=1) and 11 (ity = 0) are called later
+    # 9.H then copies 8.H so set_H() is never called
+    # (but that means we can't evaluate lazily)
+    # 10 and 12 are calculated differently as liquid streams
+    # 4 (gas) and 11 (liquid) set_H are called, but later
     # fcm is calculated the same for all but 4, 6, and 11
     # 6 copies five, 4 and 11 are dependent on Sfr and Fin
 
-    def __init__(self, seed = None):
-        if seed is not None:   
-            self.x = np.array(seed[:-1])
-            self.T = seed[-1]
+    @property
+    def fcm(self):
+        return self.x * self.ftm
 
     @property
     def xmws(self):
@@ -361,12 +347,37 @@ class Stream:
                        * (ag + bg*self.T/2. + cg*self.T**2/3.) 
                      + av))
 
+class FeedStream(Stream):
+    def __init__(self, seed):
+        self.x = np.array(seed[:-1])
+        self.T = seed[-1]
+
+class FCMStream():
+    #stream 4 only
+    def __init__(self, seed = None):
+        if seed is not None:   
+            self.x = np.array(seed[:-1])
+            self.T = seed[-1]
+
+    #inherits only this from regular streams
+    def set_H(self):
+        self.H = sum(self.x * xmw
+                     * (1.8 * self.T 
+                       * (ag + bg*self.T/2. + cg*self.T**2/3.) 
+                     + av))
+    
+class FCMLiquidStream():
+    #stream 11 only
+
+    #inherits only this from LiquidStream
+    def set_H(self):
+        self.H = sum(self.x * xmw 
+                    * (1.8 * self.T 
+                    * (ah + bh*self.T/2. + ch*self.T**2/3.)))
+
 class LiquidStream(Stream):
+    #streams 10, 12
 
-    def __init__(self):
-        pass
-
-    #special calc for streams 10, 11, 12
     def set_H(self):
         self.H = sum(self.x * xmw 
                     * (1.8 * self.T 
@@ -442,22 +453,25 @@ class Reactor(Vessel):
         self.qu = ua * (self.cl.T_out - self.tc)
 
     def react(self):
-        #r1f, r2f removed (== 1)
         reaction_rate = np.zeros(4)
-        reaction_rate[0] = 5.219217002265e+13 * np.exp(-40./(1.987e-3 * self.tk)) * uniform(0.99, 1.01)
-        reaction_rate[1] = 20.27525952163 * np.exp(-20./(1.987e-3 * self.tk)) * uniform(0.99, 1.01)
-        reaction_rate[2] = 1.5629689117665e+23 * np.exp(-60./(1.987e-3 * self.tk)) * uniform(0.99, 1.01)
+        #A + C + D -> G
+        reaction_rate[0] = 5.219217002265e+13 * np.exp(-40./(1.987e-3 * self.tk))
+        #A + D + E -> H
+        reaction_rate[1] = 20.27525952163 * np.exp(-20./(1.987e-3 * self.tk)) 
+        #A + E -> F
+        reaction_rate[2] = 1.5629689117665e+23 * np.exp(-60./(1.987e-3 * self.tk))
+        #3D -> 2F
         reaction_rate[3] = reaction_rate[2] * 0.767488334
         if self.pp[0] > 0.0 and self.pp[2] > 0.0:
-            rf = self.pp[0]**1.1544 * self.pp[2]**0.3735
-            reaction_rate[0] *= rf * self.pp[3] 
-            reaction_rate[1] *= rf * self.pp[4]
+            rf = self.pp[0]**1.1544 * self.pp[2]**0.3735 #??? rr[1] should not be dependent on C
+            reaction_rate[0] *= rf * self.pp[3] #D dependence
+            reaction_rate[1] *= rf * self.pp[4] #E dependence
         else:
             reaction_rate[0] = 0.
             reaction_rate[1] = 0.
         
-        reaction_rate[2] *= self.pp[0]*self.pp[4]
-        reaction_rate[3] *= self.pp[0]*self.pp[3]
+        reaction_rate[2] *= self.pp[0]*self.pp[4] #E dependence
+        reaction_rate[3] *= self.pp[0]*self.pp[3] #D dependence
 
         reaction_rate *= self.vv
 
@@ -480,8 +494,31 @@ class Reactor(Vessel):
 
     def set_uc(self, in_stream, out_stream, delta_xr):
         derivative = in_stream.fcm - out_stream.fcm + delta_xr
-        self.ucv += np.array([*(derivative[:3] * DELTA_t), *np.zeros(5)])
-        self.ucl += np.array([*(derivative[3:] * DELTA_t), *np.zeros(3)])
+        #print(f"in = {in_stream.fcm[3]}, out = {out_stream.fcm[3]}")
+        #print(f"{derivative[3]=}")
+        self.ucv[:3] += np.array([*(derivative[:3] * DELTA_t)])
+        self.ucl += np.array([*(np.zeros(3)), *(derivative[3:] * DELTA_t)])
+
+    def set_P(self):
+        #debug function, it doesn't need to be separate from super()
+        #note currently balloons (even wiith constant tk)
+
+        old_pp = self.pp if hasattr(self, "pp") else np.zeros(8)
+        self.pp = np.zeros(8)
+        for i in range(3):  #label 1110 - for R and S only
+            self.pp[i] = self.ucv[i] * rg * self.tk / self.vv
+        
+        for i in range(3,8): #label 1120 - for R and S only
+            self.pp[i] = self.xl[i] * np.exp(avp[i] + bvp[i]/(self.tc + cvp[i])) #Antoine eq.
+        #print(f"pressure change = {self.pp - old_pp}")
+        
+        #B now acc
+        self.pt = sum(self.pp) # in mmHga (!)
+        #label 1130
+        self.xv = self.pp / self.pt
+        self.utv = self.pt * self.vv / rg / self.tk
+        for i in range(3,8):#label 1140
+            self.ucv[i] = self.utv * self.xv[i]
 
 class Separator(Vessel):
 
@@ -517,7 +554,7 @@ class Separator(Vessel):
         #                         React out      recycle        purge           underflow
         derivative = in_stream.fcm - sum(sm.fcm for sm in out_streams)
         self.ucv += np.array([*(derivative[:3] * DELTA_t), *np.zeros(5)])
-        self.ucl += np.array([*(derivative[3:] * DELTA_t), *np.zeros(3)])
+        self.ucl += np.array([*np.zeros(3), *(derivative[3:] * DELTA_t)])
 
     @property
     def level(self):
@@ -547,7 +584,7 @@ class Stripper(Vessel):
     #       delta C UCV and UCL
     #TODO: dims of this func
         derivative = in_stream.fcm - out_stream.fcm
-        self.ucv += derivative[:3] * DELTA_t
+        #self.ucv += derivative[:3] * DELTA_t
         self.ucl += derivative * DELTA_t
 
 class Compressor(Vessel):
@@ -569,10 +606,11 @@ class Junction(GasVessel):
     def set_et(self, in_streams, out_stream):
         derivative = (sum(sm.H * sm.ftm for sm in in_streams) 
                       - (out_stream.H * out_stream.ftm))
-        print(f"junction {derivative=}")
+        #print(f"junction {derivative=}")
         self.et += derivative * DELTA_t
 
     def set_uc(self, in_streams, out_stream):
+        #potential issue here?
         derivative = (sum(sm.fcm for sm in in_streams)
                       - out_stream.fcm)
         self.ucv += derivative * DELTA_t
@@ -581,6 +619,10 @@ class Sfr:
 
     def __init__(self, seed):
         self.fcm = np.array(seed)
+
+    @property
+    def ftm(self):
+        return sum(self.fcm)
 
     def set_fcm(self, c, sm):
         if sm[10].ftm > 0.1:
@@ -605,7 +647,7 @@ class Sfr:
 
 class TEproc(gym.Env):
 
-    def __init__(self, ctrl_mode = ControlMode.CLOSED):
+    def __init__(self, ctrl_mode=None):
         """
         initialization
         
@@ -640,10 +682,10 @@ class TEproc(gym.Env):
             "vtau" : [8., 8., 6., 9., 7., 5., 
                       5., 5., 120., 5., 5., 5.],
             "sfr" : [0.995, 0.991, 0.99, 0.916, 0.936, 0.938, 0.058, 0.0301],
-            0 : [0., 0.0001, 0., 0.9999, 0., 0., 0., 0., 45.],
-            1 : [0., 0., 0., 0., 0.9999, 0.0001, 0., 0., 45.],
-            2 : [0.9999, 0.0001, 0., 0., 0., 0., 0., 0., 45.],
-            3 : [0.4850, 0.0050, 0.5100, 0., 0., 0., 0., 0., 45.]
+            0 : [0., 0.0001, 0., 0.9999, 0., 0., 0., 0., 45.], #D feed
+            1 : [0., 0., 0., 0., 0.9999, 0.0001, 0., 0., 45.], #E feed
+            2 : [0.9999, 0.0001, 0., 0., 0., 0., 0., 0., 45.], #A feed
+            3 : [0.4850, 0.0050, 0.5100, 0., 0., 0., 0., 0., 45.] #A and C feed
         }
 
         self.time = 0.
@@ -655,9 +697,12 @@ class TEproc(gym.Env):
         self.s = Separator(seed["S"])
         self.c = Stripper(seed["C"])
         self.j = Junction(seed["V"])
-        self.sm = ([Stream(seed[0]), Stream(seed[1]), Stream(seed[2]), Stream(seed[3])]
-                   + [Stream() for _ in range(6)]
-                   + [LiquidStream() for _ in range(3)])
+        self.sm = ([FeedStream(seed[0]), FeedStream(seed[1]), FeedStream(seed[2]), FeedStream(seed[3])]
+                   + [FCMStream()]
+                   + [Stream() for _ in range(5)]
+                   + [LiquidStream()]
+                   + [FCMLiquidStream()]
+                   + [LiquidStream()])
         self.sfr = Sfr(seed["sfr"])
         self.valves = [Valve(i, p, r, t) for i, p, r, t in zip(
                                                                list(range(12)), 
@@ -669,7 +714,7 @@ class TEproc(gym.Env):
 
         self.prod_mode = 1
         self.ctrlr = (control.Controller(seed["vpos"], self.prod_mode)
-                        if ctrl_mode == ControlMode.CLOSED
+                        if ctrl_mode == ControlMode.CLOSED or ctrl_mode is None
                         else control.Dummy())
         self.faults = [0] * 20
         self.attacks = [0] * 20
@@ -685,6 +730,8 @@ class TEproc(gym.Env):
             next_walk(time)
             stream and idvs
         """
+
+        global log
 
         for mv, valve in zip(self.ctrlr.xmv, self.valves):
             valve.set(mv)
@@ -735,7 +782,7 @@ class TEproc(gym.Env):
         self.sm[12].set_H()
 
     #   setting stream mass flows
-        self.sm[2].ftm = self.valves[2].flow() #vpos[2] * (1.-idv(6))*self.vrng[2]/100.0 # A feed
+        self.sm[2].ftm = self.valves[2].flow() # A feed
         self.sm[0].ftm = self.valves[0].flow() # D feed
         self.sm[1].ftm = self.valves[1].flow() # E feed
         self.sm[3].ftm = self.valves[3].flow() # A and C feed
@@ -748,7 +795,6 @@ class TEproc(gym.Env):
         #J is still 4% too hot, and thus 4% too high P.
         delta_p = max(self.j.pt - self.r.pt, 0.) 
         flms = 1937.6 * np.sqrt(delta_p)
-      
         self.sm[5].ftm = flms / self.sm[5].xmws # volume flow per time / m weight = moles / s / density?
 
         delta_p = max(self.r.pt - self.s.pt, 0.) # reactor - separator
@@ -770,24 +816,13 @@ class TEproc(gym.Env):
         self.sm[8].ftm = flms / self.sm[8].xmws
         self.sm[8].H += self.cmpsr.work / self.sm[8].ftm
 
-        # label 5020 vectorised (yes, this also works)
-        self.sm[0].fcm = self.sm[0].x * self.sm[0].ftm
-        self.sm[1].fcm = self.sm[1].x * self.sm[1].ftm
-        self.sm[2].fcm = self.sm[2].x * self.sm[2].ftm
-        self.sm[3].fcm = self.sm[3].x * self.sm[3].ftm
-        self.sm[5].fcm = self.sm[5].x * self.sm[5].ftm
-        self.sm[7].fcm = self.sm[7].x * self.sm[7].ftm
-        self.sm[8].fcm = self.sm[8].x * self.sm[8].ftm
-        self.sm[9].fcm = self.sm[9].x * self.sm[9].ftm
-        self.sm[10].fcm = self.sm[10].x * self.sm[10].ftm
-        self.sm[12].fcm = self.sm[12].x * self.sm[12].ftm
+    #   label 5020 abstracted into property
 
         self.sfr.set_fcm(self.c, self.sm)
     #   label 6010
         fin = self.sm[3].fcm + self.sm[10].fcm
         #check fin
-        print(f"{fin=}")
-
+        #print(f"sfr = {self.sm[3].ftm}, {self.sm[10].ftm}")
     #   label 6020 and 6030
         self.sm[4].fcm = self.sfr.fcm * fin # only place that consumes sfr
         self.sm[11].fcm = fin - self.sm[4].fcm
@@ -801,12 +836,7 @@ class TEproc(gym.Env):
         self.sm[4].set_H()
         self.sm[11].set_H()
 
-        self.sm[6].ftm = self.sm[5].ftm
-        self.sm[6].H = self.sm[5].H
-        self.sm[6].T = self.sm[5].T
-    #   label 6130
-        self.sm[6].x = self.sm[5].x
-        self.sm[6].fcm = self.sm[5].fcm
+        self.sm[6] = copy.deepcopy(self.sm[5])
 
     #   calculate cooling from water feeds
         self.r.set_heat_transfer(self.agtatr)
@@ -822,7 +852,8 @@ class TEproc(gym.Env):
         self.s.set_tw()
 
         #label 9010
-        self.r.set_uc( self.sm[6], self.sm[8], delta_xr)
+        log += [self.r.pg]
+        self.r.set_uc( self.sm[6], self.sm[7], delta_xr)
         self.s.set_uc( self.sm[7], (self.sm[8], self.sm[9], self.sm[10]))
         self.c.set_uc( self.sm[11], self.sm[12])
         self.j.set_uc( (self.sm[0], self.sm[1], self.sm[2], self.sm[4], self.sm[8]), self.sm[5])
@@ -923,8 +954,8 @@ class TEproc(gym.Env):
         return (self.r.pg > 3000.
                 or False)
 
-    def reset(self):
-        self.__init__()
+    def reset(self, mode):
+        self.__init__(ctrl_mode=mode)
         #reset MUST return an initial observation
         return np.zeros(43)
 
@@ -934,12 +965,12 @@ class TEproc(gym.Env):
         vessel_width = 50.0
         vessel_height = 30.0
         color_offset = 800.0
-        sep_space = 300
+        sep_space = 200
 
         if not hasattr(self, "viewer") and mode=="human":
             self.viewer = rendering.Viewer(screen_width, screen_height)
         l, b = -vessel_width / 2, -vessel_height / 2
-        t = self.r.level / 5
+        t = self.r.level * 200
         r = self.r.pg / 30.
         reactor = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
         reactor.set_color(*blackbody_color(self.r.tk + 800))
@@ -948,18 +979,18 @@ class TEproc(gym.Env):
         self.viewer.add_geom(reactor)
 
         l += sep_space
-        t = self.s.level 
-        r = sep_space + self.s.pt / 100.
+        t = self.s.level * 200
+        r = sep_space + self.s.pg / 40.
         separator = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
-        separator.set_color(*blackbody_color(self.s.tk + 600))
+        separator.set_color(*blackbody_color(self.s.tk + 800))
         self.septrans = rendering.Transform()
-        reactor.add_attr(self.septrans)
+        separator.add_attr(self.septrans)
         self.viewer.add_geom(separator)
         
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
     def close(self):
-        if self.viewer:
+        if hasattr(self, "viewer"):
             self.viewer.close()
             self.viewer = None
 
@@ -968,32 +999,38 @@ if __name__ == "__main__":
     gym.envs.registration.register(
         id="TennesseeEastmann-v1",
         entry_point="__main__:TEproc",
-        max_episode_steps=200,
+        max_episode_steps=48*3600,
         reward_threshold=195.0
     )
 
+    ctrl_mode = ControlMode.OPEN if "--open" in argv else ControlMode.CLOSED
     env = gym.make("TennesseeEastmann-v1")
     red = ThreatAgent()
     blue = TEprobManager()
-    observation = env.reset()
+    observation = env.reset(mode=ctrl_mode)
     blue_action = [Action.CONTINUE] * 12
     red_action = None
     action = (blue_action, red_action)
     #TODO:
     #select random threat agent (random loss function)
     #with open(f):
-    for t in range( 48*3600):
-        observation, reward, done, info = env.step(action)
-        print(f"{reward=}")
+    for t in range(env._max_episode_steps):
+        try:
+            observation, reward, done, info = env.step(action)
+        except FloatingPointError:
+            print(f"t = {t}")
+            raise FloatingPointError
+        #print(f"{reward=}")
         #f.write(info)
-        env.render()
-        #print(observation)
+        #env.render()
         # if model.predict(observation) == failure:
         #     env.reset()
         #     reward -= 24*3600
         xmeas, xmv = observation[0], observation[1]
-        print("reactor P, t, and control value: ", env.r.pg, env.r.tc, env.ctrlr.xmv[3])
+        #print("reactor P, t, and control value: ", env.r.pg, env.r.level, env.r.tc, env.ctrlr.xmv[3])
         if done:
             print("Episode finished after {} timesteps".format(t+1))
             break
     env.close()
+    plt.plot(log)
+    plt.show()
