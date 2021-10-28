@@ -159,12 +159,12 @@
 #    sm[3]  A & C feed -> sm[11]
 #    sm[4]  C (Stripper) -> J (junction)
 #    sm[5]  J (junction) -> sm[6]
-#    sm[6]  -> R (Reactor)
+#    sm[6]  sm[5] -> R (Reactor)
 #    sm[7]  R (Reactor) -> S (Separator)
 #    sm[8]  S (Separator) -> V (compressor?)
 #    sm[9] S (Separator) -> purge
 #    sm[10] S (Separator) -> sm[11]
-#    sm[11] sm[4-1] + S (Separator) -> C (Stripper)
+#    sm[11] sm[3] + S (Separator) -> C (Stripper)
 #    sm[12] C (Stripper) -> prod
 #===============================================================================
 """
@@ -250,10 +250,6 @@ class Vessel:
     @property
     def xl(self):
         return self.ucl / self.utl
-
-    @property
-    def level(self):
-        return (self.vl - 84.6) / 666.7    
 
     def set_density(self):
         v = sum(self.xl * xmw / (ad + (bd+cd * self.tc) * self.tc))
@@ -403,6 +399,9 @@ class Valve():
         return self.pos * self.rng / 100.0 * uniform(0.95, 1.05)
     
     def set(self, mv):
+        #E feed being commanded to 0
+        #if self.id == 1:
+        #    print(mv)
         derivative = (mv - self.pos) / self.tau
         if not self.is_stuck():
             self.pos += derivative * DELTA_t
@@ -437,6 +436,10 @@ class Reactor(Vessel):
         return (f"(utl = {self.utl=}, utv = {self.utv}, et = {self.et}, es = {self.es}, tc = {self.tc}, tk = {self.tk}, density = {self.density}, " 
                  + f"vt = {self.vt=}, vl = {self.vl}, vv = {self.vv}, pt = {self.pt}, qu = {self.qu}, ucl = {self.ucl}, ucv = {self.ucv}"
                  + f"xl = {self.xl}, xv = {self.xv}, pp = {self.pp}")
+
+    @property
+    def level(self):
+        return (self.vl - 84.6) / 666.7    
                    
     def set_et(self, in_stream, out_stream, reaction_heat):
         #in_stream ftm is twice as high as should be, out_stream H is twice as low
@@ -494,8 +497,6 @@ class Reactor(Vessel):
 
     def set_uc(self, in_stream, out_stream, delta_xr):
         derivative = in_stream.fcm - out_stream.fcm + delta_xr
-        #print(f"in = {in_stream.fcm[3]}, out = {out_stream.fcm[3]}")
-        #print(f"{derivative[3]=}")
         self.ucv[:3] += np.array([*(derivative[:3] * DELTA_t)])
         self.ucl += np.array([*(np.zeros(3)), *(derivative[3:] * DELTA_t)])
 
@@ -550,15 +551,15 @@ class Separator(Vessel):
         self.cl.T_out += derivative * DELTA_t
 
     def set_uc(self, in_stream, out_streams):
-        #       delta separator UCV and UCL
-        #                         React out      recycle        purge           underflow
+        #Separator, as reminder
+        #E is being depleted
         derivative = in_stream.fcm - sum(sm.fcm for sm in out_streams)
         self.ucv += np.array([*(derivative[:3] * DELTA_t), *np.zeros(5)])
         self.ucl += np.array([*np.zeros(3), *(derivative[3:] * DELTA_t)])
 
     @property
     def level(self):
-        return (self.vl-27.5)/290.0
+        return (self.vl-27.5) / 290.0
 
 class Stripper(Vessel):
 
@@ -581,11 +582,13 @@ class Stripper(Vessel):
             self.qu = ua*(100.0-self.tc)
 
     def set_uc(self, in_stream, out_stream):
-    #       delta C UCV and UCL
-    #TODO: dims of this func
         derivative = in_stream.fcm - out_stream.fcm
         #self.ucv += derivative[:3] * DELTA_t
         self.ucl += derivative * DELTA_t
+
+    @property
+    def level(self):
+        return (self.vl-78.25) / self.vt
 
 class Compressor(Vessel):
 
@@ -821,8 +824,11 @@ class TEproc(gym.Env):
         self.sfr.set_fcm(self.c, self.sm)
     #   label 6010
         fin = self.sm[3].fcm + self.sm[10].fcm
-        #check fin
-        #print(f"sfr = {self.sm[3].ftm}, {self.sm[10].ftm}")
+        #sm[10] (separator liquid out) is underflowing, and therefore fin is.
+        #although first 3 should = 0
+        #print(self.sm[10].fcm[3:])
+        #E is persistently falling in reactor out, but still failed
+        #at 74
     #   label 6020 and 6030
         self.sm[4].fcm = self.sfr.fcm * fin # only place that consumes sfr
         self.sm[11].fcm = fin - self.sm[4].fcm
@@ -852,7 +858,6 @@ class TEproc(gym.Env):
         self.s.set_tw()
 
         #label 9010
-        log += [self.r.pg]
         self.r.set_uc( self.sm[6], self.sm[7], delta_xr)
         self.s.set_uc( self.sm[7], (self.sm[8], self.sm[9], self.sm[10]))
         self.c.set_uc( self.sm[11], self.sm[12])
@@ -868,12 +873,14 @@ class TEproc(gym.Env):
         
         xmeas = self.measure(False)
         true_xmeas = self.measure(True)
-        done = self.has_failed()
+        done = self.has_failed(xmeas, self.time)
         l = loss.loss(None, done, true_xmeas, None)
         self.control(xmeas) #here?
         # update valves.xmv is control signal, translated to vcv if no stick.
         # returns: (possibly false) xmeas, loss based on true state, done if failed 
-        return xmeas, l, done, {}
+        log += [xmeas[8]]
+        self.time += DELTA_t
+        return xmeas, l, bool(done), {"failures": done}
 
     def measure(self, reliable):
         xmeas = np.zeros(43)
@@ -950,9 +957,21 @@ class TEproc(gym.Env):
         if hasattr(self.ctrlr, "control"):
             self.ctrlr.control(xmeas)
 
-    def has_failed(self):
-        return (self.r.pg > 3000.
-                or False)
+    def has_failed(self, xmeas, time):
+        if time < 10.:
+            return False
+        if self.r.pg > 3000:
+            return "Reactor pressure high"
+        elif self.r.pg < 2700:
+            return "Reactor pressure low"
+        elif self.r.level > 1.144:
+            return "Reactor level high"
+        elif self.s.level > 1.37:
+            return "Separator level high"
+        elif self.s.level < 2.7:
+            return "Separator level low"
+        else:
+            return False
 
     def reset(self, mode):
         self.__init__(ctrl_mode=mode)
@@ -1013,15 +1032,13 @@ if __name__ == "__main__":
     action = (blue_action, red_action)
     #TODO:
     #select random threat agent (random loss function)
-    #with open(f):
     for t in range(env._max_episode_steps):
-        try:
-            observation, reward, done, info = env.step(action)
-        except FloatingPointError:
-            print(f"t = {t}")
-            raise FloatingPointError
+        #try:
+        observation, reward, done, info = env.step(action)
+        #except FloatingPointError:
+        #    print(f"FloatingPointError after {t} timesteps")
+        #    done = True
         #print(f"{reward=}")
-        #f.write(info)
         #env.render()
         # if model.predict(observation) == failure:
         #     env.reset()
@@ -1029,7 +1046,8 @@ if __name__ == "__main__":
         xmeas, xmv = observation[0], observation[1]
         #print("reactor P, t, and control value: ", env.r.pg, env.r.level, env.r.tc, env.ctrlr.xmv[3])
         if done:
-            print("Episode finished after {} timesteps".format(t+1))
+            print(f"Episode finished after {t} timesteps")
+            print(info)
             break
     env.close()
     plt.plot(log)

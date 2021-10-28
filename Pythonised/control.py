@@ -16,7 +16,9 @@ class Controller:
 
     def __init__(self, seed, prod_mode):
     #   set controller parameters
-    #   reactor temperature control
+    #   r.tc, r.level, s.level, c.level, s.under, g/h, r.pg, purge.b, r.a
+    #   xmvs actually used: 0,1,2, 3,5, 6,7, 9,10
+    #   so 4, 8, 11 unused (compressor recycly, stripper steam, agitator respectively)
         self.setpt = np.array([120.40, 75.0, 50.0, 50.0, 
                                22.949, GH_MODES[prod_mode], 2705.0, 13.823,
                                32.188])
@@ -65,7 +67,7 @@ class Controller:
         self.xmv[9] += self.gain[0]*((err-self.err[0])+err*DELTA_t*60./self.taui[0])
         self.err[0] = err
         self.xmv[9] = np.clip(self.xmv[9], 0., 100.)
-   #    reactor level control (reactor level -> D feed)
+   #    reactor level control (reactor level -> E feed?)
         err = self.setpt[1]-self.fxmeas[8]
         self.xmv[1] += self.gain[1]*((err-self.err[1])+err*DELTA_t*60./self.taui[1])
         self.err[1] = err
@@ -74,7 +76,6 @@ class Controller:
         err = self.setpt[2]-self.fxmeas[12]
         self.xmv[10] += self.gain[2]*((err-self.err[2])+err*DELTA_t*60./self.taui[2])
         self.err[2] = err
-        
         self.xmv[10] = np.clip(self.xmv[10], 0., 100.)
    #    stripper level control (strip level -> sep pot flow)
         err = self.setpt[3]-self.fxmeas[15]
@@ -86,7 +87,7 @@ class Controller:
         self.xmv[7] += self.gain[4]*((err-self.err[4])+err*DELTA_t*60./self.taui[4])
         self.err[4] = err
         self.xmv[7] = np.clip(self.xmv[7], 0., 100.)
-   #    g/h ratio control (ratio -> A feed)
+   #    g/h ratio control (ratio -> D feed?)
         err = self.setpt[5]-xmeas[42]
         self.xmv[0] += self.gain[5]*((err-self.err[5])+err*DELTA_t*60./self.taui[5])
         self.err[5] = err
@@ -96,11 +97,11 @@ class Controller:
         self.xmv[5] += self.gain[7]*((err-self.err[7])+err*DELTA_t*60./self.taui[7])
         self.err[7] = err
         self.xmv[5] = np.clip(self.xmv[5], 0., 100.)
-   #    reactor feed a component control (reactor feed A -> E feed)
+   #    reactor feed a component control (reactor feed A -> A feed?)
         err = self.setpt[8]-xmeas[23]
         self.xmv[2] += self.gain[8]*((err-self.err[8])+err*DELTA_t*60./self.taui[8])
         self.err[8] = err
         self.xmv[2] = np.clip(self.xmv[2], 0., 100.)
 
-        self.fxmeas = self.alpha * xmeas[1:23] + (1-self.alpha) * self.fxmeas
-
+        #FIXME: underflow here after 3163 timesteps
+        self.fxmeas = self.alpha * xmeas[:22] + (1-self.alpha) * self.fxmeas
