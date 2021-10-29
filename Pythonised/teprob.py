@@ -182,7 +182,7 @@ import numpy as np
 np.seterr(all="raise")
 from random import choice, uniform
 from red import ThreatAgent
-from sys import argv, exit
+import sys
 
 DELTA_t = 1. / 3600.
 
@@ -795,7 +795,6 @@ class TEproc(gym.Env):
         self.s.cl.flow = self.valves[10].flow()
         self.agtatr.speed = (self.valves[11].pos + 150.0)/100.0
 
-        #J is still 4% too hot, and thus 4% too high P.
         delta_p = max(self.j.pt - self.r.pt, 0.) 
         flms = 1937.6 * np.sqrt(delta_p)
         self.sm[5].ftm = flms / self.sm[5].xmws # volume flow per time / m weight = moles / s / density?
@@ -804,6 +803,7 @@ class TEproc(gym.Env):
         flms = 4574.21 * np.sqrt(delta_p)
         self.sm[7].ftm = flms / self.sm[7].xmws # mass flow = volume / mean mass?
 
+    #FIXME: stream 9 (purge) is going to 0. Delta_P is healthy
         delta_p = self.s.pt - 760.0 # sep - atmosphere
         flms = self.valves[5].pos * 0.151169*np.sqrt(abs(delta_p)) * np.sign(delta_p)
         self.sm[9].ftm = flms / self.sm[9].xmws
@@ -878,7 +878,7 @@ class TEproc(gym.Env):
         self.control(xmeas) #here?
         # update valves.xmv is control signal, translated to vcv if no stick.
         # returns: (possibly false) xmeas, loss based on true state, done if failed 
-        log += [xmeas[8]]
+        log += [self.s.level]
         self.time += DELTA_t
         return xmeas, l, bool(done), {"failures": done}
 
@@ -901,7 +901,7 @@ class TEproc(gym.Env):
         xmeas[14] = self.sm[10].ftm/self.s.density/35.3145 # sep underflow (stream 10)       m3/hr
         xmeas[15] = (self.c.vl-78.25)/self.c.vt*100.0 # stripper level                       %
         xmeas[16] = (self.j.pt-760.0)/760.0*101.325 # stripper pressure                 kpa gauge
-        xmeas[17] = self.sm[12].ftm/self.c.density/35.3145 # stripper underflow (stream 11)  m3/hr
+        xmeas[17] = self.sm[12].ftm/self.c.density/35.3145 # stripper underflow (stream 11, aka production) m3/hr
         xmeas[18] = self.c.tc # stripper temperature                                    deg c
         xmeas[19] = self.c.qu*1.04e3*0.454 # stripper steam flow                        kg/hr
         xmeas[20] = self.cmpsr.work*0.29307e3 # compressor work, again??                kwh
@@ -922,14 +922,14 @@ class TEproc(gym.Env):
         if self.time_since_gas >= self.T_GAS or not hasattr(self, "gas"): #purge gas and reactor feed analysis
             self.gas = (self.sm[5].x[:-2], self.sm[8].x)
             self.time_since_gas = 0.
-        xmeas[23:29] = self.gas[0]
-        xmeas[29:37] = self.gas[1]
+        xmeas[23:29] = self.gas[0] * 100
+        xmeas[29:37] = self.gas[1] * 100
         self.time_since_gas += DELTA_t
         
         if self.time_since_prod >= self.T_PROD or not hasattr(self, "prod"): #product feed analysis
             self.prod = self.sm[12].x[3:]
             self.time_since_prod = 0.
-        xmeas[37:42] = self.prod
+        xmeas[37:42] = self.prod * 100
         self.time_since_prod += DELTA_t
 
         xmeas[42] = (xmw[6] * xmeas[40]) / (xmw[7] * xmeas[41])
@@ -968,7 +968,7 @@ class TEproc(gym.Env):
             return "Reactor level high"
         elif self.s.level > 1.37:
             return "Separator level high"
-        elif self.s.level < 2.7:
+        elif self.s.level < 0.27:
             return "Separator level low"
         else:
             return False
@@ -985,10 +985,12 @@ class TEproc(gym.Env):
         vessel_height = 30.0
         color_offset = 800.0
         sep_space = 200
+        b = -vessel_height / 2
 
         if not hasattr(self, "viewer") and mode=="human":
             self.viewer = rendering.Viewer(screen_width, screen_height)
-        l, b = -vessel_width / 2, -vessel_height / 2
+
+        l = -vessel_width / 2
         t = self.r.level * 200
         r = self.r.pg / 30.
         reactor = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
@@ -1005,7 +1007,16 @@ class TEproc(gym.Env):
         self.septrans = rendering.Transform()
         separator.add_attr(self.septrans)
         self.viewer.add_geom(separator)
-        
+
+        l += sep_space
+        t = self.c.level * 200
+        r = (sep_space * 2) + 100.
+        stripper = rendering.FilledPolygon([(l, b), (l, t), (r, t), (r, b)])
+        stripper.set_color(*blackbody_color(self.c.tk + 800))
+        self.striptrans = rendering.Transform()
+        stripper.add_attr(self.striptrans)
+        self.viewer.add_geom(stripper)
+
         return self.viewer.render(return_rgb_array=mode == "rgb_array")
 
     def close(self):
@@ -1022,7 +1033,7 @@ if __name__ == "__main__":
         reward_threshold=195.0
     )
 
-    ctrl_mode = ControlMode.OPEN if "--open" in argv else ControlMode.CLOSED
+    ctrl_mode = ControlMode.OPEN if "--open" in sys.argv else ControlMode.CLOSED
     env = gym.make("TennesseeEastmann-v1")
     red = ThreatAgent()
     blue = TEprobManager()
@@ -1033,13 +1044,10 @@ if __name__ == "__main__":
     #TODO:
     #select random threat agent (random loss function)
     for t in range(env._max_episode_steps):
-        #try:
         observation, reward, done, info = env.step(action)
-        #except FloatingPointError:
-        #    print(f"FloatingPointError after {t} timesteps")
-        #    done = True
         #print(f"{reward=}")
-        #env.render()
+        if "--quiet" not in sys.argv:
+            env.render()
         # if model.predict(observation) == failure:
         #     env.reset()
         #     reward -= 24*3600

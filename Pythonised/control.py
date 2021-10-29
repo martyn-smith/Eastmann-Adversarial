@@ -8,9 +8,8 @@ GH_MODES = {
      3 : 9.0
 }
 
-
 class Dummy:
-     xmv = np.array([0.5] * 12)
+    xmv = np.array([0.5] * 12)
 
 class Controller:
 
@@ -92,7 +91,7 @@ class Controller:
         self.xmv[0] += self.gain[5]*((err-self.err[5])+err*DELTA_t*60./self.taui[5])
         self.err[5] = err
         self.xmv[0] = np.clip(self.xmv[0], 0., 100.)
-   #    purge gas b component control (b -> reactor feed rate)
+   #    purge gas b component control (b -> purge)
         err = self.setpt[7]-xmeas[30]
         self.xmv[5] += self.gain[7]*((err-self.err[7])+err*DELTA_t*60./self.taui[7])
         self.err[7] = err
@@ -103,5 +102,4 @@ class Controller:
         self.err[8] = err
         self.xmv[2] = np.clip(self.xmv[2], 0., 100.)
 
-        #FIXME: underflow here after 3163 timesteps
-        self.fxmeas = self.alpha * xmeas[:22] + (1-self.alpha) * self.fxmeas
+        self.fxmeas = (self.alpha * xmeas[:22]) + ((1-self.alpha) * self.fxmeas)

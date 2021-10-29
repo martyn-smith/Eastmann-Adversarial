@@ -1,6 +1,8 @@
 steps = 0
-G_H_LOWER = 0.9
-G_H_UPPER = 1.1
+B_TOLERANCE = 0.001
+G_H_LOWER = 0.95
+G_H_UPPER = 1.05
+
 def loss(process, done, true_xmeas, xmv):
     #should start at -[cost of utilities]
     return sum([production(true_xmeas), 
@@ -15,7 +17,7 @@ def utilities(true_xmeas):
 
 def production(true_xmeas):
     if G_H_LOWER < true_xmeas[42] < G_H_UPPER:
-        reward = 20_000 / 3600.
+        reward = 20_000 * true_xmeas[17]
     else:
         reward = 0
     return reward
@@ -34,7 +36,7 @@ def mechanical(true_xmeas):
     return reward
 
 def environmental(true_xmeas):
-    if true_xmeas[35] > 0.001:
+    if true_xmeas[35] > B_TOLERANCE:
             reward = - 1e3 * true_xmeas[10] * true_xmeas[35]
     else:
             reward = 0
