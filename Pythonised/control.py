@@ -2,25 +2,21 @@ import numpy as np
 from teprob import DELTA_t
 from enum import Enum
 
-GH_MODES = {
-     1 : 1.0,
-     2 : 0.1,
-     3 : 9.0
-}
+SETPT = np.array([120.40, 75.0, 50.0, 50.0, 
+                  22.949, 1.0, 2705.0, 13.823,
+                  32.188])
 
 class Dummy:
     xmv = np.array([0.5] * 12)
 
 class Controller:
 
-    def __init__(self, seed, prod_mode):
+    def __init__(self, seed, _):
     #   set controller parameters
     #   r.tc, r.level, s.level, c.level, s.under, g/h, r.pg, purge.b, r.a
     #   xmvs actually used: 0,1,2, 3,5, 6,7, 9,10
     #   so 4, 8, 11 unused (compressor recycly, stripper steam, agitator respectively)
-        self.setpt = np.array([120.40, 75.0, 50.0, 50.0, 
-                               22.949, GH_MODES[prod_mode], 2705.0, 13.823,
-                               32.188])
+        self.setpt = SETPT    
         self.gain = np.array([-10.3, 0.8, 1.4, 5.,
                               1.2, 7.1, 1.1, -14.5,
                               4.1])
@@ -32,7 +28,7 @@ class Controller:
         self.fxmeas = np.zeros(22)
         self.alpha = DELTA_t*3600. / 5.0
 
-    def control(self, xmeas):#TODO: prod_mode)
+    def control(self, xmeas, _):
         """
            discrete control algorithms
 
@@ -55,8 +51,22 @@ class Controller:
              impose integral desaturation
         
              xmv[8] = np.clip(self.xmv[8], 0., 100.) 
+        
+            loops
+
+            #    xmeas    setpt    xmv
+            0    7        6        3
+            1    9        0        9
+            2    8        1        1
+            3    12       2        10
+            4    15       3        6
+            5    17       4        7
+            6    42       5        0
+            7    30       7        5
+            8    23       8        2 
+
         """     
-    #   reactor pressure control (reactor pressure -> A and C feed)
+   #    reactor pressure control (reactor pressure -> A and C feed)
         err = self.setpt[6] - xmeas[7]
         self.xmv[3] += self.gain[6] * ((err - self.err[6]) + err * DELTA_t * 60. / self.taui[6])
         self.err[6] = err

@@ -399,9 +399,6 @@ class Valve():
         return self.pos * self.rng / 100.0 * uniform(0.95, 1.05)
     
     def set(self, mv):
-        #E feed being commanded to 0
-        #if self.id == 1:
-        #    print(mv)
         derivative = (mv - self.pos) / self.tau
         if not self.is_stuck():
             self.pos += derivative * DELTA_t
@@ -442,8 +439,6 @@ class Reactor(Vessel):
         return (self.vl - 84.6) / 666.7    
                    
     def set_et(self, in_stream, out_stream, reaction_heat):
-        #in_stream ftm is twice as high as should be, out_stream H is twice as low
-        #but otherwise correct
         derivative = ((in_stream.H * in_stream.ftm)
                       - (out_stream.H * out_stream.ftm) 
                       + reaction_heat 
@@ -491,7 +486,6 @@ class Reactor(Vessel):
         return delta_xr, reaction_heat
 
     def set_tw(self):
-        #order of operations funkiness
         derivative = (self.cl.flow * 500.53 * (self.cl.T_in - self.cl.T_out) - self.qu*1.e6/1.8) / self.cl.h
         self.cl.T_out += derivative * DELTA_t 
 
@@ -502,8 +496,6 @@ class Reactor(Vessel):
 
     def set_P(self):
         #debug function, it doesn't need to be separate from super()
-        #note currently balloons (even wiith constant tk)
-
         old_pp = self.pp if hasattr(self, "pp") else np.zeros(8)
         self.pp = np.zeros(8)
         for i in range(3):  #label 1110 - for R and S only
@@ -511,9 +503,6 @@ class Reactor(Vessel):
         
         for i in range(3,8): #label 1120 - for R and S only
             self.pp[i] = self.xl[i] * np.exp(avp[i] + bvp[i]/(self.tc + cvp[i])) #Antoine eq.
-        #print(f"pressure change = {self.pp - old_pp}")
-        
-        #B now acc
         self.pt = sum(self.pp) # in mmHga (!)
         #label 1130
         self.xv = self.pp / self.pt
@@ -609,11 +598,9 @@ class Junction(GasVessel):
     def set_et(self, in_streams, out_stream):
         derivative = (sum(sm.H * sm.ftm for sm in in_streams) 
                       - (out_stream.H * out_stream.ftm))
-        #print(f"junction {derivative=}")
         self.et += derivative * DELTA_t
 
     def set_uc(self, in_streams, out_stream):
-        #potential issue here?
         derivative = (sum(sm.fcm for sm in in_streams)
                       - out_stream.fcm)
         self.ucv += derivative * DELTA_t
@@ -725,17 +712,12 @@ class TEproc(gym.Env):
     def step(self, action: list[Action]):
         """
         function evaluator
-        
-        inputs:
-            action (XMVs only for this one)
-        
-            state = self.state
-            next_walk(time)
-            stream and idvs
         """
 
         global log
 
+        #action: blue can reset control loops 0-8
+        #action: red can perturb xmvs
         for mv, valve in zip(self.ctrlr.xmv, self.valves):
             valve.set(mv)
 
@@ -803,7 +785,6 @@ class TEproc(gym.Env):
         flms = 4574.21 * np.sqrt(delta_p)
         self.sm[7].ftm = flms / self.sm[7].xmws # mass flow = volume / mean mass?
 
-    #FIXME: stream 9 (purge) is going to 0. Delta_P is healthy
         delta_p = self.s.pt - 760.0 # sep - atmosphere
         flms = self.valves[5].pos * 0.151169*np.sqrt(abs(delta_p)) * np.sign(delta_p)
         self.sm[9].ftm = flms / self.sm[9].xmws
@@ -824,11 +805,6 @@ class TEproc(gym.Env):
         self.sfr.set_fcm(self.c, self.sm)
     #   label 6010
         fin = self.sm[3].fcm + self.sm[10].fcm
-        #sm[10] (separator liquid out) is underflowing, and therefore fin is.
-        #although first 3 should = 0
-        #print(self.sm[10].fcm[3:])
-        #E is persistently falling in reactor out, but still failed
-        #at 74
     #   label 6020 and 6030
         self.sm[4].fcm = self.sfr.fcm * fin # only place that consumes sfr
         self.sm[11].fcm = fin - self.sm[4].fcm
@@ -871,18 +847,18 @@ class TEproc(gym.Env):
     #    valve_stick(8) = idv(19)  #stripper underflow sticks
     #    valve_stick(9) = idv(19)  #stripper recirc?
         
-        xmeas = self.measure(False)
-        true_xmeas = self.measure(True)
+        xmeas = self.measure()
+        true_xmeas = xmeas
         done = self.has_failed(xmeas, self.time)
         l = loss.loss(None, done, true_xmeas, None)
-        self.control(xmeas) #here?
+        self.ctrlr.control(xmeas, self.time) #here?
         # update valves.xmv is control signal, translated to vcv if no stick.
         # returns: (possibly false) xmeas, loss based on true state, done if failed 
         log += [self.s.level]
         self.time += DELTA_t
         return xmeas, l, bool(done), {"failures": done}
 
-    def measure(self, reliable):
+    def measure(self):
         xmeas = np.zeros(43)
         xmeas[0] = self.time
         xmeas[1] = self.sm[2].ftm*0.359/35.3145 # A Feed  (stream 1)                    kscmh , 
@@ -953,12 +929,12 @@ class TEproc(gym.Env):
                          self.r.cl.T_out, self.s.cl.T_out,
                          *[v.pos for v in self.valves]])
 
-    def control(self, xmeas):
-        if hasattr(self.ctrlr, "control"):
-            self.ctrlr.control(xmeas)
+    #def control(self, xmeas):
+    #    if hasattr(self.ctrlr, "control"):
+    #        self.ctrlr.control(xmeas, self.time)
 
     def has_failed(self, xmeas, time):
-        if time < 10.:
+        if time < 1.:
             return False
         if self.r.pg > 3000:
             return "Reactor pressure high"
@@ -1035,28 +1011,25 @@ if __name__ == "__main__":
 
     ctrl_mode = ControlMode.OPEN if "--open" in sys.argv else ControlMode.CLOSED
     env = gym.make("TennesseeEastmann-v1")
-    red = ThreatAgent()
+    red = ThreatAgent(intent=0)
     blue = TEprobManager()
     observation = env.reset(mode=ctrl_mode)
-    blue_action = [Action.CONTINUE] * 12
-    red_action = None
+    blue_action = blue.get_action(observation)
+    red_action = red.get_action(observation)
     action = (blue_action, red_action)
-    #TODO:
-    #select random threat agent (random loss function)
-    for t in range(env._max_episode_steps):
-        observation, reward, done, info = env.step(action)
-        #print(f"{reward=}")
-        if "--quiet" not in sys.argv:
-            env.render()
-        # if model.predict(observation) == failure:
-        #     env.reset()
-        #     reward -= 24*3600
-        xmeas, xmv = observation[0], observation[1]
-        #print("reactor P, t, and control value: ", env.r.pg, env.r.level, env.r.tc, env.ctrlr.xmv[3])
-        if done:
-            print(f"Episode finished after {t} timesteps")
-            print(info)
-            break
-    env.close()
-    plt.plot(log)
-    plt.show()
+    num_episodes = 1
+    for i in range(num_episodes):
+        for t in range(env._max_episode_steps):
+            observation, reward, done, info = env.step(action)
+            #print(f"{reward=}")
+            if "--quiet" not in sys.argv:
+                env.render()
+            xmeas, xmv = observation[0], observation[1]
+            #print("reactor P, t, and control value: ", env.r.pg, env.r.level, env.r.tc, env.ctrlr.xmv[3])
+            if done:
+                print(f"Episode finished after {t} timesteps")
+                print(info)
+                break
+        env.close()
+        plt.plot(log)
+        plt.show()
