@@ -1,18 +1,20 @@
-#TODO:
+"""
 #Goal randomly pick the high-level loss goal
 #given a selected number of control loops under control,
-#respond to gym under 
+#respond to gym under
 #TODO: find an optimiser, ideally NN-based but also Pyomo
-# classes: aims for 
-# environmental damage (G in purge), 
+# classes: aims for
+# environmental damage (G in purge),
 # mechanical damage
 # downtime or lost profits
+"""
 
 import enum
 import loss
 from agent import Agent
 from gym.spaces import Space
 from random import choice, randint
+import numpy as np
 
 class RedTeamSpace(Space):
     """
@@ -23,11 +25,6 @@ class RedTeamSpace(Space):
     """
 
     def __init__(self):
-        """
-        0 => perturb xmv 
-        1 => perturb xmeas
-        2 => perturb setpt
-        """
         self.target = Space.Discrete(3)
         """
         number of choices is dependent on target:
@@ -36,6 +33,16 @@ class RedTeamSpace(Space):
         setpt => 9
 
         so will have to take max and discard invalid at runtime
+
+        total of (12 + 42 + 9) = 63 d.o.f
+
+        We can't particularly easily use Continous with DQN (the outputs of a model are Q-values),
+        so discrete for now.
+
+        actions are:
+        [0:12] => set xmv to MAX
+        [12:54] => set xmeas to 0.
+        [54:63] => setpt *= 10
         """
         self.variable = Space.Discrete(42)
         """
@@ -50,7 +57,7 @@ class ThreatAgent(Agent):
     MECHANICAL = 1
     DOWNTIME = 2
     """
-        
+
     loss_func = {
         0: loss.environmental,
         1: loss.mechanical,
@@ -58,8 +65,47 @@ class ThreatAgent(Agent):
     }
 
     def __init__(self, intent):
-        self.intent = self.loss_func[intent]
-        super().__init__()
+        import logging
+        import os
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  #FATAL only
+        logging.getLogger('tensorflow').setLevel(logging.FATAL)
 
-    def get_action(self, _):
-        return [choice([0,1]), randint(0,11), 100.]
+        from tensorflow.keras import Sequential
+        from tensorflow.keras.layers import Dense, Dropout
+        from tensorflow.keras.layers.experimental.preprocessing import Normalization
+
+        super().__init__()
+        self.intent = self.loss_func[intent]
+        model = Sequential()
+        model.add(Dense(54, activation="tanh"))
+        model.add(Dense(128, activation="relu"))
+        model.add(Dense(64, activation="relu"))
+        model.compile(loss="mae",
+                      optimizer="adam")
+        self.model = model
+
+    def remember(self, state, action, _, observation, done):
+        #TODO: somehow passed an int here. Should always be (None, dict)
+        if action is None:
+            action = 0
+        elif "xmv" in action:
+            action = action["xmv"]
+        elif "xmeas" in action:
+            action = action["xmeas"] + 12
+        elif "setpt" in action:
+            action = action["setpt"] + 54
+        reward = self.intent(observation)
+        self.memory.append((state, action, reward, observation, done))
+
+    def get_action(self, observation):
+        q = self.model.predict(observation[1:])[0]
+        action = choice(np.where(q == np.amax(q))[0])
+        if action == 0:
+            return None
+        elif action < 13:
+            return {"xmv": action}
+        elif action < 54:
+            return {"xmeas": action - 12}
+        else:
+            return {"setpt": action - 54}
+

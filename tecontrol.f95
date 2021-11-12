@@ -65,7 +65,7 @@ subroutine contrlinit(open)
 end subroutine contrlinit
 
 subroutine contrl(delta_t)
-    save 
+    save
 !   discrete control algorithms
 
 !   measurement and valve common block
@@ -100,7 +100,7 @@ subroutine contrl(delta_t)
 !
 !     impose integral desaturation
 !
-!       xmv(8)=max(0.,min(100.,xmv(8)))      
+!       xmv(8)=max(0.,min(100.,xmv(8)))
 
 !   reactor pressure control (reactor pressure -> A and C feed)
     err=setpt(7)-xmeas(7)

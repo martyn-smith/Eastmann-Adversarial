@@ -32,7 +32,7 @@
 !  All are exothermic, reversible, and first-order
 !  (rates follow an Arrhenius relation.)
 !
-!  Product flow is: 
+!  Product flow is:
 !  a,d,e ->                                  c ->
 !     reactor -> condensor -> separator -> stripper -> product
 !           <- compressor <- purge <-
@@ -84,25 +84,25 @@
 !        sampling frequency = 0.1 hr
 !        dead time = 0.1 hr
 !        mole %
-!    xmeas(23)   component a   
-!    xmeas(24)   component b   
-!    xmeas(25)   component c   
-!    xmeas(26)   component d   
-!    xmeas(27)   component e   
-!    xmeas(28)   component f   
+!    xmeas(23)   component a
+!    xmeas(24)   component b
+!    xmeas(25)   component c
+!    xmeas(26)   component d
+!    xmeas(27)   component e
+!    xmeas(28)   component f
 !
 !    purge gas analysis (stream 9)
 !        sampling frequency = 0.1 hr
 !        dead time = 0.1 hr
 !        mole %
-!    xmeas(29)   component a   
-!    xmeas(30)   component b   
-!    xmeas(31)   component c   
-!    xmeas(32)   component d   
-!    xmeas(33)   component e   
-!    xmeas(34)   component f   
-!    xmeas(35)   component g   
-!    xmeas(36)   component h   
+!    xmeas(29)   component a
+!    xmeas(30)   component b
+!    xmeas(31)   component c
+!    xmeas(32)   component d
+!    xmeas(33)   component e
+!    xmeas(34)   component f
+!    xmeas(35)   component g
+!    xmeas(36)   component h
 !
 !    product analysis (stream 11)
 !        sampling frequency = 0.25 hr
@@ -118,9 +118,9 @@
 !
 !    xmeas(42)   g/h ratio
 !    xmeas(43)   cost
-!    xmeas(42)   production rate of G [kmol G generated/h] 
-!    xmeas(43)   production rate of H [kmol H generated/h] 
-!    xmeas(44)   production rate of F [kmol F generated/h] 
+!    xmeas(42)   production rate of G [kmol G generated/h]
+!    xmeas(43)   production rate of H [kmol H generated/h]
+!    xmeas(44)   production rate of F [kmol F generated/h]
 !
 !  process disturbances
 !
@@ -296,7 +296,7 @@ subroutine teinit(state, nn, derivative, time)
 
     state = [10.40491389,  4.363996017,    7.570059737, .4230042431,   24.15513437, &
              2.942597645,  154.3770655,    159.186596,  2.808522723,   63.75581199, &
-             26.74026066,  46.38532432,   .2464521543,  15.20484404,   1.852266172, & 
+             26.74026066,  46.38532432,   .2464521543,  15.20484404,   1.852266172, &
              52.44639459,  41.20394008,   .569931776,   .4306056376,  .0079906200783, &
              .9056036089,  .016054258216, .7509759687,  .088582855955, 48.27726193, &
              39.38459028,  .3755297257,    107.7562698, 29.77250546,   88.32481135, &
@@ -327,7 +327,7 @@ subroutine teload(state, idv)
 !   state must be loaded if called, but idv's are optional.
 !   Afraid this is the best way I can see of checking the latter.
     read (*, "(50e23.15,24i3)", IOSTAT=io) (state(k), k=1,50), (idv(k), k=1,24)
-    if (io > 0) then 
+    if (io > 0) then
         print *, "Couldn't load state. empty file?"
     end if
     ! read (*, "(24i3)") (idv(k), k=1,24)
@@ -426,7 +426,7 @@ subroutine tefunc(state, nn, derivative, time)
     vpos = state(39:50)
 
 !   label 1040 abstracted into sum()
-    R%utl = sum(R%ucl) 
+    R%utl = sum(R%ucl)
     S%utl = sum(S%ucl)
     C%utl = sum(C%ucl)
     V%utv = sum(V%ucv)
@@ -516,7 +516,7 @@ subroutine tefunc(state, nn, derivative, time)
     sm(11)%T = S%tc
     sm(13)%T = C%tc
 !   setting stream heats
-    call set_stream_heat(sm(1),1) 
+    call set_stream_heat(sm(1),1)
     call set_stream_heat(sm(2),1)
     call set_stream_heat(sm(3),1)
     call set_stream_heat(sm(4),1)
@@ -538,7 +538,7 @@ subroutine tefunc(state, nn, derivative, time)
     S%cl%flow = vpos(11)*vrng(11)/100.0
     agtatr%speed = (vpos(12)+150.0)/100.0
 
-    delta_p = max(V%pt-R%pt, 0.) 
+    delta_p = max(V%pt-R%pt, 0.)
     flms = 1937.6*sqrt(delta_p)
     sm(6)%ftm = flms / sm(6)%xmws ! volume flow per time / m weight = moles / s / density?
 
@@ -614,7 +614,7 @@ subroutine tefunc(state, nn, derivative, time)
 !   print *, time, sm(1)%ftm, sm(2)%ftm, sm(3)%ftm, sm(4)%ftm, sm(5)%ftm, sm(6)%ftm, sm(7)%ftm, &
 !                sm(8)%ftm, sm(9)%ftm, sm(10)%ftm, sm(11)%ftm, sm(12)%ftm, sm(13)%ftm, &
 !                R%pt, S%pt, C%pt, V%pt, S%vl
-    xmeas(1) = sm(3)%ftm*0.359/35.3145 ! A Feed  (stream 1)                    kscmh , 
+    xmeas(1) = sm(3)%ftm*0.359/35.3145 ! A Feed  (stream 1)                    kscmh ,
     xmeas(2) = sm(1)%ftm*sm(1)%xmws*0.454 ! D Feed  (stream 2)                 kg/hr from lbmol/hr
     xmeas(3) = sm(2)%ftm*sm(2)%xmws*0.454 ! E Feed  (stream 3)                 kg/hr
     xmeas(4) = sm(4)%ftm*0.359/35.3145 ! A and C Feed  (stream 4)              kscmh
@@ -725,13 +725,13 @@ subroutine tefunc(state, nn, derivative, time)
         derivative(i+38) = (vcv(i)-vpos(i)) / vtau(i)
     end do
     return
-end subroutine tefunc   
+end subroutine tefunc
 
 subroutine intgtr(state, nn, derivative, time, delta_t)
 !   euler integration algorithm
     integer, intent(in) :: nn
     real(kind=8), intent(in) :: delta_t, derivative(nn)
-    real(kind=8), intent(out) :: time, state(nn) 
+    real(kind=8), intent(out) :: time, state(nn)
 
     time = time + delta_t
     state = state + derivative * delta_t
@@ -740,7 +740,7 @@ end subroutine intgtr
 !
 !===============================================================================
 !
-subroutine set_stream_heat(sm, ity) 
+subroutine set_stream_heat(sm, ity)
 !   was tesub1
 !   for streams 1,2,3,4,5,6,8,9: ITY = 1. For streams 11, 12 and 13: ITY = 0 (liquid?)
 !   stream 10 is never set.
@@ -821,7 +821,7 @@ subroutine set_vessel_temperature(vsl, ity)
     do i=1,100 !label 250
         h_test = calc_vessel_heat(vsl, ity)
         err = h_test - vsl%es
-        dh = calc_delta_h(vsl, ity) 
+        dh = calc_delta_h(vsl, ity)
         dT = -err/dh
         vsl%Tc = vsl%Tc + dT !main mutator of T
         if(abs(dT) < 1.e-12) then
@@ -830,7 +830,7 @@ subroutine set_vessel_temperature(vsl, ity)
         end if
     end do
 !   T is reset if error never converges.
-    if (.not. converged) vsl%tc = T_in 
+    if (.not. converged) vsl%tc = T_in
     vsl%tk = vsl%tc + 273.15
     return
 end subroutine set_vessel_temperature
@@ -856,7 +856,7 @@ subroutine set_vessel_pressure(vsl)
     end do
 end subroutine set_vessel_pressure
 
-subroutine set_vessel_density(vsl) 
+subroutine set_vessel_density(vsl)
 !   was tesub4
     use constants
     use entities

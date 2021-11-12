@@ -16,7 +16,7 @@
 !    chicago, illinois, november 14, 1990
 !
 !
-!  main program for demonstrating application of the tennessee eastman 
+!  main program for demonstrating application of the tennessee eastman
 !  process control test problem
 !
 !
@@ -38,7 +38,7 @@ include "teprob.f95"
 !  |twr||tws|| vcv/vpos? |, |  idvs  |
 
 program temain
-!   TODO: 
+!   TODO:
 !   fix delta_t to use one second by default (requires changing some hard-coded constants!)
     use tewalk
     implicit none
@@ -75,7 +75,7 @@ program temain
         if (flag == "--danger") danger = .true.
         if (flag == "-f") finalout = .true.
         if (flag == "-h" .or. flag == "--help") call helptext
-        if (flag == "-l") load = .true. 
+        if (flag == "-l") load = .true.
         if (flag == "--long") npts = huge(npts)
         if (flag == "--mode") mode = .true.
         if (flag == "--open") open = .true.
@@ -128,8 +128,8 @@ program temain
         end if
 
         if (fileout) call output(time, state)
-        
-        if (realtime) then 
+
+        if (realtime) then
             call sleep(1)
             if (verbose) then
                 print "(51e23.15,24i3)", time, (state(k), k=1,50), (idv(k), k=1,24)
@@ -137,12 +137,12 @@ program temain
                 print "(55e23.15)", time, (xmeas(k), k=1,42), (xmv(k), k=1,12)
             end if
         end if
-        
+
         call intgtr(state, size(state), derivative, time, delta_t)
-        
+
         call filter_xmeas(time)
     end do
-    if (finalout) then 
+    if (finalout) then
         if (verbose) then
             print "(51e23.15,24i3)", time, (state(k), k=1,50), (idv(k), k=1,24)
         else
@@ -154,7 +154,7 @@ end program temain
 !===============================================================================
 subroutine helptext
 !   TODO: danger mode
-!   TODO: better testing of these options, 
+!   TODO: better testing of these options,
 !   TODO: argparse (debtable)
     print *, "usage: te [OPTIONS]", char(10), &
         "Options:", char(10), &
@@ -196,13 +196,13 @@ subroutine set_timer(npts, j)
     character(3) :: tmp
 
     call get_command_argument(j+1, tmp)
-    if (tmp == "inf") then 
+    if (tmp == "inf") then
         npts = huge(npts)
     else if (tmp == "-s") then
         call get_command_argument(j+2, tmp)
         read(tmp, *, iostat=ierr) n
          if (ierr == 0) npts = n
-    else 
+    else
         read(tmp, *, iostat=ierr) n
         if (ierr == 0) npts = n * 3600
     end if
@@ -226,7 +226,7 @@ end subroutine
 
 subroutine filter_xmeas(time)
 !   filter measurements
-!   alpha = filter constant, see e.g. seeborg pp. 539-540 for more details.  
+!   alpha = filter constant, see e.g. seeborg pp. 539-540 for more details.
 !   alpha = 1,   no filtering
 !   alpha = 0,   complete filtering (measurement is ignored)
 !   currently set to ~0.2
