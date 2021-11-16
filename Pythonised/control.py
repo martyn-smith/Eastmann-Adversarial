@@ -121,6 +121,11 @@ class Controller:
     def perturb_xmv(self, idx):
         self.xmv[idx] = 100.
 
+    def perturb_setpt(self, idx):
+        self.setpt[idx] = 1.e6
+
     def reset_single(self, idx):
         self.setpt[idx] = SETPT[idx]
         self.xmv[idx] = 0.5
+        #TODO: 1 hr delay
+        #self.reset_times[idx] = time

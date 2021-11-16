@@ -176,7 +176,6 @@ import copy
 import control
 import enum
 import gym
-from gym.envs.classic_control import rendering
 from matplotlib import pyplot as plt
 import loss
 import numpy as np
@@ -184,6 +183,8 @@ np.seterr(all="raise")
 from random import choice, uniform
 from red import ThreatAgent
 import sys
+if "--render" in sys.argv:
+    from gym.envs.classic_control import rendering
 
 DELTA_t = 1. / 3600.
 
@@ -720,7 +721,7 @@ class TEproc(gym.Env):
         reset = False
 
         red_action, blue_action = action[0], action[1]
-        if blue_action == "reset": #reset signal
+        if blue_action == "reset_all": #reset signal
             reset = True
             self.reset()
             red_action = None
@@ -876,7 +877,7 @@ class TEproc(gym.Env):
         # returns: (possibly false) xmeas, loss based on true state, done if failed
         log += [self.s.level]
         self.time += DELTA_t
-        return xmeas, l, bool(done), {"failures": done}
+        return (true_xmeas, xmeas), l, bool(done), {"failures": done}
 
     def measure(self):
         xmeas = np.zeros(43)
@@ -969,7 +970,7 @@ class TEproc(gym.Env):
         self.ctrlr.reset()
         for i in range(3600):
             self.step([None, None])
-        return np.zeros(43)
+        return self.step([None, None])
 
     def render(self, mode="human"):
         screen_width = 640
@@ -1054,25 +1055,31 @@ if __name__ == "__main__":
         red = ThreatAgent(intent=0)
         blue = TEprobManager()
         num_episodes = 100
-    observation = env.reset()
-    blue_action = blue.get_action(observation)
-    red_action = red.get_action(observation)
+    observations, _, __, ___ = env.reset()
+    blue_action = blue.get_action(observations[0][1:])
+    red_action = red.get_action(observations[1][1:])
     action = (blue_action, red_action)
     for i in range(num_episodes):
         env.reset()
         for t in range(env._max_episode_steps):
-            state = observation
-            blue_action = blue.get_action(observation)
-            red_action = red.get_action(observation)
+            prev_obs = observations
+            blue_action = blue.get_action(prev_obs[0][1:])
+            red_action = red.get_action(prev_obs[1][1:])
             action = (blue_action, red_action)
-            observation, reward, done, info = env.step(action)
             if "-v" in sys.argv:
-                print(f"{reward=}")
+                print(action)
+            observations, blue_reward, done, info = env.step(action)
+            red_obs = observations[0]
+            blue_obs = observations[1]
+            #blue_reward = loss.loss(blue_obs)
+            red_reward = - red.intent(red_obs)
+            if "-v" in sys.argv:
+                print(f"{blue_reward=}, {red_reward=}")
             if "--render" in sys.argv:
                 env.render()
-            red.remember(state, red_action, reward, observation, done)
-            blue.remember(state, blue_action, reward, observation, done)
-            #print("reactor P, t, and control value: ", env.r.pg, env.r.level, env.r.tc, env.ctrlr.xmv[3])
+            red.remember(prev_obs[0][1:], red_action, blue_reward, red_obs[1:], done)
+            blue.remember(prev_obs[1][1:], blue_action, red_reward, blue_obs[1:], done)
+            print("reactor P, t, and control value: ", env.r.pg, env.r.level, env.r.tc, env.ctrlr.xmv[3])
             if done:
                 print(f"Episode finished after {t} timesteps: "
                       + f"{'red' if info['failures'] else 'blue'} team wins")

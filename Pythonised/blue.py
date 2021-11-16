@@ -29,13 +29,14 @@ class TEprobManager(Agent):
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  #FATAL only
         logging.getLogger('tensorflow').setLevel(logging.FATAL)
         from tensorflow.keras import Sequential
-        from tensorflow.keras.layers import Dense, Dropout
+        from tensorflow.keras.layers import Dense, Dropout, Input
         from tensorflow.keras.layers.experimental.preprocessing import Normalization
 
         super().__init__()
         model = Sequential()
+        model.add(Input(shape=(42,)))
         model.add(Dense(54, activation="tanh"))
-        model.add(Dense(13, activation="relu"))
+        model.add(Dense(14, activation="relu"))
         model.compile(loss="mae",
                         optimizer="adam")
         self.model = model
@@ -50,12 +51,12 @@ class TEprobManager(Agent):
         self.memory.append((state, action, reward, observation, done))
 
     def get_action(self, observation):
-        q = self.model.predict(observation[1:])[0]
+        q = self.model.predict(observation.reshape(1,42))[0]
         action = choice(np.where(q == np.amax(q))[0])
         if action == 0:
             return None
         elif action < 13:
             return {"reset": action}
         else:
-            return "restart"
+            return "reset_all"
 

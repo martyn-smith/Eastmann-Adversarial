@@ -25,19 +25,24 @@ class Agent:
         return idx
 
     def replay(self):
-        #x is state. y is Q-value of all possible actions
+        #x is state (dims (42,1)). y is Q-value of all possible actions (14 for blue, ..? for red)
         x_batch, y_batch = [], []
         #memory here is [(state, action, reward, observation, done)]
         minibatch = sample(
             self.memory, min(len(self.memory), self.batch_size))
-        for state, action, reward, observation, done  in minibatch:
-            y_target = self.model.predict(state)
-            y_target[0][action] = (reward if done else
-                                   reward + self.gamma * np.max(self.model.predict(observation)[0]))
-            x_batch.append(state[0])
-            y_batch.append(y_target[0])
+        for state, action, reward, observation, done in minibatch:
+            #TODO: replace with np.zeros()
+            y_target = self.model.predict(state.reshape(1,42))[0]
+            y_target[action] = (reward if done else
+                                   reward + self.gamma
+                                            * np.max(self.model.predict(observation.reshape(1,42))[0]))
+            x_batch.append(state)
+            #print(f"{y_target=}")
+            y_batch.append(y_target)
 
-        self.model.fit(np.array(x_batch), np.array(y_batch), batch_size=len(x_batch), verbose=0)
+        loss = self.model.train_on_batch(np.array(x_batch), np.array(y_batch))
+        print(loss)
+        #TODO: epsilon
         #if self.epsilon > self.epsilon_min:
         #    self.epsilon *= self.epsilon_decay
 

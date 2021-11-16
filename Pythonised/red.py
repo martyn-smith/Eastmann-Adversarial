@@ -1,10 +1,10 @@
 """
 #Goal randomly pick the high-level loss goal
 #given a selected number of control loops under control,
-#respond to gym under
+#respond to gym under 
 #TODO: find an optimiser, ideally NN-based but also Pyomo
-# classes: aims for
-# environmental damage (G in purge),
+# classes: aims for 
+# environmental damage (G in purge), 
 # mechanical damage
 # downtime or lost profits
 """
@@ -57,7 +57,7 @@ class ThreatAgent(Agent):
     MECHANICAL = 1
     DOWNTIME = 2
     """
-
+        
     loss_func = {
         0: loss.environmental,
         1: loss.mechanical,
@@ -69,22 +69,23 @@ class ThreatAgent(Agent):
         import os
         os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  #FATAL only
         logging.getLogger('tensorflow').setLevel(logging.FATAL)
-
+        
         from tensorflow.keras import Sequential
-        from tensorflow.keras.layers import Dense, Dropout
+        from tensorflow.keras.layers import Dense, Dropout, Input
         from tensorflow.keras.layers.experimental.preprocessing import Normalization
-
+        
         super().__init__()
         self.intent = self.loss_func[intent]
         model = Sequential()
+        model.add(Input(shape=(42,)))
         model.add(Dense(54, activation="tanh"))
-        model.add(Dense(128, activation="relu"))
+        model.add(Dropout(0.4))
         model.add(Dense(64, activation="relu"))
         model.compile(loss="mae",
                       optimizer="adam")
         self.model = model
 
-    def remember(self, state, action, _, observation, done):
+    def remember(self, previous, action, reward, observation, done):
         #TODO: somehow passed an int here. Should always be (None, dict)
         if action is None:
             action = 0
@@ -94,11 +95,10 @@ class ThreatAgent(Agent):
             action = action["xmeas"] + 12
         elif "setpt" in action:
             action = action["setpt"] + 54
-        reward = self.intent(observation)
-        self.memory.append((state, action, reward, observation, done))
+        self.memory.append((previous, action, reward, observation, done))
 
     def get_action(self, observation):
-        q = self.model.predict(observation[1:])[0]
+        q = self.model.predict(observation.reshape(1,42))[0]
         action = choice(np.where(q == np.amax(q))[0])
         if action == 0:
             return None
