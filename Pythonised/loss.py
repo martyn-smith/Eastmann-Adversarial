@@ -15,7 +15,7 @@ def utilities(true_xmeas):
     """
     cost of compressor work and steam (inflation adjusted from 1993)
     """
-    return (true_xmeas[20] * 0.1
+    return -(true_xmeas[20] * 0.1
             + true_xmeas[19] * 0.065)
 
 def production(true_xmeas):

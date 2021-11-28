@@ -31,7 +31,7 @@ class Agent:
         minibatch = sample(
             self.memory, min(len(self.memory), self.batch_size))
         for state, action, reward, observation, done in minibatch:
-            #TODO: replace with np.zeros()
+            #y_target = np.zeros(self.model.layers[-1].output_shape[1])
             y_target = self.model.predict(state.reshape(1,42))[0]
             y_target[action] = (reward if done else
                                    reward + self.gamma
@@ -41,7 +41,7 @@ class Agent:
             y_batch.append(y_target)
 
         loss = self.model.train_on_batch(np.array(x_batch), np.array(y_batch))
-        print(loss)
+        print(f"{self.id} training {loss=}")
         #TODO: epsilon
         #if self.epsilon > self.epsilon_min:
         #    self.epsilon *= self.epsilon_decay
@@ -50,8 +50,12 @@ class DummyAgent(Agent):
     def __init__(self):
         pass
 
+    def intent(self, *args):
+        return 0.
+
     def remember(self, *args):
         pass
+
     def replay(self, *args):
         pass
 

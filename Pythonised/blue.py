@@ -1,7 +1,7 @@
 from agent import Agent
 from gym.spaces import MultiDiscrete
 import numpy as np
-from random import choice
+from random import choice, randint
 
 class BlueTeamSpace(MultiDiscrete):
     """
@@ -32,6 +32,7 @@ class TEprobManager(Agent):
         from tensorflow.keras.layers import Dense, Dropout, Input
         from tensorflow.keras.layers.experimental.preprocessing import Normalization
 
+        self.id = "blue"
         super().__init__()
         model = Sequential()
         model.add(Input(shape=(42,)))
@@ -41,22 +42,29 @@ class TEprobManager(Agent):
                         optimizer="adam")
         self.model = model
 
-    def remember(self, state, action, reward, observation, done):
-        if action is None:
-            action = 0
-        elif type(action) is dict:
-            action = action["reset"]
-        else:
-            action = 13
-        self.memory.append((state, action, reward, observation, done))
-
-    def get_action(self, observation):
-        q = self.model.predict(observation.reshape(1,42))[0]
-        action = choice(np.where(q == np.amax(q))[0])
+    def encode(self, action):
         if action == 0:
             return None
         elif action < 13:
-            return {"reset": action}
+            return {"reset": action - 1}
         else:
             return "reset_all"
 
+    def decode(self, action):
+        if action is None:
+            return 0
+        elif type(action) is dict:
+            return action["reset"] + 1
+        else:
+            return 13
+
+    def remember(self, state, action, reward, observation, done):
+        self.memory.append((state, self.decode(action), reward, observation, done))
+
+    def get_action(self, observation):
+        q = self.model.predict(observation.reshape(1,42))[0]
+        try:
+            action = np.nanargmax(q)
+        except ValueError:
+            action = randint(0,12)
+        return self.encode(action)

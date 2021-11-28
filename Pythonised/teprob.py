@@ -1,185 +1,188 @@
 """
-#==============================================================================
-#               tennessee eastman process control test problem
-#
-#                    james j. downs and ernest f. vogel
-#
-#                  process and control systems engineering
-#                        tennessee eastman company
-#                              p.o. box 511
-#                          kingsport,tn  37662
-#
-#  reference:
-#    "a plant-wide industrial process control problem"
-#    presented at the aiche 1990 annual meeting
-#    industrial challenge problems in process control,paper #24a
-#    chicago,illinois,november 14,1990
-#
-#  Model of the TE (Tennessee Eastmann) challenge reactor.
-#
-#  The Plant takes four inputs, A, C, D, E, and produces two outputs,
-#  G and H.
-#
-#  Primary reactions:
-#
-#  A(g) + C(g) + D(g) -> G(l)
-#  A(g) + D(g) + E(g) -> H(l)
-#
-#  Byproduct reactions:
-#
-#  A(g) + E(g) -> F(l)
-#  3D(g) -> 2F(l)
-#
-#  All are exothermic, reversible, and first-order
-#  (rates follow an Arrhenius relation.)
-#
-#  Product flow is:
-#  a,d,e ->                                  c ->
-#     reactor -> condensor -> separator -> stripper -> product
-#           <- compressor <- purge <-
-#           <---------------------------------
-#
-#  manipulated variables
-#
-#    xmv[0]     a feed flow (stream 0) -> clearly should be different??
-#    xmv[1]     d feed flow (stream 1)
-#    xmv[2]     e feed flow (stream 2)
-#    xmv[3]     a and c feed flow (stream 3)
-#    xmv[4]     compressor recycle valve
-#    xmv[5]     purge valve (stream 8)
-#    xmv[6]     separator pot liquid flow (stream 9)
-#    xmv[7]     stripper liquid product flow (stream 10)
-#    xmv[8]     stripper steam valve
-#    xmv[9]    reactor cooling water flow
-#    xmv[10]    condenser cooling water flow
-#    xmv[11]    agitator speed
-#
-#  continuous process measurements
-#
-#    xmeas[0]   a feed  (stream 1)                    kscmh
-#    xmeas[1]   d feed  (stream 2)                    kg/hr
-#    xmeas[2]   e feed  (stream 3)                    kg/hr
-#    xmeas[4]   a and c feed  (stream 4)              kscmh
-#    xmeas[5]   recycle flow  (stream 8)              kscmh
-#    xmeas[6]   reactor feed rate  (stream 6)         kscmh
-#    xmeas[7]   reactor pressure                      kpa gauge
-#    xmeas[8]   reactor level                         %
-#    xmeas[9]   reactor temperature                   deg c
-#    xmeas[10]  purge rate (stream 9)                 kscmh
-#    xmeas[11]  product sep temp                      deg c
-#    xmeas[12]  product sep level                     %
-#    xmeas[13]  prod sep pressure                     kpa gauge
-#    xmeas[14]  prod sep underflow (stream 10)        m3/hr
-#    xmeas[15]  stripper level                        %
-#    xmeas[16]  stripper pressure                     kpa gauge
-#    xmeas[17]  stripper underflow (stream 11)        m3/hr
-#    xmeas[18]  stripper temperature                  deg c
-#    xmeas[19]  stripper steam flow                   kg/hr
-#    xmeas[20]  compressor work                       kw
-#    xmeas[21]  reactor cooling water outlet temp     deg c
-#    xmeas[22]  separator cooling water outlet temp   deg c
-#
-#  sampled process measurements
-#
-#    reactor feed analysis (stream 6)
-#        sampling frequency = 0.1 hr
-#        dead time = 0.1 hr
-#        mole %
-#    xmeas[23]   component a
-#    xmeas[24]   component b
-#    xmeas[25]   component c
-#    xmeas[26]   component d
-#    xmeas[27]   component e
-#    xmeas[28]   component f
-#
-#    purge gas analysis (stream 9)
-#        sampling frequency = 0.1 hr
-#        dead time = 0.1 hr
-#        mole %
-#    xmeas[29]   component a
-#    xmeas[30]   component b
-#    xmeas[31]   component c
-#    xmeas[32]   component d
-#    xmeas[33]   component e
-#    xmeas[34]   component f
-#    xmeas[35]   component g
-#    xmeas[36]   component h
-#
-#    product analysis (stream 11)
-#        sampling frequency = 0.25 hr
-#        dead time = 0.25 hr
-#        mole %
-#    xmeas[37]   component d
-#    xmeas[38]   component e
-#    xmeas[39]   component f
-#    xmeas[40]   component g
-#    xmeas[41]   component h
-#
-#    extras (43 onwards: TODO. Or... not?)
-#
-#    xmeas[42]   g/h ratio
-#    xmeas[43]   cost
-#    xmeas[42]   production rate of G [kmol G generated/h]
-#    xmeas[43]   production rate of H [kmol H generated/h]
-#    xmeas[44]   production rate of F [kmol F generated/h]
-#
-#  process disturbances
-#
-#    idv(1)   a/c feed ratio, b composition constant (stream 4)          step
-#    idv(2)   b composition, a/c ratio constant (stream 4)               step
-#    idv(3)   d feed temperature (stream 2)                              step
-#    idv(4)   reactor cooling water inlet temperature                    step
-#    idv(5)   condenser cooling water inlet temperature                  step
-#    idv(6)   a feed loss (stream 1)                                     step
-#    idv(7)   c header pressure loss - reduced availability (stream 4)   step
-#    idv(8)   a, b, c feed composition (stream 4)            random variation
-#    idv(9)   d feed temperature (stream 2)                  random variation
-#    idv(10)  c feed temperature (stream 4)                  random variation
-#    idv(11)  reactor cooling water inlet temperature        random variation
-#    idv(12)  condenser cooling water inlet temperature      random variation
-#    idv(13)  reaction kinetics                                    slow drift
-#    idv(14)  reactor cooling water valve                            sticking
-#    idv(15)  condenser cooling water valve                          sticking
-#    idv(16)  random xmeas                                  Failure, 0.012 to 0.027 hr
-#    idv(17)  none
-#    idv(18)  none
-#    idv(19)  multiple valves stick
-#    idv(20)  none
-#    idv(21)  Reactor T (°C),                                 Integrity attack, 0.012 to 0.027 hr
-#    idv(22)  xmv 7, xmeas[14], xmeas[16]                     DDoS, 663 to 25019 hr
-#    idv(23)  D feed flow (mv(0))                             DDoS, 10 hr
-#    idv(24)  C feed (mv(3)), Purge flow (mv(5)), Stripper underflow (meas(16)),
-#             Stripper steam (xmeas[8])                       Noise, 7,727 to 71,291 h.
-#
-#    Stream mappings
-#
-#    sm[0]  D feed -> J
-#    sm[1]  E feed -> J
-#    sm[2]  A feed -> J
-#    sm[3]  A & C feed -> sm[11]
-#    sm[4]  C (Stripper) -> J (junction)
-#    sm[5]  J (junction) -> sm[6]
-#    sm[6]  sm[5] -> R (Reactor)
-#    sm[7]  R (Reactor) -> S (Separator)
-#    sm[8]  S (Separator) -> V (compressor?)
-#    sm[9] S (Separator) -> purge
-#    sm[10] S (Separator) -> sm[11]
-#    sm[11] sm[3] + S (Separator) -> C (Stripper)
-#    sm[12] C (Stripper) -> prod
-#===============================================================================
+==============================================================================
+               tennessee eastman process control test problem
+
+                    james j. downs and ernest f. vogel
+
+                  process and control systems engineering
+                        tennessee eastman company
+                              p.o. box 511
+                          kingsport,tn  37662
+
+  reference:
+    "a plant-wide industrial process control problem"
+    presented at the aiche 1990 annual meeting
+    industrial challenge problems in process control,paper #24a
+    chicago,illinois,november 14,1990
+
+  Model of the TE (Tennessee Eastmann) challenge reactor.
+
+  The Plant takes four inputs, A, C, D, E, and produces two outputs,
+  G and H.
+
+  Primary reactions:
+
+  A(g) + C(g) + D(g) -> G(l)
+  A(g) + D(g) + E(g) -> H(l)
+
+  Byproduct reactions:
+
+  A(g) + E(g) -> F(l)
+  3D(g) -> 2F(l)
+
+  All are exothermic, reversible, and first-order
+  (rates follow an Arrhenius relation.)
+
+  Product flow is:
+  a,d,e ->                                  c ->
+     reactor -> condensor -> separator -> stripper -> product
+           <- compressor <- purge <-
+           <---------------------------------
+
+  manipulated variables
+
+    xmv[0]     a feed flow (stream 0) -> clearly should be different??
+    xmv[1]     d feed flow (stream 1)
+    xmv[2]     e feed flow (stream 2)
+    xmv[3]     a and c feed flow (stream 3)
+    xmv[4]     compressor recycle valve
+    xmv[5]     purge valve (stream 8)
+    xmv[6]     separator pot liquid flow (stream 9)
+    xmv[7]     stripper liquid product flow (stream 10)
+    xmv[8]     stripper steam valve
+    xmv[9]    reactor cooling water flow
+    xmv[10]    condenser cooling water flow
+    xmv[11]    agitator speed
+
+  continuous process measurements
+
+    xmeas[0]   a feed  (stream 1)                    kscmh
+    xmeas[1]   d feed  (stream 2)                    kg/hr
+    xmeas[2]   e feed  (stream 3)                    kg/hr
+    xmeas[4]   a and c feed  (stream 4)              kscmh
+    xmeas[5]   recycle flow  (stream 8)              kscmh
+    xmeas[6]   reactor feed rate  (stream 6)         kscmh
+    xmeas[7]   reactor pressure                      kpa gauge
+    xmeas[8]   reactor level                         %
+    xmeas[9]   reactor temperature                   deg c
+    xmeas[10]  purge rate (stream 9)                 kscmh
+    xmeas[11]  product sep temp                      deg c
+    xmeas[12]  product sep level                     %
+    xmeas[13]  prod sep pressure                     kpa gauge
+    xmeas[14]  prod sep underflow (stream 10)        m3/hr
+    xmeas[15]  stripper level                        %
+    xmeas[16]  stripper pressure                     kpa gauge
+    xmeas[17]  stripper underflow (stream 11)        m3/hr
+    xmeas[18]  stripper temperature                  deg c
+    xmeas[19]  stripper steam flow                   kg/hr
+    xmeas[20]  compressor work                       kw
+    xmeas[21]  reactor cooling water outlet temp     deg c
+    xmeas[22]  separator cooling water outlet temp   deg c
+
+  sampled process measurements
+
+    reactor feed analysis (stream 6)
+        sampling frequency = 0.1 hr
+        dead time = 0.1 hr
+        mole %
+    xmeas[23]   component a
+    xmeas[24]   component b
+    xmeas[25]   component c
+    xmeas[26]   component d
+    xmeas[27]   component e
+    xmeas[28]   component f
+
+    purge gas analysis (stream 9)
+        sampling frequency = 0.1 hr
+        dead time = 0.1 hr
+        mole %
+    xmeas[29]   component a
+    xmeas[30]   component b
+    xmeas[31]   component c
+    xmeas[32]   component d
+    xmeas[33]   component e
+    xmeas[34]   component f
+    xmeas[35]   component g
+    xmeas[36]   component h
+
+    product analysis (stream 11)
+        sampling frequency = 0.25 hr
+        dead time = 0.25 hr
+        mole %
+    xmeas[37]   component d
+    xmeas[38]   component e
+    xmeas[39]   component f
+    xmeas[40]   component g
+    xmeas[41]   component h
+
+    extras (43 onwards: TODO. Or... not?)
+
+    xmeas[42]   g/h ratio
+    xmeas[43]   cost
+    xmeas[42]   production rate of G [kmol G generated/h]
+    xmeas[43]   production rate of H [kmol H generated/h]
+    xmeas[44]   production rate of F [kmol F generated/h]
+
+  process disturbances
+
+    idv(1)   a/c feed ratio, b composition constant (stream 4)          step
+    idv(2)   b composition, a/c ratio constant (stream 4)               step
+    idv(3)   d feed temperature (stream 2)                              step
+    idv(4)   reactor cooling water inlet temperature                    step
+    idv(5)   condenser cooling water inlet temperature                  step
+    idv(6)   a feed loss (stream 1)                                     step
+    idv(7)   c header pressure loss - reduced availability (stream 4)   step
+    idv(8)   a, b, c feed composition (stream 4)            random variation
+    idv(9)   d feed temperature (stream 2)                  random variation
+    idv(10)  c feed temperature (stream 4)                  random variation
+    idv(11)  reactor cooling water inlet temperature        random variation
+    idv(12)  condenser cooling water inlet temperature      random variation
+    idv(13)  reaction kinetics                                    slow drift
+    idv(14)  reactor cooling water valve                            sticking
+    idv(15)  condenser cooling water valve                          sticking
+    idv(16)  random xmeas                                  Failure, 0.012 to 0.027 hr
+    idv(17)  none
+    idv(18)  none
+    idv(19)  multiple valves stick
+    idv(20)  none
+    idv(21)  Reactor T (°C),                                 Integrity attack, 0.012 to 0.027 hr
+    idv(22)  xmv 7, xmeas[14], xmeas[16]                     DDoS, 663 to 25019 hr
+    idv(23)  D feed flow (mv(0))                             DDoS, 10 hr
+    idv(24)  C feed (mv(3)), Purge flow (mv(5)), Stripper underflow (meas(16)),
+             Stripper steam (xmeas[8])                       Noise, 7,727 to 71,291 h.
+
+    Stream mappings
+
+    sm[0]  D feed -> J
+    sm[1]  E feed -> J
+    sm[2]  A feed -> J
+    sm[3]  A & C feed -> sm[11]
+    sm[4]  C (Stripper) -> J (junction)
+    sm[5]  J (junction) -> sm[6]
+    sm[6]  sm[5] -> R (Reactor)
+    sm[7]  R (Reactor) -> S (Separator)
+    sm[8]  S (Separator) -> V (compressor?)
+    sm[9] S (Separator) -> purge
+    sm[10] S (Separator) -> sm[11]
+    sm[11] sm[3] + S (Separator) -> C (Stripper)
+    sm[12] C (Stripper) -> prod
+===============================================================================
 """
 from agent import DummyAgent
 from blue import TEprobManager
+from collections import deque
 from colorpy.blackbody import blackbody_color
 from constants import *
 import copy
 import control
+from datetime import datetime
 import enum
 import gym
 from matplotlib import pyplot as plt
 import loss
 import numpy as np
 np.seterr(all="raise")
+from os import system
 from random import choice, uniform
 from red import ThreatAgent
 import sys
@@ -639,7 +642,7 @@ class Sfr:
 
 class TEproc(gym.Env):
 
-    def __init__(self, ctrl_mode=None):
+    def __init__(self, ctrl_mode=None, red_intent=loss.downtime):
         """
         initialization
 
@@ -711,6 +714,7 @@ class TEproc(gym.Env):
             self.ctrlr = control.Controller(seed["vpos"])
         self.faults = [0] * 20
         self.attacks = [0] * 20
+        self.red_intent = red_intent
 
     def step(self, action: list[Action]):
         """
@@ -720,15 +724,14 @@ class TEproc(gym.Env):
         global log
         reset = False
 
-        red_action, blue_action = action[0], action[1]
+        blue_action, red_action = action[0], action[1]
         if blue_action == "reset_all": #reset signal
             reset = True
             self.reset()
             red_action = None
         #action: blue can reset control loops 0-8
         #action: red can perturb xmvs
-        if red_action is not None:
-            if "xmv" in red_action:
+        if red_action is not None and "xmv" in red_action:
                 self.ctrlr.perturb_xmv(red_action["xmv"])
         for mv, valve in zip(self.ctrlr.xmv, self.valves):
             valve.set(mv)
@@ -861,23 +864,21 @@ class TEproc(gym.Env):
 
         xmeas = self.measure()
         true_xmeas = xmeas
-        if red_action is not None:
-            if "xmeas" in red_action:
+        if red_action is not None and "xmeas" in red_action:
                 xmeas[red_action["xmeas"]] = 0.
         done = self.has_failed(xmeas, self.time)
-        l = loss.loss(reset, done, true_xmeas, self.ctrlr.xmv)
-        if red_action is not None:
-            if "setpt" in red_action:
-                self.ctrlr.perturb_setpt(red_action["setpt"])
-        if blue_action is not None:
-            if "reset" in blue_action:
-                self.ctrlr.reset_single(blue_action["reset"])
+        blue = loss.loss(reset, done, true_xmeas, self.ctrlr.xmv)
+        red = - self.red_intent(reset)
+        if red_action is not None and "setpt" in red_action:
+            self.ctrlr.perturb_setpt(red_action["setpt"])
+        if type(blue_action) is dict:
+            self.ctrlr.reset_single(blue_action["reset"], self.time)
         self.ctrlr.control(xmeas, self.time) #here?
         # update valves.xmv is control signal, translated to vcv if no stick.
         # returns: (possibly false) xmeas, loss based on true state, done if failed
         log += [self.s.level]
         self.time += DELTA_t
-        return (true_xmeas, xmeas), l, bool(done), {"failures": done}
+        return (xmeas, true_xmeas), (blue, red), bool(done), {"failures": done}
 
     def measure(self):
         xmeas = np.zeros(43)
@@ -967,7 +968,6 @@ class TEproc(gym.Env):
     def reset(self):
         self.__init__()
         #run for one hour
-        self.ctrlr.reset()
         for i in range(3600):
             self.step([None, None])
         return self.step([None, None])
@@ -1028,13 +1028,21 @@ options:
     --fast            runs for one hour, not 48
     --v               prints reward
     --render          visualisation (slow)
+    --report          generates report on red/blue team actions and parameters
     --peaceful        no agents
     --open            no control loops
+    -n EPISODES       run for n episodes
+    -i INTENT         red team intent
 """
     )
 
 if __name__ == "__main__":
 
+    #TODO: arparse and reporting with logging module
+    d = str(datetime.now().date())
+
+    if "--report" in sys.argv:
+        memory = []
     if "--fast" in sys.argv:
         hrs = 0.1
     else:
@@ -1048,45 +1056,105 @@ if __name__ == "__main__":
     )
 
     env = gym.make("TennesseeEastmann-v1")
+    wins = deque(maxlen=10)
+    summary = []
+
     if "--peaceful" in sys.argv:
         red, blue = DummyAgent(), DummyAgent()
         num_episodes = 1
     else:
-        red = ThreatAgent(intent=0)
         blue = TEprobManager()
-        num_episodes = 100
+        if "-n" in sys.argv:
+            num_episodes = int(sys.argv[sys.argv.index("-n") + 1])
+        else:
+            num_episodes = 100
+        if "-i" in sys.argv:
+            intent = int(sys.argv[sys.argv.index("-i") + 1])
+            red = ThreatAgent(intent=intent)
+        else:
+            red = ThreatAgent()
+
     observations, _, __, ___ = env.reset()
     blue_action = blue.get_action(observations[0][1:])
     red_action = red.get_action(observations[1][1:])
     action = (blue_action, red_action)
+
     for i in range(num_episodes):
         env.reset()
+        episode_memory = []
         for t in range(env._max_episode_steps):
             prev_obs = observations
             blue_action = blue.get_action(prev_obs[0][1:])
             red_action = red.get_action(prev_obs[1][1:])
             action = (blue_action, red_action)
-            if "-v" in sys.argv:
+            if "-v" in sys.argv and "--peaceful" not in sys.argv:
                 print(action)
-            observations, blue_reward, done, info = env.step(action)
+            observations, (blue_reward, red_reward), done, info = env.step(action)
             red_obs = observations[0]
             blue_obs = observations[1]
-            #blue_reward = loss.loss(blue_obs)
-            red_reward = - red.intent(red_obs)
-            if "-v" in sys.argv:
-                print(f"{blue_reward=}, {red_reward=}")
-            if "--render" in sys.argv:
-                env.render()
             red.remember(prev_obs[0][1:], red_action, blue_reward, red_obs[1:], done)
             blue.remember(prev_obs[1][1:], blue_action, red_reward, blue_obs[1:], done)
-            print("reactor P, t, and control value: ", env.r.pg, env.r.level, env.r.tc, env.ctrlr.xmv[3])
+            if "--render" in sys.argv:
+                env.render()
+            if "--report" in sys.argv and i % 10 == 0:
+                episode_memory.append((i, t, red.decode(red_action), blue.decode(blue_action), 
+                                       env.r.pg, env.r.tc, red_obs[7], red_obs[9],
+                                       env.s.tc, env.s.level, red_obs[11], red_obs[12]))
+            if "-v" in sys.argv:
+                print("reactor P, T, and control value: ", env.r.pg, env.r.level, env.ctrlr.xmv[3])
+                print(f"{blue_reward=}, {red_reward=}")
             if done:
-                print(f"Episode finished after {t} timesteps: "
+                print(f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
                       + f"{'red' if info['failures'] else 'blue'} team wins")
+                wins.append((0,1) if info["failures"] else (1,0))
+                if i % 10 == 0:
+                    if wins:
+                        try:
+                            win_rate = sum(1 for w in wins if w[0]) / sum(1 for w in wins if w[1])
+                        except ZeroDivisionError:
+                            win_rate = 1 if wins[0][0] else 0
+                    else:
+                        win_rate = "n/a"
+                    summary.append(f"blue team win rate from last time episodes: {win_rate}")
                 break
         env.close()
-        if "--render" in sys.argv:
-            plt.plot(log)
-            plt.show()
-        red.replay()
+        if "--report" in sys.argv and i % 10 == 0:
+            fig, ax = plt.subplots()
+            ax.plot([m[2] for m in episode_memory], label="red team", color="red")
+            ax.plot([m[3] for m in episode_memory], label="blue team", color="blue")
+            ax.set_title(f"actions at episode {i}")
+            plt.legend()
+            plt.savefig(f"actions_{d}_ep{i}.png")
+
+            fig, ax = plt.subplots()
+            ax.plot([m[4] for m in episode_memory], label="real pressure")
+            ax.plot([m[5] for m in episode_memory], label="real temperature")
+            ax.plot([m[6] for m in episode_memory], label="reported pressure")
+            ax.plot([m[7] for m in episode_memory], label="reported temperature")
+            ax.set_title(f"reactor parameters at episode {i}")
+            plt.legend()
+            plt.savefig(f"r_parameters_{d}_ep{i}.png")
+
+            fig, ax = plt.subplots()
+            ax.plot([m[8] for m in episode_memory], label="real pressure")
+            ax.plot([m[9] for m in episode_memory], label="real temperature")
+            ax.plot([m[10] for m in episode_memory], label="reported pressure")
+            ax.plot([m[11] for m in episode_memory], label="reported temperature")
+            ax.set_title(f"separator parameters at episode {i}")
+            plt.legend()
+            plt.savefig(f"s_parameters_{d}_ep{i}.png")
+            plt.close("all")
+
         blue.replay()
+        red.replay()
+    #TODO: since pandoc already has a LaTeX dependency, just write as LaTeX instead
+    if "--report" in sys.argv:
+        with open(f"report_{d}.md", "w") as f:
+            f.write(f"wargame of TE process generated on {d}\n===\n")
+            for i in range(10):
+                f.write(f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{margin=auto}}\n")
+                f.write(f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{margin=auto}}\n")
+                f.write(f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{margin=auto}}\n")
+                f.write(f"{summary[i]}\n\\newpage")
+#            f.write(input("closing remarks?"))
+#        system(f"pandoc -o report_{d}.pdf report_{d}.md")

@@ -7,7 +7,18 @@ SETPT = np.array([120.40, 75.0, 50.0, 50.0,
                   32.188])
 
 class Dummy:
-    xmv = np.array([0.5] * 12)
+
+    def __init__(self):
+        self.xmv = np.array([0.5] * 12)
+
+    def control(self, *args):
+        return self.xmv
+
+    def perturb_xmv(self, *args):
+        pass
+
+    def reset_single(self, *args):
+        pass
 
 class Controller:
 
@@ -27,12 +38,10 @@ class Controller:
         self.xmv = np.array(seed)
         self.fxmeas = np.zeros(22)
         self.alpha = DELTA_t*3600. / 5.0
+        self.reset_times = np.zeros(12)
+        self.xmv_map = {0: 5, 1:1, 2:8, 3: 6, 5:7, 6:3, 7:4, 9:0, 10:2}
 
-    def reset(self):
-        self.setpt = SETPT
-        self.fxmeas = np.zeros(22)
-
-    def control(self, xmeas, _):
+    def control(self, xmeas, time):
         """
            discrete control algorithms
 
@@ -116,16 +125,28 @@ class Controller:
         self.err[8] = err
         self.xmv[2] = np.clip(self.xmv[2], 0., 100.)
 
-        self.fxmeas = (self.alpha * xmeas[:22]) + ((1-self.alpha) * self.fxmeas)
+        try:
+            self.fxmeas = (self.alpha * xmeas[:22]) + ((1-self.alpha) * self.fxmeas)
+        except FloatingPointError:
+            pass
+
+        for i in range(12):
+            if self.reset_times[i] > 0 and time - self.reset_times[i] < 1.:
+                self.xmv[i] = 0.5
 
     def perturb_xmv(self, idx):
         self.xmv[idx] = 100.
 
     def perturb_setpt(self, idx):
-        self.setpt[idx] = 1.e6
+        try:
+            self.setpt[idx] = 1.e6
+        except KeyError:
+            pass
 
-    def reset_single(self, idx):
-        self.setpt[idx] = SETPT[idx]
-        self.xmv[idx] = 0.5
-        #TODO: 1 hr delay
-        #self.reset_times[idx] = time
+    def reset_single(self, idx, time):
+        self.reset_times[idx] = time
+        try:
+            setpt_idx = self.xmv_map[idx]
+            self.setpt[setpt_idx] = SETPT[setpt_idx]
+        except KeyError:
+            pass
