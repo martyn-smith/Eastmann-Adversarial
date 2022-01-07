@@ -3,10 +3,11 @@
 TE:
 	gfortran -g3 -o tedbg_$$(date +"%d%m%y") -fall-intrinsics -fbacktrace -fdefault-real-8 \
 	    -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none  \
-		-Wall -static -std=f2003 temain.f95;
-	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$$(date +"%d%m%y") temain.f95;
+		-Wall -static -std=f2003 src/temain.f95;
+	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$$(date +"%d%m%y") src/temain.f95;
 	ln -s -f te_$$(date +"%d%m%y") te;
 	./te_$$(date +"%d%m%y");
+	rm *.mod;
 
 results:
 	@echo "making output folder"
@@ -18,7 +19,7 @@ results:
 multiresults:
 	for i in {1..64}
 	do
-	./a.out;
+	./te;
 	./to_csv.sh;
 	rm fout.dat;
 	mv out.dat out$i.dat;

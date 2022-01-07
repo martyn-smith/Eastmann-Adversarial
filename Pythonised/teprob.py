@@ -210,9 +210,9 @@ DELTA_t = 1. / 3600.
 
 log = []
 
+#This is for the DQN version (i.e. discrete)
 action_txt = \
 """
-
     Red team actions
 
     0..=11 => set xmv[i] to MAX
@@ -228,9 +228,13 @@ action_txt = \
 
 """
 
-fr_debug = False
-
 class ProcessError(Exception):
+    """
+    Catches a situation where the plant model has reached an implausible state 
+    due to modelling imperfections.
+    (The modelled error checks may not catch an implausible state, since they represent
+    checks on a physical plant).
+    """
 
     def __init__(self, msg, log):
         print(f"Plant has reached an implausible state: {msg}")
@@ -794,7 +798,6 @@ class TEproc(gym.Env):
         """
 
         global log
-        global fr_debug
         reset = False
         """
         Red team actions
@@ -1112,19 +1115,12 @@ class TEproc(gym.Env):
         """
         print("#" * 80 + "\n\n  RESETTING  \n\n" + "#" * 80)
         self.__init__()
-        #FIXME: on reset(), from step 0 some values are different (seeded are not).
         global log
         log = []
-        global fr_debug
         try:
             try:
                 for i in range(3600):
                     observations, _, done, info = env.step((None, None))
-                    if i == 0:
-                        fr_debug= True
-                        self.check_init()
-                    else:
-                        fr_debug = False
                     log.append([self.s.level * 100, self.ctrlr.xmv[10]])
                     self.has_failed_extra()
                     assert i < 1800 or not info["failures"]

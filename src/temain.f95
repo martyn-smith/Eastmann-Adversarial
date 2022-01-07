@@ -1,3 +1,4 @@
+!==============================================================================
 !
 !               tennessee eastman process control test problem
 !
@@ -38,8 +39,8 @@ include "teprob.f95"
 !  |twr||tws|| vcv/vpos? |, |  idvs  |
 
 program temain
-!   TODO:
-!   fix delta_t to use one second by default (requires changing some hard-coded constants!)
+!   CONSIDER:
+!   change delta_t to use one second by default (requires changing some hard-coded constants!)
     use tewalk
     implicit none
 
