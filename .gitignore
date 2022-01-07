@@ -4,6 +4,7 @@ Oxidised/
 *.mod
 *.so
 *.out
+*.pdf
 .cleanme
 test.*
 te

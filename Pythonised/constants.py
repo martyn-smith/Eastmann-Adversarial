@@ -22,3 +22,5 @@ x_costs = np.array([2.206, 0., 6.177, 22.06, 14.56, 17.89, 30.44, 22.94]) # kgmo
 compressor_cost = 0.0536 # kWh-1
 strip_steam_cost = 0.0318 # kg-1
 #setpt_max = np.array([,,,,, 100.0,])
+
+

@@ -1,3 +1,11 @@
+"""
+DQN-based solver.
+
+Inspired by n1try's writeup
+(https://gym.openai.com/evaluations/eval_EIcM1ZBnQW2LBaFN6FY65g/) and
+https://keon.io/deep-q-learning
+"""
+
 #import logging
 #import os
 #os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  #FATAL only
@@ -14,15 +22,18 @@ class Agent:
         self.memory = deque(maxlen=100_000)
         self.batch_size = 64
         self.gamma = 1.0
+        self.epsilon = 1.0
+        self.epsilon_min=0.01
+        self.epsilon_decay=0.095
         #self.model = Sequential()
 
     def remember(self, state, action, reward, observation, done):
+        #self.memory.append((state, action, reward, observation, done))
         self.memory.append((state, action, reward, observation, done))
 
     def get_action(self, observation):
-        x = self.model.predict(observation[1:])[0]
-        idx = choice(np.where(x == np.amax(x)))
-        return idx
+        #this could only be inheritable if model shape is known.
+        pass
 
     def replay(self):
         #x is state (dims (42,1)). y is Q-value of all possible actions (14 for blue, ..? for red)
@@ -42,9 +53,9 @@ class Agent:
 
         loss = self.model.train_on_batch(np.array(x_batch), np.array(y_batch))
         print(f"{self.id} training {loss=}")
-        #TODO: epsilon
-        #if self.epsilon > self.epsilon_min:
-        #    self.epsilon *= self.epsilon_decay
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+        return loss
 
 class DummyAgent(Agent):
     def __init__(self):

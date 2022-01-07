@@ -12,44 +12,8 @@
 import enum
 import loss
 from agent import Agent
-from gym.spaces import Space
-from random import choice, randint
+from random import choice, randint, random
 import numpy as np
-
-class RedTeamSpace(Space):
-    """
-    A composite Box/Discrete space.
-
-    The RedTeam may choose one action out of (perturb_xmv, perturb_xmeas, perturb_setpt)
-    Given this single point, red team may overwite the process variable.
-    """
-
-    def __init__(self):
-        self.target = Space.Discrete(3)
-        """
-        number of choices is dependent on target:
-        xmv => 12
-        xmeas => 42
-        setpt => 9
-
-        so will have to take max and discard invalid at runtime
-
-        total of (12 + 42 + 9) = 63 d.o.f
-
-        We can't particularly easily use Continous with DQN (the outputs of a model are Q-values),
-        so discrete for now.
-
-        actions are:
-        [0:12] => set xmv to MAX
-        [12:54] => set xmeas to 0.
-        [54:63] => setpt *= 10
-        """
-        self.variable = Space.Discrete(42)
-        """
-        easiest part, we will handle the scaling at runtime
-        """
-        self.value = Space.Box(0., 1.0, shape=(1))
-
 
 class ThreatAgent(Agent):
     """
@@ -74,6 +38,7 @@ class ThreatAgent(Agent):
         from tensorflow.keras import Sequential
         from tensorflow.keras.layers import Dense, Dropout, Input
         from tensorflow.keras.layers.experimental.preprocessing import Normalization
+        from tensorflow.keras.optimizers import Adam
 
         super().__init__()
         self.intent = self.loss_func[intent]
@@ -82,8 +47,9 @@ class ThreatAgent(Agent):
         model.add(Dense(54, activation="tanh"))
         model.add(Dropout(0.4))
         model.add(Dense(64, activation="relu"))
+        opt = Adam(learning_rate=0.01)
         model.compile(loss="mae",
-                      optimizer="adam")
+                      optimizer=opt)
         self.model = model
 
     def encode(self, action):
@@ -106,14 +72,14 @@ class ThreatAgent(Agent):
         elif "setpt" in action:
             return action["setpt"] + 55
 
-    def remember(self, previous, action, reward, observation, done):
-        #TODO: somehow passed an int here. Should always be (None, dict)
-        self.memory.append((previous, self.decode(action), reward, observation, done))
-
     def get_action(self, observation):
-        q = self.model.predict(observation.reshape(1,42))[0]
-        try:
-            action = np.nanargmax(q)
-        except ValueError:
+        #TODO: pick action_space
+        if random() >= self.epsilon:
+            q = self.model.predict(observation.reshape(1,42))[0]
+            try:
+                action = np.nanargmax(q)
+            except ValueError:
+                action = randint(0,63)
+        else:
             action = randint(0,63)
-        return self.encode(action)
+        return action

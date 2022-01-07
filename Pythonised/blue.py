@@ -1,20 +1,7 @@
 from agent import Agent
 from gym.spaces import MultiDiscrete
 import numpy as np
-from random import choice, randint
-
-class BlueTeamSpace(MultiDiscrete):
-    """
-    Blue team actions:
-
-     continue (no action, no reward)
-     reset PLC 0-12 (TEproc will resort to open-loop for that PLC for one hour)
-     restart entire plant (no production for 24 hours)
-
-     total of 13 degrees of freedoe
-    """
-    def __init__(self, nvec=[12,2], seed=None):
-        self.nvec = nvec
+from random import choice, randint, random
 
 class TEDummy(Agent):
     """
@@ -31,6 +18,7 @@ class TEprobManager(Agent):
         from tensorflow.keras import Sequential
         from tensorflow.keras.layers import Dense, Dropout, Input
         from tensorflow.keras.layers.experimental.preprocessing import Normalization
+        from tensorflow.keras.optimizers import Adam
 
         self.id = "blue"
         super().__init__()
@@ -38,6 +26,7 @@ class TEprobManager(Agent):
         model.add(Input(shape=(42,)))
         model.add(Dense(54, activation="tanh"))
         model.add(Dense(14, activation="relu"))
+        opt = Adam(learning_rate=0.01)
         model.compile(loss="mae",
                         optimizer="adam")
         self.model = model
@@ -58,13 +47,13 @@ class TEprobManager(Agent):
         else:
             return 13
 
-    def remember(self, state, action, reward, observation, done):
-        self.memory.append((state, self.decode(action), reward, observation, done))
-
     def get_action(self, observation):
-        q = self.model.predict(observation.reshape(1,42))[0]
-        try:
-            action = np.nanargmax(q)
-        except ValueError:
-            action = randint(0,12)
-        return self.encode(action)
+        if random() >= self.epsilon:
+            q = self.model.predict(observation.reshape(1,42))[0]
+            try:
+                action = np.nanargmax(q)
+            except ValueError:
+                action = randint(0,13)
+        else:
+            action = randint(0,13)
+        return action

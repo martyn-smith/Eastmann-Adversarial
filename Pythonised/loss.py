@@ -2,6 +2,8 @@ steps = 0
 G_TOLERANCE = 0.001
 G_H_LOWER = 0.95
 G_H_UPPER = 1.05
+COST_KWH = 0.1
+COST_STEAM = 0.065
 
 def loss(reset, failed, true_xmeas, xmv):
     #should start at -[cost of utilities]
@@ -15,8 +17,8 @@ def utilities(true_xmeas):
     """
     cost of compressor work and steam (inflation adjusted from 1993)
     """
-    return -(true_xmeas[20] * 0.1
-            + true_xmeas[19] * 0.065)
+    return -(true_xmeas[20] * COST_KWH
+            + true_xmeas[19] * COST_STEAM)
 
 def production(true_xmeas):
     """

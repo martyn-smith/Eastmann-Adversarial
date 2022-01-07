@@ -1,6 +1,5 @@
+from copy import deepcopy
 import numpy as np
-from teprob import DELTA_t
-from enum import Enum
 
 SETPT = np.array([120.40, 75.0, 50.0, 50.0,
                   22.949, 1.0, 2705.0, 13.823,
@@ -22,12 +21,12 @@ class Dummy:
 
 class Controller:
 
-    def __init__(self, seed):
+    def __init__(self, seed, delta_t):
     #   set controller parameters
     #   r.tc, r.level, s.level, c.level, s.under, g/h, r.pg, purge.b, r.a
     #   xmvs actually used: 0,1,2, 3,5, 6,7, 9,10
     #   so 4, 8, 11 unused (compressor recycly, stripper steam, agitator respectively)
-        self.setpt = SETPT
+        self.setpt = deepcopy(SETPT)
         self.gain = np.array([-10.3, 0.8, 1.4, 5.,
                               1.2, 7.1, 1.1, -14.5,
                               4.1])
@@ -37,9 +36,13 @@ class Controller:
         self.err = np.zeros(9)
         self.xmv = np.array(seed)
         self.fxmeas = np.zeros(22)
-        self.alpha = DELTA_t*3600. / 5.0
+        self.alpha = delta_t*3600. / 5.0
         self.reset_times = np.zeros(12)
         self.xmv_map = {0: 5, 1:1, 2:8, 3: 6, 5:7, 6:3, 7:4, 9:0, 10:2}
+        self.delta_t = delta_t
+
+    def __str__(self):
+        return f"{self.xmv}\n"
 
     def control(self, xmeas, time):
         """
@@ -80,66 +83,89 @@ class Controller:
 
         """
    #    reactor pressure control (reactor pressure -> A and C feed)
-        err = self.setpt[6] - xmeas[7]
-        self.xmv[3] += self.gain[6] * ((err - self.err[6]) + err * DELTA_t * 60. / self.taui[6])
-        self.err[6] = err
-        self.xmv[3] = np.clip(self.xmv[3], 0., 100.)
+        if self.reset_times[3] == 0 or time - self.reset_times[3] > 1.:
+            err = self.setpt[6] - xmeas[7]
+            self.xmv[3] += self.gain[6] * ((err - self.err[6]) + err * self.delta_t * 60. / self.taui[6])
+            self.err[6] = err
+            self.xmv[3] = np.clip(self.xmv[3], 0., 100.)
+        # else:
+        #     print("xmv[3] open")
    #    reactor temperature control (reactor temperature -> reactor coolant flow)
-        err = self.setpt[0]-xmeas[9]
-        self.xmv[9] += self.gain[0]*((err-self.err[0])+err*DELTA_t*60./self.taui[0])
-        self.err[0] = err
-        self.xmv[9] = np.clip(self.xmv[9], 0., 100.)
+        if self.reset_times[9] == 0 or time - self.reset_times[9] > 1.:
+            err = self.setpt[0]-xmeas[9]
+            self.xmv[9] += self.gain[0]*((err-self.err[0])+err*self.delta_t*60./self.taui[0])
+            self.err[0] = err
+            self.xmv[9] = np.clip(self.xmv[9], 0., 100.)
+        # else:
+        #     print("xmv[9] open")
    #    reactor level control (reactor level -> E feed?)
-        err = self.setpt[1]-self.fxmeas[8]
-        self.xmv[1] += self.gain[1]*((err-self.err[1])+err*DELTA_t*60./self.taui[1])
-        self.err[1] = err
-        self.xmv[1] = np.clip(self.xmv[1], 0., 100.)
+        if self.reset_times[1] == 0 or time - self.reset_times[1] > 1.:
+            err = self.setpt[1]-self.fxmeas[8]
+            self.xmv[1] += self.gain[1]*((err-self.err[1])+err*self.delta_t*60./self.taui[1])
+            self.err[1] = err
+            self.xmv[1] = np.clip(self.xmv[1], 0., 100.)
+        # else:
+        #     print("xmv[1] open")
    #    product separator level control (sep level -> condensor coolant flow)
-        err = self.setpt[2]-self.fxmeas[12]
-        self.xmv[10] += self.gain[2]*((err-self.err[2])+err*DELTA_t*60./self.taui[2])
-        self.err[2] = err
-        self.xmv[10] = np.clip(self.xmv[10], 0., 100.)
+        if self.reset_times[10] == 0 or time - self.reset_times[10] > 1.:
+            err = self.setpt[2]-self.fxmeas[12]
+            self.xmv[10] += self.gain[2]*((err-self.err[2])+err*self.delta_t*60./self.taui[2])
+            self.err[2] = err
+            self.xmv[10] = np.clip(self.xmv[10], 0., 100.)
+        # else:
+        #     print("xmv[10] open")
    #    stripper level control (strip level -> sep pot flow)
-        err = self.setpt[3]-self.fxmeas[15]
-        self.xmv[6] += self.gain[3]*((err-self.err[3])+err*DELTA_t*60./self.taui[3])
-        self.err[3] = err
-        self.xmv[6] = np.clip(self.xmv[6], 0., 100.)
+        if self.reset_times[6] == 0 or time - self.reset_times[6] > 1.:
+            err = self.setpt[3]-self.fxmeas[15]
+            self.xmv[6] += self.gain[3]*((err-self.err[3])+err*self.delta_t*60./self.taui[3])
+            self.err[3] = err
+            self.xmv[6] = np.clip(self.xmv[6], 0., 100.)
+        # else:
+        #     print("xmv[6] open")
    #    stripper underflow control (strip underflow -> product flow)
-        err = self.setpt[4]-xmeas[17]
-        self.xmv[7] += self.gain[4]*((err-self.err[4])+err*DELTA_t*60./self.taui[4])
-        self.err[4] = err
-        self.xmv[7] = np.clip(self.xmv[7], 0., 100.)
+        if self.reset_times[7] == 0 or time - self.reset_times[7] > 1.:
+            err = self.setpt[4]-xmeas[17]
+            self.xmv[7] += self.gain[4]*((err-self.err[4])+err*self.delta_t*60./self.taui[4])
+            self.err[4] = err
+            self.xmv[7] = np.clip(self.xmv[7], 0., 100.)
+        # else:
+        #     print("xmv[7] open")
    #    g/h ratio control (ratio -> D feed?)
-        err = self.setpt[5]-xmeas[42]
-        self.xmv[0] += self.gain[5]*((err-self.err[5])+err*DELTA_t*60./self.taui[5])
-        self.err[5] = err
-        self.xmv[0] = np.clip(self.xmv[0], 0., 100.)
+        if self.reset_times[0] == 0 or time - self.reset_times[0] > 1.:
+            err = self.setpt[5]-xmeas[42]
+            self.xmv[0] += self.gain[5]*((err-self.err[5])+err*self.delta_t*60./self.taui[5])
+            self.err[5] = err
+            self.xmv[0] = np.clip(self.xmv[0], 0., 100.)
+        # else:
+        #     print("xmv[0] open")
    #    purge gas b component control (b -> purge)
-        err = self.setpt[7]-xmeas[30]
-        self.xmv[5] += self.gain[7]*((err-self.err[7])+err*DELTA_t*60./self.taui[7])
-        self.err[7] = err
-        self.xmv[5] = np.clip(self.xmv[5], 0., 100.)
+        if self.reset_times[5] == 0 or time - self.reset_times[5] > 1.:
+            err = self.setpt[7]-xmeas[30]
+            self.xmv[5] += self.gain[7]*((err-self.err[7])+err*self.delta_t*60./self.taui[7])
+            self.err[7] = err
+            self.xmv[5] = np.clip(self.xmv[5], 0., 100.)
+        # else:
+        #     print("xmv[5] open")
    #    reactor feed a component control (reactor feed A -> A feed?)
-        err = self.setpt[8]-xmeas[23]
-        self.xmv[2] += self.gain[8]*((err-self.err[8])+err*DELTA_t*60./self.taui[8])
-        self.err[8] = err
-        self.xmv[2] = np.clip(self.xmv[2], 0., 100.)
+        if self.reset_times[2] == 0 or time - self.reset_times[2] > 1.:
+            err = self.setpt[8]-xmeas[23]
+            self.xmv[2] += self.gain[8]*((err-self.err[8])+err*self.delta_t*60./self.taui[8])
+            self.err[8] = err
+            self.xmv[2] = np.clip(self.xmv[2], 0., 100.)
+        # else:
+        #     print("xmv[2] open")
 
         try:
             self.fxmeas = (self.alpha * xmeas[:22]) + ((1-self.alpha) * self.fxmeas)
         except FloatingPointError:
             pass
 
-        for i in range(12):
-            if self.reset_times[i] > 0 and time - self.reset_times[i] < 1.:
-                self.xmv[i] = 0.5
-
     def perturb_xmv(self, idx):
         self.xmv[idx] = 100.
 
     def perturb_setpt(self, idx):
         try:
-            self.setpt[idx] = 1.e6
+            self.setpt[idx] *= 10.
         except KeyError:
             pass
 
@@ -149,4 +175,5 @@ class Controller:
             setpt_idx = self.xmv_map[idx]
             self.setpt[setpt_idx] = SETPT[setpt_idx]
         except KeyError:
+            #4, 8, 11 have no control loops - this is fine if so
             pass
