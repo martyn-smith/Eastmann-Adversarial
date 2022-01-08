@@ -1,4 +1,6 @@
 Oxidised/target/
+builds/
+reference/
 data/
 *.dat
 *.mod
