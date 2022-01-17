@@ -1,4 +1,5 @@
 *Note: this README, as it stands, is primarily documenting the internal approach of the TE model itself, not the interface it exposes.*
+*Note also: the DQN branch will be the home of all future value-based learning, the PPO branch the home of policy gradient.*
 
 Model of the TE (Tennessee Eastmann) challenge reactor
 ===
