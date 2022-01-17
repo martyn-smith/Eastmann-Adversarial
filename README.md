@@ -1,3 +1,6 @@
+*Note: this README, as it stands, is primarily documenting the internal approach of the TE model itself, not the interface it exposes.*
+*Note also: the DQN branch will be the home of all future value-based learning, the PPO branch the home of policy gradient.*
+
 Model of the TE (Tennessee Eastmann) challenge reactor
 ===
 
@@ -24,10 +27,26 @@ a,d,e ->                                  c ->
 
 The plant has unreliable sensors, and unreliable actuators. It may, from time to time, suffer DoS attacks. All of the above are configurable, and the process can run realtime or fast, verbose or not. The plant can also load an initial state at startup.
 
-Notes
+Environment
 ---
 
-The process structure and documentation needs general work, as all legacy projects do.
+For the Q-network (which requires discrete actions) variant, the following actions are exposed to red and blue team:
+
+Red team actions
+
+0..=11 => set xmv[i] to MAX
+12..=53 => set xmeas[i-12] to 0.
+54..=62 => setpt[i-54] *= 10
+63 => no action
+
+Blue team actions
+
+0..=11 => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
+12 => restart entire plant (no production for 24 hours)
+13 => continue (no action, no reward)
+
+Notes
+---
 
 Folder structure is as follows:
 
@@ -52,11 +71,18 @@ Major changes occurred:
 
 080420 - first major refactor, adjustable disturbances, played with csv log format and then reverted.
 260521 - breaking change, new log format
+xx1221 - Pythonised version with support for discrete inputs added
 
 Building
 ---
 
+Fortran:
+
 Simply run make in the implementations directory to compile. The makefile compiles and datestamps the binary in debug and release mode, then updates the symlink (so invoking ./te always invokes the latest build), and test runs. Keeping older binaries is for use in case of regression, though this probably isn't that useful.
+
+Python:
+
+Simply run teprob.py in the Pythonised directory.
 
 Program Loop
 ---
@@ -65,46 +91,41 @@ The program operates with temain as the driver, teprob as the process loop, and 
 
 High-level overview of teprob():
 
-1 ) set IDVs
-2 ) set wlk values
-3 ) set Reactor ES, stream[3] properties (the latter by calling sub8)
-4 ) load some state into Vessels
-5 ) calculate XL from UCL
-6 ) sub2?
-7 ) sub4? 
-8 ) set VL
-9 ) calculate Pressure of A,B,C
-10) calculate Pressure of D,E,F,G,H
-11) calculate XVs from PPs
-12) calculate whatever RRs are 
-13) ditto delta_xr, XMWs
-14) Set temps
-15) set_heat on streams()
-16) calculate flows
-17) calculate flms
-18) calculate flow mass fracs
-19) calculate flow concs
-20) temp and heat conservation
-21) underflow
-22) XMEAS update
-23) errors (based on GROUND TRUTH - change to XMEAS)
-24) Separator Energy Balance?
-25) VCVs, whatever they are 
-26) update derivatives
-
+1. set IDVs
+2. set wlk values
+3. set Reactor ES, stream[3] properties (the latter by calling sub8)
+4. load some state into Vessels
+5. calculate XL from UCL
+6. removed
+7. removed
+8. set VL
+9. calculate Pressure of A,B,C
+10. calculate Pressure of D,E,F,G,H
+11. calculate XVs from PPs
+12. calculate reaction rate coefficients
+13. calculate change in reactant concentrations in Reactor
+14. Set temps
+15. set_heat on streams()
+16. calculate flows
+17. calculate flms
+18. calculate flow mass fracs
+19. calculate flow concs
+20. temp and heat conservation
+21. underflow
+22. XMEAS update
+23. errors (based on GROUND TRUTH - change to XMEAS)
+24. Separator Energy Balance?
+25. VCVs, whatever they are 
+26. update derivatives
 
 The process represents internal state with 50 floating points, plus 24 booleans. The 50 states are:
 
-#   |0|,
-#   |?|,
+```
+|1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 | 37|| 38|| 39-50|
+| R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|twr||tws|| vpos |
+```
 
-#   |1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
-#   | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
-
-#   | 37|| 38|| 39-50|,
-#   |twr||tws|| vpos |,
-
-So: [R, C, S].ucv, ucl, et, twr, tws, vpos are INHERENT. All others can be derived.
+These elements of the model are inherent, all others should be derivable.
 
 Logging
 ---
@@ -120,6 +141,6 @@ xmv.dat (12*23)
 
 This represents 2.44 kB per timestep. (A binary representation would need only 632 B). Looks like this:
 
-#  0.000000000000000E+00  0.104049138900000E+02  0.436399601700000E+01  0.757005973700000E+01  0.423004243100000E+00  0.241551343700000E+02  0.294259764500000E+01  0.154377065500000E+03  0.159186596000000E+03  0.280852272300000E+01  0.637558119900000E+02  0.267402606600000E+02  0.463853243200000E+02  0.246452154300000E+00  0.152048440400000E+02  0.185226617200000E+01  0.524463945900000E+02  0.412039400800000E+02  0.569931776000000E+00  0.430605637600000E+00  0.799062007830000E-02  0.905603608900000E+00  0.160542582160000E-01  0.750975968700000E+00  0.885828559550000E-01  0.482772619300000E+02  0.393845902800000E+02  0.375529725700000E+00  0.107756269800000E+03  0.297725054600000E+02  0.883248113500000E+02  0.230392950700000E+02  0.628584879400000E+02  0.554631868800000E+01  0.119224477200000E+02  0.555544824300000E+01  0.921848976200000E+00  0.945992754900000E+02  0.772969835300000E+02  0.630526303900000E+02  0.539797067700000E+02  0.246435575500000E+02  0.613019214400000E+02  0.222100000000000E+02  0.400637467300000E+02  0.381003437000000E+02  0.465341558200000E+02  0.474457345600000E+02  0.411058128800000E+02  0.181134905500000E+02  0.500000000000000E+02
-
-
+```
+0.000000000000000E+00  0.104049138900000E+02  0.436399601700000E+01  0.757005973700000E+01  0.423004243100000E+00  0.241551343700000E+02  0.294259764500000E+01  0.154377065500000E+03  0.159186596000000E+03  0.280852272300000E+01  0.637558119900000E+02  0.267402606600000E+02  0.463853243200000E+02  0.246452154300000E+00  0.152048440400000E+02  0.185226617200000E+01  0.524463945900000E+02  0.412039400800000E+02  0.569931776000000E+00  0.430605637600000E+00  0.799062007830000E-02  0.905603608900000E+00  0.160542582160000E-01  0.750975968700000E+00  0.885828559550000E-01  0.482772619300000E+02  0.393845902800000E+02  0.375529725700000E+00  0.107756269800000E+03  0.297725054600000E+02  0.883248113500000E+02  0.230392950700000E+02  0.628584879400000E+02  0.554631868800000E+01  0.119224477200000E+02  0.555544824300000E+01  0.921848976200000E+00  0.945992754900000E+02  0.772969835300000E+02  0.630526303900000E+02  0.539797067700000E+02  0.246435575500000E+02  0.613019214400000E+02  0.222100000000000E+02  0.400637467300000E+02  0.381003437000000E+02  0.465341558200000E+02  0.474457345600000E+02  0.411058128800000E+02  0.181134905500000E+02  0.500000000000000E+02
+```
