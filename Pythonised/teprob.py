@@ -230,7 +230,7 @@ action_txt = \
 
 class ProcessError(Exception):
     """
-    Catches a situation where the plant model has reached an implausible state 
+    Catches a situation where the plant model has reached an implausible state
     due to modelling imperfections.
     (The modelled error checks may not catch an implausible state, since they represent
     checks on a physical plant).
@@ -1281,13 +1281,13 @@ elif __name__ == "__main__":
             if done:
                 print(f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
                         + ( f"red team wins: {info['failures']}" if info["failures"] else "blue team wins") )
-                wins.append((0,1) if info["failures"] else (1,0))
+                wins.append(True if info["failures"] else False)
                 if "--report" in sys.argv and i % 10 == 0:
                     if wins:
                         try:
-                            win_rate = sum(1 for w in wins if w[0]) / sum(1 for w in wins if w[1])
+                            win_rate = sum(1 for w in wins if w) / 10
                         except ZeroDivisionError:
-                            win_rate = 1 if wins[0][0] else 0
+                            win_rate = 0
                     else:
                         win_rate = "n/a"
                     blue_modal = blue.encode(mode([i[2] for i in episode_memory]))
@@ -1295,7 +1295,7 @@ elif __name__ == "__main__":
                     summary.append(f"blue team win rate from last ten episodes: {win_rate}\n\n"
                                    + f"last failure condition: {info['failures']}\n\n"
                                    + f"most common blue team action: {blue_modal}\n\n"
-                                   + f"last failure condition: {red_modal}\n\n")
+                                   + f"most common red team action: {red_modal}\n\n")
                 break
         env.close()
         blue_loss = blue.replay()
@@ -1345,5 +1345,3 @@ elif __name__ == "__main__":
                 f.write(f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{margin=auto}}\n")
                 f.write(f"{summary[i]}\n\nblue and red training losses: {losses[i]}\n\\newpage")
 #            f.write(input("closing remarks?"))
-
-#        system(f"pandoc -o report_{d}.pdf report_{d}.md")
