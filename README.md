@@ -1,3 +1,5 @@
+*Note: this README, as it stands, is primarily documenting the internal approach of the TE model itself, not the interface it exposes.*
+
 Model of the TE (Tennessee Eastmann) challenge reactor
 ===
 
@@ -24,10 +26,26 @@ a,d,e ->                                  c ->
 
 The plant has unreliable sensors, and unreliable actuators. It may, from time to time, suffer DoS attacks. All of the above are configurable, and the process can run realtime or fast, verbose or not. The plant can also load an initial state at startup.
 
-Notes
+Environment
 ---
 
-The process structure and documentation needs general work, as all legacy projects do.
+For the Q-network (which requires discrete actions) variant, the following actions are exposed to red and blue team:
+
+Red team actions
+
+0..=11 => set xmv[i] to MAX
+12..=53 => set xmeas[i-12] to 0.
+54..=62 => setpt[i-54] *= 10
+63 => no action
+
+Blue team actions
+
+0..=11 => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
+12 => restart entire plant (no production for 24 hours)
+13 => continue (no action, no reward)
+
+Notes
+---
 
 Folder structure is as follows:
 
@@ -72,46 +90,41 @@ The program operates with temain as the driver, teprob as the process loop, and 
 
 High-level overview of teprob():
 
-1 ) set IDVs
-2 ) set wlk values
-3 ) set Reactor ES, stream[3] properties (the latter by calling sub8)
-4 ) load some state into Vessels
-5 ) calculate XL from UCL
-6 ) sub2?
-7 ) sub4? 
-8 ) set VL
-9 ) calculate Pressure of A,B,C
-10) calculate Pressure of D,E,F,G,H
-11) calculate XVs from PPs
-12) calculate whatever RRs are 
-13) ditto delta_xr, XMWs
-14) Set temps
-15) set_heat on streams()
-16) calculate flows
-17) calculate flms
-18) calculate flow mass fracs
-19) calculate flow concs
-20) temp and heat conservation
-21) underflow
-22) XMEAS update
-23) errors (based on GROUND TRUTH - change to XMEAS)
-24) Separator Energy Balance?
-25) VCVs, whatever they are 
-26) update derivatives
-
+1. set IDVs
+2. set wlk values
+3. set Reactor ES, stream[3] properties (the latter by calling sub8)
+4. load some state into Vessels
+5. calculate XL from UCL
+6. removed
+7. removed
+8. set VL
+9. calculate Pressure of A,B,C
+10. calculate Pressure of D,E,F,G,H
+11. calculate XVs from PPs
+12. calculate reaction rate coefficients
+13. calculate change in reactant concentrations in Reactor
+14. Set temps
+15. set_heat on streams()
+16. calculate flows
+17. calculate flms
+18. calculate flow mass fracs
+19. calculate flow concs
+20. temp and heat conservation
+21. underflow
+22. XMEAS update
+23. errors (based on GROUND TRUTH - change to XMEAS)
+24. Separator Energy Balance?
+25. VCVs, whatever they are 
+26. update derivatives
 
 The process represents internal state with 50 floating points, plus 24 booleans. The 50 states are:
 
-#   |0|,
-#   |?|,
+```
+|1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 | 37|| 38|| 39-50|
+| R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|twr||tws|| vpos |
+```
 
-#   |1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
-#   | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
-
-#   | 37|| 38|| 39-50|,
-#   |twr||tws|| vpos |,
-
-So: [R, C, S].ucv, ucl, et, twr, tws, vpos are INHERENT. All others can be derived.
+These elements of the model are inherent, all others should be derivable.
 
 Logging
 ---
