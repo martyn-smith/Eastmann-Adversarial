@@ -82,6 +82,8 @@ class Controller:
             8    23       8        2
 
         """
+        if xmeas is None:
+            return self.xmv
    #    reactor pressure control (reactor pressure -> A and C feed)
         if self.reset_times[3] == 0 or time - self.reset_times[3] > 1.:
             err = self.setpt[6] - xmeas[7]
@@ -159,6 +161,7 @@ class Controller:
             self.fxmeas = (self.alpha * xmeas[:22]) + ((1-self.alpha) * self.fxmeas)
         except FloatingPointError:
             pass
+        return self.xmv
 
     def perturb_xmv(self, idx):
         self.xmv[idx] = 100.

@@ -1,9 +1,9 @@
 """
-DQN-based solver.
+A2C-based policy gradient solver.
 
-Inspired by n1try's writeup
-(https://gym.openai.com/evaluations/eval_EIcM1ZBnQW2LBaFN6FY65g/) and
-https://keon.io/deep-q-learning
+Inspired by:
+https://adventuresinmachinelearning.com/a2c-advantage-actor-critic-tensorflow-2/
+
 """
 
 #import logging
@@ -39,23 +39,25 @@ class Agent:
         #x is state (dims (42,1)). y is Q-value of all possible actions (14 for blue, ..? for red)
         x_batch, y_batch = [], []
         #memory here is [(state, action, reward, observation, done)]
-        minibatch = sample(
-            self.memory, min(len(self.memory), self.batch_size))
-        for state, action, reward, observation, done in minibatch:
+        for i, (state, action, reward, observation, done) in enumerate(self.memory):
             #y_target = np.zeros(self.model.layers[-1].output_shape[1])
-            y_target = self.model.predict(state.reshape(1,42))[0]
-            y_target[action] = (reward if done else
-                                   reward + self.gamma
-                                            * np.max(self.model.predict(observation.reshape(1,42))[0]))
+            y_target = self.model.predict(state.reshape(1,42))[0] * self.advantage(i)
             x_batch.append(state)
-            #print(f"{y_target=}")
             y_batch.append(y_target)
 
+        # combine the actions and advantages into a combined array for passing to
+        # actor_loss function
+        combined = np.zeros((len(actions), 2))
+        combined[:, 0] = actions
+        combined[:, 1] = advantages
+
+        y_batch = [discounted_rewards, combined]
         loss = self.model.train_on_batch(np.array(x_batch), np.array(y_batch))
         print(f"{self.id} training {loss=}")
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
         return loss
+
+    def advantage(self, i):
+        return sum(m[2]**i for i, m in enumerate(self.memory))
 
 class DummyAgent(Agent):
     def __init__(self):
