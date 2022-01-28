@@ -1,5 +1,4 @@
 *Note: this README, as it stands, is primarily documenting the internal approach of the TE model itself, not the interface it exposes.*
-*Note also: the DQN branch will be the home of all future value-based learning, the PPO branch the home of policy gradient.*
 
 Model of the TE (Tennessee Eastmann) challenge reactor
 ===
@@ -27,16 +26,23 @@ a,d,e ->                                  c ->
 
 The plant has unreliable sensors, and unreliable actuators. It may, from time to time, suffer DoS attacks. All of the above are configurable, and the process can run realtime or fast, verbose or not. The plant can also load an initial state at startup.
 
-Environment
+Implementions and Requirements
 ---
 
-For the Q-network (which requires discrete actions) variant, the following actions are exposed to red and blue team:
+Two implementations are provided; one written in Fortran to 2003 standard derived from Downs 1993, and two written in Python (itself derived from the fortran version) exposing an OpenAI gym-like interface. The two interfaces exposed are Discrete and Continuous, available in their respective git branches.
+
+GNU Fortran 11.0 (for the fortran implementation), GNU make 4.3, Python ^=3.9 and poetry 1.1 are recommended.
+
+Gym Environment
+---
+
+For the Discrete variant, the following actions are exposed to red and blue team:
 
 Red team actions
 
 0..=11 => set xmv[i] to MAX
 12..=53 => set xmeas[i-12] to 0.
-54..=62 => setpt[i-54] *= 10
+54..=62 => setpt[i-54] \*= 10
 63 => no action
 
 Blue team actions
@@ -44,6 +50,20 @@ Blue team actions
 0..=11 => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
 12 => restart entire plant (no production for 24 hours)
 13 => continue (no action, no reward)
+
+For the Continuous version, the actions are:
+
+Red team actions
+
+i = 0..=8 => alter setpt[i]
+i = 9..=49 => alter xmeas[i-9]
+
+Blue team actions
+
+i = 0..=11 => alter xmv[i]
+
+Fortran reference version
+===
 
 Notes
 ---
@@ -79,10 +99,6 @@ Building
 Fortran:
 
 Simply run make in the implementations directory to compile. The makefile compiles and datestamps the binary in debug and release mode, then updates the symlink (so invoking ./te always invokes the latest build), and test runs. Keeping older binaries is for use in case of regression, though this probably isn't that useful.
-
-Python:
-
-Simply run teprob.py in the Pythonised directory.
 
 Program Loop
 ---

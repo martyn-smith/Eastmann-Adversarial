@@ -4,7 +4,7 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  #FATAL only
 logging.getLogger('tensorflow').setLevel(logging.FATAL)
 import tensorflow as tf
-import tensorflow_probability as tfp
+#import tensorflow_probability as tfp
 from actorcritic import ActorCriticNetwork
 
 GAMMA = 0.95

@@ -540,22 +540,6 @@ class Reactor(Vessel):
         derivative = in_stream.fcm - out_stream.fcm + delta_xr
         self.ucv[:3] += np.array([*(derivative[:3] * DELTA_t)])
         self.ucl += np.array([*(np.zeros(3)), *(derivative[3:] * DELTA_t)])
-#
-#     def set_P(self):
-#         #debug function, it doesn't need to be separate from super()
-#         old_pp = self.pp if hasattr(self, "pp") else np.zeros(8)
-#         self.pp = np.zeros(8)
-#         for i in range(3):  #label 1110 - for R and S only
-#             self.pp[i] = self.ucv[i] * rg * self.tk / self.vv
-#
-#         for i in range(3,8): #label 1120 - for R and S only
-#             self.pp[i] = self.xl[i] * np.exp(avp[i] + bvp[i]/(self.tc + cvp[i])) #Antoine eq.
-#         self.pt = sum(self.pp) # in mmHga (!)
-#         #label 1130
-#         self.xv = self.pp / self.pt
-#         self.utv = self.pt * self.vv / rg / self.tk
-#         for i in range(3,8):#label 1140
-#             self.ucv[i] = self.utv * self.xv[i]
 
 class Separator(Vessel):
 
@@ -1364,8 +1348,11 @@ elif __name__ == "__main__":
             plt.savefig(f"s_parameters_{d}_ep{i}.png")
             plt.close("all")
             #FIXME: we need some way to report losses from training the A2C network
-#            losses.append((blue_loss, red_loss))
+            #losses.append((blue_loss, red_loss))
 
+    ###############################################################################################
+    # Report generation
+    ###############################################################################################
     if "--report" in sys.argv:
         with open(f"report_{d}.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
@@ -1375,4 +1362,4 @@ elif __name__ == "__main__":
                 f.write(f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{margin=auto}}\n")
                 f.write(f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{margin=auto}}\n")
                 # f.write(f"{summary[i]}\n\nblue and red training losses: {losses[i]}\n\\newpage")
-#            f.write(input("closing remarks?"))
+            #f.write(input("closing remarks?"))
