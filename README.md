@@ -1,4 +1,5 @@
 *Note: this README, as it stands, is primarily documenting the internal approach of the TE model itself, not the interface it exposes.*
+*Note also: the DQN branch will be the home of all future value-based learning, the PPO branch the home of policy gradient.*
 
 Model of the TE (Tennessee Eastmann) challenge reactor
 ===
@@ -70,11 +71,18 @@ Major changes occurred:
 
 080420 - first major refactor, adjustable disturbances, played with csv log format and then reverted.
 260521 - breaking change, new log format
+xx1221 - Pythonised version with support for discrete inputs added
 
 Building
 ---
 
+Fortran:
+
 Simply run make in the implementations directory to compile. The makefile compiles and datestamps the binary in debug and release mode, then updates the symlink (so invoking ./te always invokes the latest build), and test runs. Keeping older binaries is for use in case of regression, though this probably isn't that useful.
+
+Python:
+
+Simply run teprob.py in the Pythonised directory.
 
 Program Loop
 ---
