@@ -14,7 +14,7 @@ class ThreatAgent(Agent):
     def __init__(self):
         self.id = "red"
         self.gamma = GAMMA
-        self.actor_critic = ActorCriticNetwork(51)
+        self.actor_critic = ActorCriticNetwork(1)
         self.actor_critic.compile(optimizer="adam")
 
     def learn(self, previous, reward, observation, done):

@@ -167,14 +167,13 @@
     sm[11] sm[3] + S (Separator) -> C (Stripper)
     sm[12] C (Stripper) -> prod
 
-    Red team actions
+    Red team action
 
-    i = 0..=8 => set setpt[i]
-    i = 9..=49 => set xmeas[i-9]
+    adjust xmeas[7]
 
-    Blue team actions
+    Blue team action
 
-    i = 0..=11 => set xmv[i]
+    adjust xmv[3]
 
 ===============================================================================
 """
@@ -738,8 +737,8 @@ class TEproc(gym.Env):
             self.ctrlr = control.Controller(seed["vpos"], delta_t = DELTA_t)
         # stub for if we implement Sensors as a separate module
         # self.sensors = Sensors()
-        self.red_action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(51,))
-        self.blue_action_space = spaces.Box(low=0.0, high=100.0, shape=(12,))
+        self.red_action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(1,))
+        self.blue_action_space = spaces.Box(low=0.0, high=100.0, shape=(1,))
         self.red_intent = red_intent
 
         self.faults = [0] * 20
@@ -774,9 +773,7 @@ class TEproc(gym.Env):
         if red_action is not None:
             assert self.red_action_space.contains(red_action), red_action
         if blue_action is not None:
-            for i in range(12):
-                self.ctrlr.xmv[i] += blue_action[i]
-                self.ctrlr.xmv[i] = np.clip(self.ctrlr.xmv[i], 0., 100.)
+            self.ctrlr.xmv[3] += blue_action[0]
 
         #setting valves
         for mv, valve in zip(xmv, self.valves):
@@ -965,13 +962,9 @@ class TEproc(gym.Env):
         #Final red action: alter measured values. Red team still gets the real ones.
         red_xmeas = xmeas
         blue_xmeas = xmeas
-        if red_action is not None:
-            for i in range(9, 50):
-                blue_xmeas[i - 9] += red_action[i]
 
         if red_action is not None:
-            for i in range(0,9):
-                self.ctrlr.setpt[i] += red_action[i]
+            blue_xmeas[7] += red_action[0]
 
         self.xmeas = blue_xmeas
 
@@ -1210,14 +1203,13 @@ options:
 
 action_txt = \
 """
-Red team actions
+    Red team action
 
-    i = 0..=8 => set setpt[i]
-    i = 9..=49 => set xmeas[i-9]
+    adjust xmeas[7]
 
     Blue team actions
 
-    i = 0..=11 => set xmv[i]
+    adjust xmv[3]
 """
 
 if __name__ == "teprob":

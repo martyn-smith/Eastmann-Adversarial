@@ -38,7 +38,7 @@ Gym Environment
 
 For the Discrete variant, the following actions are exposed to red and blue team:
 
-Red team actions
+Red team action
 
 0..=11 => set xmv[i] to MAX
 12..=53 => set xmeas[i-12] to 0.
@@ -61,6 +61,16 @@ i = 9..=49 => alter xmeas[i-9]
 Blue team actions
 
 i = 0..=11 => alter xmv[i]
+
+For the Single Continuous version, the actions are:
+
+Red team action
+
+adjust xmeas[7] \(Reactor pressure\)
+
+Blue team action
+
+adjust xmv[3] \(A and C feed\)
 
 Fortran reference version
 ===
