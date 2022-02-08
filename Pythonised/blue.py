@@ -28,7 +28,7 @@ class DefendAgent(Agent):
             obs_value = tf.squeeze(obs_value)
 
             delta = reward + self.gamma*obs_value*(1-int(done)) - prev_value
-            #ecce here, wtf does log mean for a vector value?
+            #ecce here
             actor_loss = -actions*delta
             critic_loss = delta**2
             total_loss = actor_loss + critic_loss

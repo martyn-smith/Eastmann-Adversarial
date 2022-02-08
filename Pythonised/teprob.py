@@ -1287,7 +1287,7 @@ elif __name__ == "__main__":
             if "--render" in sys.argv:
                 env.render()
             if "--report" in sys.argv and i % 10 == 0:
-                episode_memory.append((i, t, blue_action[3], red_action[7],
+                episode_memory.append((i, t, blue_action, red_action,
                                        env.r.pg, env.r.tc, red_observation[7], red_observation[9],
                                        env.s.tc, env.s.level, red_observation[11], red_observation[12]))
             if "-v" in sys.argv:
