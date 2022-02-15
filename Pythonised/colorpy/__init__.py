@@ -1,4 +1,4 @@
-'''
+"""
 __init__.py
 
 ColorPy is a Python package to convert physical descriptions of light:
@@ -27,6 +27,6 @@ GNU Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public License
 along with ColorPy.  If not, see <http://www.gnu.org/licenses/>.
-'''
+"""
 
 # This file only needs to exist to indicate that this is a package.
