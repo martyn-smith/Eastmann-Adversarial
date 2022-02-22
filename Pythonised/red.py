@@ -15,6 +15,7 @@ from agent import Agent
 from random import choice, randint, random
 import numpy as np
 
+
 class ThreatAgent(Agent):
     """
     ENVIRONMENTAL = 0
@@ -25,14 +26,15 @@ class ThreatAgent(Agent):
     loss_func = {
         "environmental": loss.environmental,
         "mechanical": loss.mechanical,
-        "downtime": loss.downtime
+        "downtime": loss.downtime,
     }
 
     def __init__(self, intent="downtime"):
         import logging
         import os
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  #FATAL only
-        logging.getLogger('tensorflow').setLevel(logging.FATAL)
+
+        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
+        logging.getLogger("tensorflow").setLevel(logging.FATAL)
 
         self.id = "red"
         from tensorflow.keras import Sequential
@@ -48,8 +50,7 @@ class ThreatAgent(Agent):
         model.add(Dropout(0.4))
         model.add(Dense(64, activation="relu"))
         opt = Adam(learning_rate=0.01)
-        model.compile(loss="mae",
-                      optimizer=opt)
+        model.compile(loss="mae", optimizer=opt)
         self.model = model
 
     def encode(self, action):
@@ -73,13 +74,13 @@ class ThreatAgent(Agent):
             return action["setpt"] + 55
 
     def get_action(self, observation):
-        #TODO: pick action_space
+        # TODO: pick action_space
         if random() >= self.epsilon:
-            q = self.model.predict(observation.reshape(1,42))[0]
+            q = self.model.predict(observation.reshape(1, 42))[0]
             try:
                 action = np.nanargmax(q)
             except ValueError:
-                action = randint(0,63)
+                action = randint(0, 63)
         else:
-            action = randint(0,63)
+            action = randint(0, 63)
         return action
