@@ -1057,14 +1057,12 @@ class TEproc(gym.Env):
         xmeas[13] = (self.s.pt - 760.0) / 760.0 * 101.325    # sep pressure                                   kpa gauge
         xmeas[14] = (self.sm[10].ftm
                      / self.s.density
-                     / 35.3145
-        )                                                    # sep underflow (stream 10)                      m3/hr
+                     / 35.3145)                              # sep underflow (stream 10)                      m3/hr
         xmeas[15] = (self.c.vl - 78.25) / self.c.vt * 100.0  # stripper level                                 %
         xmeas[16] = (self.j.pt - 760.0) / 760.0 * 101.325    # stripper pressure                              kpa gauge
         xmeas[17] = (self.sm[12].ftm
                      / self.c.density
-                     / 35.3145
-        )                                                    # stripper underflow (stream 11, aka production) m3/hr
+                     / 35.3145)                              # stripper underflow (stream 11, aka production) m3/hr
         xmeas[18] = self.c.tc                                # stripper temperature                           deg c
         xmeas[19] = self.c.qu * 1.04e3 * 0.454               # stripper steam flow                            kg/hr
         xmeas[20] = self.cmpsr.work * 0.29307e3              # compressor work, again??                       kwh
