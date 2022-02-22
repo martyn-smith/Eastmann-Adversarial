@@ -183,6 +183,7 @@
 ===============================================================================
 """
 
+from argparse import Action as ArgAction, ArgumentParser, RawTextHelpFormatter
 from agent import DummyAgent
 from blue import TEprobManager
 from collections import deque
@@ -210,23 +211,6 @@ np.seterr(all="raise")
 DELTA_t = 1.0 / 3600.0
 
 log = []
-
-# This is for the DQN version (i.e. discrete)
-action_txt = """
-    Red team actions
-
-    0..=11 => set xmv[i] to MAX
-    12..=53 => set xmeas[i-12] to 0.
-    54..=62 => setpt[i-54] *= 10
-    63 => no action
-
-    Blue team actions
-
-    0..=11 => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
-    12 => restart entire plant (no production for 24 hours)
-    13 => continue (no action, no reward)
-
-"""
 
 
 class ProcessError(Exception):
@@ -607,24 +591,6 @@ class Reactor(Vessel):
         self.ucl += np.array([*(np.zeros(3)), *(derivative[3:] * DELTA_t)])
 
 
-#
-#     def set_P(self):
-#         #debug function, it doesn't need to be separate from super()
-#         old_pp = self.pp if hasattr(self, "pp") else np.zeros(8)
-#         self.pp = np.zeros(8)
-#         for i in range(3):  #label 1110 - for R and S only
-#             self.pp[i] = self.ucv[i] * rg * self.tk / self.vv
-#
-#         for i in range(3,8): #label 1120 - for R and S only
-#             self.pp[i] = self.xl[i] * np.exp(avp[i] + bvp[i]/(self.tc + cvp[i])) #Antoine eq.
-#         self.pt = sum(self.pp) # in mmHga (!)
-#         #label 1130
-#         self.xv = self.pp / self.pt
-#         self.utv = self.pt * self.vv / rg / self.tk
-#         for i in range(3,8):#label 1140
-#             self.ucv[i] = self.utv * self.xv[i]
-
-
 class Separator(Vessel):
     def __init__(self, seed):
         self.vt = 3500.0
@@ -922,10 +888,10 @@ class TEproc(gym.Env):
         return f"{sum(self.measure()[40:])}"
 
     def step(
-        self, action
+        self, action: tuple[int, int]
     ) -> tuple[tuple[np.ndarray, np.ndarray], tuple[float, float], bool, dict]:
         """
-        function evaluator
+        main loop for the TE process
         """
 
         global log
@@ -972,6 +938,10 @@ class TEproc(gym.Env):
         # setting valves
         for mv, valve in zip(self.ctrlr.xmv, self.valves):
             valve.set(mv)
+
+        ###########################################################################################
+        # Reaction / process
+        ###########################################################################################
 
         self.r.set_T()
         self.s.set_T()
@@ -1104,50 +1074,40 @@ class TEproc(gym.Env):
         #    valve_stick(8) = idv(19)  #stripper underflow sticks
         #    valve_stick(9) = idv(19)  #stripper recirc?
 
-        # xmeas = self.sensors.measure(self.sm, self.r, self.s, self.c, self.j, self.cmpsr, self.time, red_action)
-        xmeas = self.measure()
+        ###########################################################################################
+        # Measurement
+        ###########################################################################################
+        # xmeas = self.measure()
 
-        # Final red action: alter measured values. Red team still gets the real ones.
-        red_xmeas = xmeas
-        blue_xmeas = xmeas
-        if red_action in range(12, 54):
-            blue_xmeas[red_action - 12] = 0.0
-
-        done = self.has_failed(xmeas, self.time)
-        blue = loss.loss(reset, done, xmeas, self.ctrlr.xmv)
-        red = -self.red_intent(reset)
-        self.ctrlr.control(xmeas, self.time)
-        self.time += DELTA_t
-        return (blue_xmeas, red_xmeas), (blue, red), bool(done), {"failures": done}
-
-    def measure(self):
-        xmeas = np.zeros(43)
         # fmt: off
+        xmeas = np.zeros(43)
         xmeas[0] = self.time
-        xmeas[1] = self.sm[2].ftm*0.359/35.3145         # A Feed  (stream 1)                             kscmh
-        xmeas[2] = self.sm[0].ftm*self.sm[0].xmws*0.454 # D Feed  (stream 2)                             kg/hr from lbmol/hr
-        xmeas[3] = self.sm[1].ftm*self.sm[1].xmws*0.454 # E Feed  (stream 3)                             kg/hr
-        xmeas[4] = self.sm[3].ftm*0.359/35.3145         # A and C Feed  (stream 4)                       kscmh
-        xmeas[5] = self.sm[8].ftm*0.359/35.3145         # Recycle Flow  (stream 8)                       kscmh
-        xmeas[6] = self.sm[5].ftm*0.359/35.3145         # Reactor Feed Rate  (stream 6)                  kscmh
-        xmeas[7] = self.r.pg                            # Reactor Pressure                               kPa gauge
-        xmeas[8] = self.r.level * 100.0                 # Reactor level                                                %
-        xmeas[9] = self.r.tc                            # Reactor Temperature                            deg C
-        xmeas[10] = self.sm[9].ftm*0.359/35.3145        # purge rate (stream 9)                          kscmh
-        xmeas[11] = self.s.tc                           # product sep temp                               deg c
-        xmeas[12] = self.s.level * 100.0                # product sep level                              %
-        xmeas[13] = (self.s.pt-760.0)/760.0*101.325     # sep pressure                                   kpa gauge
+        xmeas[1] = self.sm[2].ftm * 0.359 / 35.3145          # A Feed  (stream 1)                             kscmh
+        xmeas[2] = self.sm[0].ftm * self.sm[0].xmws * 0.454  # D Feed  (stream 2)                             kg / hr from lbmol / hr
+        xmeas[3] = self.sm[1].ftm * self.sm[1].xmws * 0.454  # E Feed  (stream 3)                             kg / hr
+        xmeas[4] = self.sm[3].ftm * 0.359 / 35.3145          # A and C Feed  (stream 4)                       kscmh
+        xmeas[5] = self.sm[8].ftm * 0.359 / 35.3145          # Recycle Flow  (stream 8)                       kscmh
+        xmeas[6] = self.sm[5].ftm * 0.359 / 35.3145          # Reactor Feed Rate  (stream 6)                  kscmh
+        xmeas[7] = self.r.pg                                 # Reactor Pressure                               kPa gauge
+        xmeas[8] = self.r.level  *  100.0                    # Reactor level                                  %
+        xmeas[9] = self.r.tc                                 # Reactor Temperature                            deg C
+        xmeas[10] = self.sm[9].ftm * 0.359 / 35.3145         # purge rate (stream 9)                          kscmh
+        xmeas[11] = self.s.tc                                # product sep temp                               deg c
+        xmeas[12] = self.s.level  *  100.0                   # product sep level                              %
+        xmeas[13] = (self.s.pt - 760.0) / 760.0 * 101.325    # sep pressure                                   kpa gauge
         xmeas[14] = (self.sm[10].ftm
-                     /self.s.density/35.3145)           # sep underflow (stream 10)                      m3/hr
-        xmeas[15] = (self.c.vl-78.25)/self.c.vt*100.0   # stripper level                                 %
-        xmeas[16] = (self.j.pt-760.0)/760.0*101.325     # stripper pressure                              kpa gauge
+                      / self.s.density
+                      / 35.3145)                             # sep underflow (stream 10)                      m3 / hr
+        xmeas[15] = (self.c.vl - 78.25) / self.c.vt * 100.0  # stripper level                                 %
+        xmeas[16] = (self.j.pt - 760.0) / 760.0 * 101.325    # stripper pressure                              kpa gauge
         xmeas[17] = (self.sm[12].ftm
-                     /self.c.density/35.3145)           # stripper underflow (stream 11, aka production) m3/hr
-        xmeas[18] = self.c.tc                           # stripper temperature                           deg c
-        xmeas[19] = self.c.qu*1.04e3*0.454              # stripper steam flow                            kg/hr
-        xmeas[20] = self.cmpsr.work*0.29307e3           # compressor work, again??                       kwh
-        xmeas[21] = self.r.cl.T_out                     # reactor cooling water outlet temp              deg c
-        xmeas[22] = self.s.cl.T_out                     # separator cooling water outlet temp            deg c
+                      / self.c.density
+                      / 35.3145)                             # stripper underflow (stream 11, aka production) m3 / hr
+        xmeas[18] = self.c.tc                                # stripper temperature                           deg c
+        xmeas[19] = self.c.qu * 1.04e3 * 0.454               # stripper steam flow                            kg / hr
+        xmeas[20] = self.cmpsr.work * 0.29307e3              # compressor work, again??                       kwh
+        xmeas[21] = self.r.cl.T_out                          # reactor cooling water outlet temp              deg c
+        xmeas[22] = self.s.cl.T_out                          # separator cooling water outlet temp            deg c
         # fmt: on
 
         if idv(16):
@@ -1178,19 +1138,44 @@ class TEproc(gym.Env):
         xmeas[37:42] = self.prod * 100
         self.time_since_prod += DELTA_t
 
+        # G/H ratio as a convenience measurement
         xmeas[42] = (xmw[6] * xmeas[40]) / (xmw[7] * xmeas[41])
-        return xmeas
+
+        # Final red action: alter measured values. Red team still gets the real ones.
+        red_xmeas = xmeas
+        blue_xmeas = xmeas
+        if red_action in range(12, 54):
+            blue_xmeas[red_action - 12] = 0.0
+
+        ###########################################################################################
+        # Cleanup and return
+        ###########################################################################################
+
+        done = self.has_failed(xmeas, self.time)
+        blue = loss.loss(reset, done, xmeas, self.ctrlr.xmv)
+        red = -self.red_intent(reset)
+        self.ctrlr.control(xmeas, self.time)
+        self.time += DELTA_t
+        return (blue_xmeas, red_xmeas), (blue, red), bool(done), {"failures": done}
 
     @property
     def state(self):
         """
         layout of state vector:
-
-            |1--- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
-            | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
-
-            | 37|| 38||   39-50   |,
-            |twr||tws|| vcv/vpos  |,
+            0                     time
+            [1..3]                R.ucv
+            [4..8]                R.ucl
+            9                     R.et
+            [10..12]              S.ucv
+            [13..17]              S.ucl
+            18                    S.et
+            [19..26]              C.ucl
+            27                    C.et
+            [28..35]              V.ucv
+            36                    V.et
+            37                    twr
+            38                    tws
+            [39..50]              vpos
         """
         return np.array(
             [
@@ -1346,24 +1331,55 @@ class TEproc(gym.Env):
             self.viewer = None
 
 
-def help():
-    print(
-        """
-usage: python3 teprob.py [OPTIONS]
+##################################################################################################
+# ArgParse preamble
+##################################################################################################
 
-options:
-
-    --fast            runs for one hour, not 48
-    --v               prints reward
-    --render          visualisation (slow)
-    --report          generates report on red/blue team actions and parameters
-    --peaceful        no agents
-    --open            no control loops
-    -n EPISODES       run for n episodes
-    -i INTENT         red team intent
+description = """
+    Tennessee Eastmann Adversarial Control Challenge - Single Continunous Control version.
+    Scenarios:
+    "default" [default] - red team attempts to maximise downtime
+    "chaos" - red team acts at random
+    "nored" - red team takes no action
 """
-    )
 
+action_txt = """
+    Red team actions
+
+    0..=11 => set xmv[i] to MAX
+    12..=53 => set xmeas[i-12] to 0.
+    54..=62 => setpt[i-54] *= 10
+    63 => no action
+
+    Blue team actions
+
+    0..=11 => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
+    12 => restart entire plant (no production for 24 hours)
+    13 => continue (no action, no reward)
+
+"""
+
+parser = ArgumentParser(
+    description=description + "\n" + action_txt, formatter_class=RawTextHelpFormatter
+)
+parser.add_argument(
+    "--fast", help="runs for fewer timesteps per episode", action="store_true"
+)
+parser.add_argument(
+    "-n",
+    "--num_episodes",
+    help="number of episodes (default 100)",
+    type=int,
+    default=100,
+)
+parser.add_argument(
+    "--peaceful",
+    help="no red or blue team action (overrides scenario)",
+    action="store_true",
+)
+parser.add_argument("--report", help="generates report template", action="store_true")
+parser.add_argument("--scenario", help="select from scenarios:", default="default")
+parser.add_argument("-v", help="displays debug info", action="count")
 
 if __name__ == "teprob":
     gym.envs.registration.register(
@@ -1374,7 +1390,7 @@ if __name__ == "teprob":
     )
 elif __name__ == "__main__":
 
-    # TODO: arparse and reporting with logging module
+    args = parser.parse_args()
     d = str(datetime.now().date())
 
     if "--report" in sys.argv:
@@ -1396,7 +1412,7 @@ elif __name__ == "__main__":
     summary = []
     losses = []
 
-    if "--peaceful" in sys.argv:
+    if args.peaceful:
         red, blue = DummyAgent(), DummyAgent()
         num_episodes = 3
     else:
@@ -1519,6 +1535,10 @@ elif __name__ == "__main__":
             plt.close("all")
 
             losses.append((blue_loss, red_loss))
+
+    ###############################################################################################
+    # Report generation
+    ###############################################################################################
 
     # TODO: and add a timed-out opportunity to write closing remarks
     if "--report" in sys.argv:
