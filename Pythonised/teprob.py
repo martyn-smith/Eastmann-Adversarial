@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 ==============================================================================
                tennessee eastman process control test problem
@@ -169,12 +170,12 @@
 
     Red team actions
 
-    i = 0..=8 => set setpt[i]
-    i = 9..=49 => set xmeas[i-9]
+    i = [0..8] => set setpt[i]
+    i = [9..49] => set xmeas[i-9]
 
     Blue team actions
 
-    i = 0..=11 => set xmv[i]
+    i = [0..11] => set xmv[i]
 
 ===============================================================================
 """
@@ -908,6 +909,7 @@ class TEproc(gym.Env):
         ###########################################################################################
         #xmeas = self.sensors.measure(self.sm, self.r, self.s, self.c, self.j, self.cmpsr, self.time, red_action)
 
+        # fmt: off
         xmeas = np.zeros(43)
         xmeas[0] = self.time
         xmeas[1] = self.sm[2].ftm*0.359/35.3145         # A Feed  (stream 1)                             kscmh
@@ -934,6 +936,7 @@ class TEproc(gym.Env):
         xmeas[20] = self.cmpsr.work*0.29307e3           # compressor work, again??                       kwh
         xmeas[21] = self.r.cl.T_out                     # reactor cooling water outlet temp              deg c
         xmeas[22] = self.s.cl.T_out                     # separator cooling water outlet temp            deg c
+        # fmt: on
 
         if idv(16):
             if xmeas_tgt == 0:
@@ -1046,12 +1049,20 @@ class TEproc(gym.Env):
     def state(self):
         """
         layout of state vector:
-
-            |1--- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
-            | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
-
-            | 37|| 38||   39-50   |,
-            |twr||tws|| vcv/vpos  |,
+        0                     time
+        [1..3]                R.ucv
+        [4..8]                R.ucl
+        9                     R.et
+        [10..12]              S.ucv
+        [13..17]              S.ucl
+        18                    S.et
+        [19..26]              C.ucl
+        27                    C.et
+        [28..35]              V.ucv
+        36                    V.et
+        37                    twr
+        38                    tws
+        [39..50]              vpos
         """
         return np.array([*self.r.ucv[:3], *self.r.ucl[3:], self.r.et,
                          *self.s.ucv[:3], *self.s.ucl[3:], self.s.et,
@@ -1212,12 +1223,12 @@ action_txt = \
 """
 Red team actions
 
-    i = 0..=8 => set setpt[i]
-    i = 9..=49 => set xmeas[i-9]
+    i = [0..8] => set setpt[i]
+    i = [9..49] => set xmeas[i-9]
 
     Blue team actions
 
-    i = 0..=11 => set xmv[i]
+    i = [0..11] => set xmv[i]
 """
 
 if __name__ == "teprob":
