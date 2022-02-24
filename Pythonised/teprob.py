@@ -883,9 +883,12 @@ class TEproc(gym.Env):
         self.faults = [0] * 20
         self.attacks = [0] * 20
         self.red_intent = red_intent
+        self.xmeas = None
 
     def __str__(self):
-        #  return f"{self.r}, {self.s}, {self.c}, {self.j}"
+        """
+        Convenence representation function. Should be harmonised with the Fortran output.
+        """
         return f"{sum(self.measure()[40:])}"
 
     def step(
@@ -897,17 +900,24 @@ class TEproc(gym.Env):
 
         global log
         reset = False
+
+        ##########################################################################################
+        # Control
+        ##########################################################################################
+
+        xmv = self.ctrlr.control(self.xmeas, self.time)
+
         """
         Red team actions
 
-        0..=11 => set xmv[i] to MAX
-        12..=53 => set xmeas[i-12] to 0.
-        54..=62 => setpt[i-54] *= 10
+        [0..11] => set xmv[i] to MAX
+        [12..53] => set xmeas[i-12] to 0.
+        [54..62] => setpt[i-54] *= 10
         63 => no action
 
         Blue team actions
 
-        0..=11 => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
+        [0..11] => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
         12 => restart entire plant (no production for 24 hours)
         13 => continue (no action, no reward)
         """
@@ -937,7 +947,7 @@ class TEproc(gym.Env):
             self.ctrlr.reset_single(blue_action, self.time)
 
         # setting valves
-        for mv, valve in zip(self.ctrlr.xmv, self.valves):
+        for mv, valve in zip(xmv, self.valves):
             valve.set(mv)
 
         ###########################################################################################
@@ -1145,8 +1155,11 @@ class TEproc(gym.Env):
         # Final red action: alter measured values. Red team still gets the real ones.
         red_xmeas = xmeas
         blue_xmeas = xmeas
+
         if red_action in range(12, 54):
             blue_xmeas[red_action - 12] = 0.0
+
+        self.xmeas = xmeas
 
         ###########################################################################################
         # Cleanup and return
@@ -1155,8 +1168,8 @@ class TEproc(gym.Env):
         done = self.has_failed(xmeas, self.time)
         blue = loss.loss(reset, done, xmeas, self.ctrlr.xmv)
         red = -self.red_intent(reset)
-        self.ctrlr.control(xmeas, self.time)
         self.time += DELTA_t
+        self.time_since_gas += DELTA_t
         return (blue_xmeas, red_xmeas), (blue, red), bool(done), {"failures": done}
 
     @property

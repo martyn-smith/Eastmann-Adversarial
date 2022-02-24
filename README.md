@@ -208,10 +208,9 @@ Further work
 ---
 
 1. Better modularisation of the AI gym modification - test that environment can be loaded independently.
-1b. Consider testing the whole as a poetry package
+1b. Consider testing the whole as a poetry package - mostly, that means a better name.
 1c. Split perturbations and action spaces and report into a separate module - that way that module differs between branches and not teprob.py 
 2. Further continuous implementations - PPO, TRPO, etc.
 3. Re-implement Fortran without the state vector - i.e. along OO- principles (`no-state-vec` branch)
 4. Add raw memory output option to Fortran implementation, rather than futzing with parsing all the time 
 5. (unlikely) replace the internal units with SI.
-6. Discrete variant to poll sensors at start of loop. That way the rest of the red-blue-controller-plant-sensor loop is more similar to a) the block diagrams, b) the other variants.
