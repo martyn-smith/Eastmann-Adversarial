@@ -287,12 +287,22 @@ subroutine teinit(state, nn, derivative, time)
 
 !   state init must happen before /pv/ and /teproc/ vcv.
 !   layout of state vector:
-
-!  |1 --- 3||4 --- 8||  9 ||10 - 12||13 - 17|| 18 ||19 - 26|| 27 ||28 - 35|| 36 |,
-!  | R.ucv || R.ucl ||R.et|| S.ucv || S.ucl ||S.et|| C.ucl ||C.et|| V.ucv ||V.et|,
-
-!  | 37|| 38||   39-50   |,
-!  |twr||tws|| vcv/vpos  |,
+!
+! 0                     time
+! [1..3]                R.ucv
+! [4..8]                R.ucl
+! 9                     R.et
+! [10..12]              S.ucv
+! [13..17]              S.ucl
+! 18                    S.et
+! [19..26]              C.ucl
+! 27                    C.et
+! [28..35]              V.ucv
+! 36                    V.et
+! 37                    twr
+! 38                    tws
+! [39..50]              vpos
+!
 
     state = [10.40491389,  4.363996017,    7.570059737, .4230042431,   24.15513437, &
              2.942597645,  154.3770655,    159.186596,  2.808522723,   63.75581199, &

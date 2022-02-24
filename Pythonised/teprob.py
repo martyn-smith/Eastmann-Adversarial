@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 ==============================================================================
                tennessee eastman process control test problem
@@ -1377,6 +1378,7 @@ parser.add_argument(
     help="no red or blue team action (overrides scenario)",
     action="store_true",
 )
+parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
 parser.add_argument("--scenario", help="select from scenarios:", default="default")
 parser.add_argument("-v", help="displays debug info", action="count")
@@ -1449,7 +1451,7 @@ elif __name__ == "__main__":
             red_reward = rewards[1]
             red.remember(prev_obs[0][1:], red_action, blue_reward, red_obs[1:], done)
             blue.remember(prev_obs[1][1:], blue_action, red_reward, blue_obs[1:], done)
-            if "--render" in sys.argv:
+            if args.render:
                 env.render()
             if "--report" in sys.argv and i % 10 == 0:
                 episode_memory.append(
