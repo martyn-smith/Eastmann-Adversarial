@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 ==============================================================================
                tennessee eastman process control test problem
