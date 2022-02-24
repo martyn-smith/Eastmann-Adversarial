@@ -5,13 +5,13 @@ description = "Tennessee Eastman module for OpenAIgym"
 authors = ["Martyn"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.9,<3.11"
 gym = "^0.21.0"
 numpy = "1.19.3"
-colorpy = {git = "https://github.com/markkness/ColorPy.git"}
-tensorflow = "2.6.0"
+tensorflow = "2.7.0"
 matplotlib = "3.4.3"
 pyglet = "1.5.0"
+colorpy = { git = "https://github.com/martyn-smith/colorpy.git", branch = "master"}
 
 [tool.poetry.dev-dependencies]
 

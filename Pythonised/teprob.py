@@ -1,3 +1,4 @@
+#WARNING: code for this branch is not core, so don't expect much maintenance.
 """
 ==============================================================================
                tennessee eastman process control test problem
@@ -183,8 +184,6 @@
 ===============================================================================
 """
 
-from agent import DummyAgent
-from blue import TEprobManager
 from collections import deque
 from colorpy.blackbody import blackbody_color
 import control
@@ -199,7 +198,6 @@ import loss
 import numpy as np
 from os import system
 from random import choice#, uniform
-from red import ThreatAgent
 #from sense import Sensors
 from statistics import mode
 import sys
@@ -209,24 +207,6 @@ np.seterr(all="raise")
 DELTA_t = 1. / 3600.
 
 log = []
-
-#This is for the DQN version (i.e. discrete)
-action_txt = \
-"""
-    Red team actions
-
-    0..=11 => set xmv[i] to MAX
-    12..=53 => set xmeas[i-12] to 0.
-    54..=62 => setpt[i-54] *= 10
-    63 => no action
-
-    Blue team actions
-
-    0..=11 => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
-    12 => restart entire plant (no production for 24 hours)
-    13 => continue (no action, no reward)
-
-"""
 
 class ProcessError(Exception):
     """
@@ -780,18 +760,17 @@ class TEproc(gym.Env):
             self.ctrlr = control.Controller(seed["vpos"], delta_t = DELTA_t)
         # stub for if we implement Sensors as a separate module
         # self.sensors = Sensors()
-        self.red_action_space = spaces.Discrete(64)
-        self.blue_action_space = spaces.Discrete(14)
 
         self.faults = [0] * 20
-        self.attacks = [0] * 20
-        self.red_intent = red_intent
+        self.xmeas = None
 
     def __str__(self):
-      #  return f"{self.r}, {self.s}, {self.c}, {self.j}"
+        """
+        Convenience representation function. Should be harmonised with Fortran output.
+        """
         return f"{sum(self.measure()[40:])}"
 
-    def step(self, action) -> \
+    def step(self) -> \
              tuple[tuple[np.ndarray, np.ndarray], tuple[float, float], bool, dict]:
         """
         function evaluator
@@ -800,42 +779,10 @@ class TEproc(gym.Env):
         global log
         reset = False
         """
-        Red team actions
-
-        0..=11 => set xmv[i] to MAX
-        12..=53 => set xmeas[i-12] to 0.
-        54..=62 => setpt[i-54] *= 10
-        63 => no action
-
-        Blue team actions
-
-        0..=11 => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
-        12 => restart entire plant (no production for 24 hours)
-        13 => continue (no action, no reward)
+        This branch has no actions.
         """
 
-        blue_action, red_action = (action[0] if action[0] is not None else 13,
-                                   action[1] if action[1] is not None else 63)
-        assert self.blue_action_space.contains(blue_action)
-        assert self.red_action_space.contains(red_action)
-        """
-        First actions: cover if blue orders reset_all (nullifying red action).
-        Then, if that hasn't happened and red has perturbed xmv's, apply that
-        before setting valves. This should ONLY have an affect if blue
-        has not set a manual control in previous rounds
-        - the logic for which should be handled in Controller.
-        """
-        if blue_action == 12:
-            self.reset()
-            reset = True
-            red_action = None
-        if red_action in range(12):
-            self.ctrlr.perturb_xmv(red_action)
-        elif red_action in range(54,63):
-            self.ctrlr.perturb_setpt(red_action - 54)
-        if blue_action in range(12):
-            self.ctrlr.reset_single(blue_action, self.time)
-
+        xmv = self.ctrlr.control(self.xmeas)
         #setting valves
         for mv, valve in zip(self.ctrlr.xmv, self.valves):
             valve.set(mv)
@@ -966,13 +913,9 @@ class TEproc(gym.Env):
     #    valve_stick(9) = idv(19)  #stripper recirc?
 
         #xmeas = self.sensors.measure(self.sm, self.r, self.s, self.c, self.j, self.cmpsr, self.time, red_action)
-        xmeas = self.measure()
+        self.xmeas = self.measure()
 
         #Final red action: alter measured values. Red team still gets the real ones.
-        red_xmeas = xmeas
-        blue_xmeas = xmeas
-        if red_action in range(12,54):
-            blue_xmeas[red_action - 12] = 0.
 
         done = self.has_failed(xmeas, self.time)
         blue = loss.loss(reset, done, xmeas, self.ctrlr.xmv)
@@ -982,6 +925,7 @@ class TEproc(gym.Env):
         return (blue_xmeas, red_xmeas), (blue, red), bool(done), {"failures": done}
 
     def measure(self):
+        # fmt: off
         xmeas = np.zeros(43)
         xmeas[0] = self.time
         xmeas[1] = self.sm[2].ftm*0.359/35.3145         # A Feed  (stream 1)                             kscmh
@@ -1008,7 +952,7 @@ class TEproc(gym.Env):
         xmeas[20] = self.cmpsr.work*0.29307e3           # compressor work, again??                       kwh
         xmeas[21] = self.r.cl.T_out                     # reactor cooling water outlet temp              deg c
         xmeas[22] = self.s.cl.T_out                     # separator cooling water outlet temp            deg c
-
+        # fmt: on
         if idv(16):
             if xmeas_tgt == 0:
                 xmeas_tgt = np.ceiling(rand() * 42.0)
@@ -1232,52 +1176,27 @@ elif __name__ == "__main__":
     summary = []
     losses = []
 
-    if "--peaceful" in sys.argv:
-        red, blue = DummyAgent(), DummyAgent()
-        num_episodes = 3
+    if "-n" in sys.argv:
+        num_episodes = int(sys.argv[sys.argv.index("-n") + 1])
     else:
-        blue = TEprobManager()
-        if "-n" in sys.argv:
-            num_episodes = int(sys.argv[sys.argv.index("-n") + 1])
-        else:
-            num_episodes = 100
-        if "-i" in sys.argv:
-            intent = int(sys.argv[sys.argv.index("-i") + 1])
-            red = ThreatAgent(intent=intent)
-        else:
-            red = ThreatAgent()
+        num_episodes = 100
 
     observations, _, __, ___ = env.reset()
-    blue_action = blue.get_action(observations[0][1:])
-    red_action = red.get_action(observations[1][1:])
-    action = (blue_action, red_action)
 
     for i in range(num_episodes):
         env.reset()
         episode_memory = []
         for t in range(env._max_episode_steps):
             prev_obs = observations
-            blue_action = blue.get_action(prev_obs[0][1:])
-            red_action = red.get_action(prev_obs[1][1:])
-            action = (blue_action, red_action)
-            if "-v" in sys.argv and "--peaceful" not in sys.argv:
-                print(blue.encode(action[0]), red.encode(action[1]))
-            observations, rewards, done, info = env.step(action)
-            red_obs = observations[0]
-            blue_obs = observations[1]
-            blue_reward = rewards[0]
-            red_reward = rewards[1]
-            red.remember(prev_obs[0][1:], red_action, blue_reward, red_obs[1:], done)
-            blue.remember(prev_obs[1][1:], blue_action, red_reward, blue_obs[1:], done)
+            observations, rewards, done, info = env.step()
             if "--render" in sys.argv:
                 env.render()
             if "--report" in sys.argv and i % 10 == 0:
-                episode_memory.append((i, t, blue_action, red_action,
-                                       env.r.pg, env.r.tc, red_obs[7], red_obs[9],
-                                       env.s.tc, env.s.level, red_obs[11], red_obs[12]))
+                episode_memory.append((i, t, None, None,
+                                       env.r.pg, env.r.tc, observations[7], observations[9],
+                                       env.s.tc, env.s.level, observations[11], observations[12]))
             if "-v" in sys.argv:
                 print(f"time = {env.time}: reactor P, T, PVs = {env.r.pg}, {env.r.tc}, {info['failures']}")
-                print(f"{blue_reward=}, {red_reward=}")
             if done:
                 print(f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
                         + ( f"red team wins: {info['failures']}" if info["failures"] else "blue team wins") )
@@ -1290,60 +1209,7 @@ elif __name__ == "__main__":
                             win_rate = 1 if wins[0][0] else 0
                     else:
                         win_rate = "n/a"
-                    blue_modal = blue.encode(mode([i[2] for i in episode_memory]))
-                    red_modal = red.encode(mode([i[3] for i in episode_memory]))
                     summary.append(f"blue team win rate from last ten episodes: {win_rate}\n\n"
-                                   + f"last failure condition: {info['failures']}\n\n"
-                                   + f"most common blue team action: {blue_modal}\n\n"
-                                   + f"last failure condition: {red_modal}\n\n")
+                                   + f"last failure condition: {info['failures']}\n\n")
                 break
         env.close()
-        blue_loss = blue.replay()
-        red_loss = red.replay()
-        if "--report" in sys.argv and i % 10 == 0:
-            fig, ax = plt.subplots()
-            ax.plot([m[2] for m in episode_memory], label="red team", color="red")
-            ax.plot([m[3] for m in episode_memory], label="blue team", color="blue")
-            ax.set_title(f"actions at episode {i}")
-            ax.set_xlabel("time")
-            ax.set_ylabel("actions")
-            plt.legend()
-            plt.savefig(f"actions_{d}_ep{i}.png")
-
-            fig, ax = plt.subplots()
-            ax.plot([m[4] for m in episode_memory], label="real pressure")
-            ax.plot([m[5] for m in episode_memory], label="real temperature")
-            ax.plot([m[6] for m in episode_memory], label="reported pressure")
-            ax.plot([m[7] for m in episode_memory], label="reported temperature")
-            ax.set_title(f"reactor parameters at episode {i}")
-            ax.set_xlabel("time")
-            plt.legend()
-            plt.savefig(f"r_parameters_{d}_ep{i}.png")
-
-            fig, ax = plt.subplots()
-            ax.plot([m[8] for m in episode_memory], label="real pressure")
-            ax.plot([m[9] for m in episode_memory], label="real temperature")
-            ax.plot([m[10] for m in episode_memory], label="reported pressure")
-            ax.plot([m[11] for m in episode_memory], label="reported temperature")
-            ax.set_title(f"separator parameters at episode {i}")
-            ax.set_xlabel("time")
-            plt.legend()
-            plt.savefig(f"s_parameters_{d}_ep{i}.png")
-            plt.close("all")
-
-            losses.append((blue_loss, red_loss))
-
-    #TODO: since pandoc already has a LaTeX dependency, just write as LaTeX instead,
-    #      and add a timed-out opportunity to write closing remarks
-    if "--report" in sys.argv:
-        with open(f"report_{d}.md", "w") as f:
-            f.write(f"wargame of TE process generated on {d}\n===\n")
-            f.write(action_txt + "\n\n")
-            for i in range(10):
-                f.write(f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{margin=auto}}\n")
-                f.write(f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{margin=auto}}\n")
-                f.write(f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{margin=auto}}\n")
-                f.write(f"{summary[i]}\n\nblue and red training losses: {losses[i]}\n\\newpage")
-#            f.write(input("closing remarks?"))
-
-#        system(f"pandoc -o report_{d}.pdf report_{d}.md")
