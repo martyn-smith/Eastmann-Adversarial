@@ -1460,7 +1460,7 @@ elif __name__ == "__main__":
             blue_obervation = observations[1][1:]
             blue_reward = rewards[0]
             red_reward = rewards[1]
-            blue.learn(blue_previous, blue_reward, red_observation, done)
+            blue.learn(blue_previous, blue_reward, blue_observation, done)
             red.learn(red_previous, red_reward, red_observation, done)
             if "--render" in sys.argv:
                 env.render()
