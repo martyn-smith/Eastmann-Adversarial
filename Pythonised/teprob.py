@@ -1458,12 +1458,12 @@ elif __name__ == "__main__":
             if "-v" in sys.argv and "--peaceful" not in sys.argv:
                 print(blue.encode(action[0]), red.encode(action[1]))
             observations, rewards, done, info = env.step(action)
-            red_obs = observations[0]
-            blue_obs = observations[1]
+            blue_obs = observations[0]
+            red_obs = observations[1]
             blue_reward = rewards[0]
             red_reward = rewards[1]
-            red.remember(prev_obs[0][1:], red_action, blue_reward, red_obs[1:], done)
-            blue.remember(prev_obs[1][1:], blue_action, red_reward, blue_obs[1:], done)
+            blue.remember(prev_obs[1][1:], blue_action, blue_reward, blue_obs[1:], done)
+            red.remember(prev_obs[0][1:], red_action, red_reward, red_obs[1:], done)
             if args.render:
                 env.render()
             if "--report" in sys.argv and i % 10 == 0:
