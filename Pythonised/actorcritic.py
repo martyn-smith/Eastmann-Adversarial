@@ -1,6 +1,6 @@
 import os
 import tensorflow.keras as keras
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, LSTM
 
 
 class ActorCriticNetwork(keras.Model):
@@ -22,6 +22,7 @@ class ActorCriticNetwork(keras.Model):
 
         self.fc1 = Dense(self.fc1_dims, activation="relu")
         self.fc2 = Dense(self.fc2_dims, activation="relu")
+        self.lstm = LSTM(16)
         self.v = Dense(1, activation=None)
         self.pi = Dense(n_actions, activation="softmax")
 
