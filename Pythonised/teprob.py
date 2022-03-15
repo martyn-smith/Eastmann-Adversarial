@@ -197,7 +197,6 @@ import gym
 from gym import spaces
 from gym.envs.classic_control import rendering
 from matplotlib import pyplot as plt
-import loss
 import numpy as np
 from os import system
 from random import choice  # , uniform
@@ -677,10 +676,18 @@ class Compressor(Vessel):
     def __init__(self):
         self.max_flow = 280275.0
         self.max_PR = 1.3
+        self.cycles = 0.
+        self.max_cycles = 1.e6
+        self.work = 0.
 
     def set_work(self, flms, s, v, sm):
-        self.work = flms * (s.tk) * 1.8e-6 * 1.9872 * (v.pt - s.pt) / (sm.xmws * s.pt)
+        work = flms * (s.tk) * 1.8e-6 * 1.9872 * (v.pt - s.pt) / (sm.xmws * s.pt)
+        delta = abs(work - self.work)
+        self.work = work
+        self.cycles += delta / 100.
 
+    def has_fatigued(self):
+        return self.cycles > self.max_cycles
 
 class Junction(GasVessel):
     def __init__(self, seed):
@@ -736,7 +743,7 @@ class Sfr:
 
 
 class TEproc(gym.Env):
-    def __init__(self, ctrl_mode=None, red_intent=loss.downtime):
+    def __init__(self, ctrl_mode=None, red_intent=None):
         # TODO:
         # valve_stick loop
         # xmv/vcv loop
@@ -1166,11 +1173,81 @@ class TEproc(gym.Env):
         ###########################################################################################
 
         done = self.has_failed(xmeas, self.time)
-        blue = loss.loss(reset, done, xmeas, self.ctrlr.xmv)
-        red = -self.red_intent(reset)
+        blue_reward = self.reward(reset, done, xmeas, self.ctrlr.xmv)
+        red_reward = -blue_reward
         self.time += DELTA_t
         self.time_since_gas += DELTA_t
-        return (blue_xmeas, red_xmeas), (blue, red), bool(done), {"failures": done}
+        return (blue_xmeas, red_xmeas), (blue_reward, red_reward), bool(done), {"failures": done}
+
+    def reward(self, reset, failed, true_xmeas, xmv):
+        """
+        Total (i.e. for blue) reward function
+        """
+        # should start at -[cost of utilities]
+        return sum(
+            [
+                self.production(true_xmeas),
+                self.downtime(reset),
+                self.mechanical(true_xmeas),
+                self.environmental(true_xmeas),
+                self.utilities(true_xmeas),
+            ]
+        )
+
+    def fatigue(self, true_xmeas):
+        """
+        cost of compressor cycling. We will assume a capital cost of $1e4, rated for 0e6 cycles,
+        leading to a cost of $0.1 per full cycle.
+        """
+        return 0.01 * 0.01 * self.cmpsr.cycles
+
+
+    def utilities(self, true_xmeas):
+        """
+        cost of compressor work and steam (inflation adjusted from 1993)
+        """
+        COST_KWH = 0.1
+        COST_STEAM = 0.065
+        return -(true_xmeas[20] * COST_KWH + true_xmeas[19] * COST_STEAM)
+
+
+    def production(self, true_xmeas):
+        """
+        value of product
+        """
+        G_H_LOWER = 0.95
+        G_H_UPPER = 1.05
+        if G_H_LOWER < true_xmeas[42] < G_H_UPPER:
+            return 20_000 * true_xmeas[17]
+        else:
+            return 0
+
+
+    def downtime(self, reset):
+        """
+        simple cost of assumed downtime, rather than running the simulation
+        """
+        return -24 * 20_000 if reset else 0
+
+
+    def mechanical(self, true_xmeas):
+        if true_xmeas[7] > 12_000:
+            reward = -1e6
+        else:
+            reward = 0
+        return reward
+
+
+    def environmental(self, true_xmeas):
+        """
+        TODO: check normal components of purge
+        """
+        G_TOLERANCE = 0.01
+        if true_xmeas[35] > G_TOLERANCE:
+            reward = -1e3 * true_xmeas[10] * true_xmeas[35]
+        else:
+            reward = 0
+        return reward
 
     @property
     def state(self):
@@ -1228,6 +1305,8 @@ class TEproc(gym.Env):
             return "Stripper level high"
         elif xmeas[15] < -2.7:
             return "Stripper level low"
+        elif self.cmpsr.has_fatigued():
+            return "compressor has fatigued"
         else:
             return False
 
@@ -1574,3 +1653,11 @@ elif __name__ == "__main__":
                     f"{summary[i]}\n\nblue and red training losses: {losses[i]}\n\\newpage"
                 )
 #            f.write(input("closing remarks?"))
+
+    ###############################################################################################
+    # Cleanup
+    ###############################################################################################
+
+    blue.model.save("./blue.h5")
+    env.close()
+

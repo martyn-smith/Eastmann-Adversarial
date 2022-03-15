@@ -10,7 +10,6 @@
 """
 
 import enum
-import loss
 from agent import Agent
 from random import choice, randint, random
 import numpy as np
@@ -23,12 +22,6 @@ class ThreatAgent(Agent):
     DOWNTIME = 2
     """
 
-    loss_func = {
-        "environmental": loss.environmental,
-        "mechanical": loss.mechanical,
-        "downtime": loss.downtime,
-    }
-
     def __init__(self, intent="downtime"):
         import logging
         import os
@@ -38,16 +31,14 @@ class ThreatAgent(Agent):
 
         self.id = "red"
         from tensorflow.keras import Sequential
-        from tensorflow.keras.layers import Dense, Dropout, Input
-        from tensorflow.keras.layers.experimental.preprocessing import Normalization
+        from tensorflow.keras.layers import Dense, Dropout, Input, Normalization, SimpleRNN
         from tensorflow.keras.optimizers import Adam
 
         super().__init__()
-        self.intent = self.loss_func[intent]
+        self.intent = intent
         model = Sequential()
         model.add(Input(shape=(42,)))
-        model.add(Dense(54, activation="tanh"))
-        model.add(Dropout(0.4))
+        model.add(Dense(64, activation="relu"))
         model.add(Dense(64, activation="relu"))
         opt = Adam(learning_rate=0.01)
         model.compile(loss="mae", optimizer=opt)
