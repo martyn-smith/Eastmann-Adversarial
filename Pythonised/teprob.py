@@ -57,9 +57,9 @@
 
   continuous process measurements
 
-    xmeas[0]   a feed  (stream 1)                    kscmh
-    xmeas[1]   d feed  (stream 2)                    kg/hr
-    xmeas[2]   e feed  (stream 3)                    kg/hr
+    xmeas[1]   a feed  (stream 1)                    kscmh
+    xmeas[2]   d feed  (stream 2)                    kg/hr
+    xmeas[3]   e feed  (stream 3)                    kg/hr
     xmeas[4]   a and c feed  (stream 4)              kscmh
     xmeas[5]   recycle flow  (stream 8)              kscmh
     xmeas[6]   reactor feed rate  (stream 6)         kscmh
@@ -186,7 +186,7 @@
 
 from argparse import Action as ArgAction, ArgumentParser, RawTextHelpFormatter
 from agent import DummyAgent
-from blue import TEprobManager
+from blue import BlueAgent
 from collections import deque
 from colorpy.blackbody import blackbody_color
 import control
@@ -200,7 +200,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from os import system
 from random import choice  # , uniform
-from red import ThreatAgent
+from red import RedAgent
 
 # from sense import Sensors
 from statistics import mode
@@ -676,18 +676,19 @@ class Compressor(Vessel):
     def __init__(self):
         self.max_flow = 280275.0
         self.max_PR = 1.3
-        self.cycles = 0.
-        self.max_cycles = 1.e6
-        self.work = 0.
+        self.cycles = 0.0
+        self.max_cycles = 1.0e6
+        self.work = 0.0
 
     def set_work(self, flms, s, v, sm):
         work = flms * (s.tk) * 1.8e-6 * 1.9872 * (v.pt - s.pt) / (sm.xmws * s.pt)
         delta = abs(work - self.work)
         self.work = work
-        self.cycles += delta / 100.
+        self.cycles += delta / 100.0
 
     def has_fatigued(self):
         return self.cycles > self.max_cycles
+
 
 class Junction(GasVessel):
     def __init__(self, seed):
@@ -1177,7 +1178,12 @@ class TEproc(gym.Env):
         red_reward = -blue_reward
         self.time += DELTA_t
         self.time_since_gas += DELTA_t
-        return (blue_xmeas, red_xmeas), (blue_reward, red_reward), bool(done), {"failures": done}
+        return (
+            (blue_xmeas, red_xmeas),
+            (blue_reward, red_reward),
+            bool(done),
+            {"failures": done},
+        )
 
     def reward(self, reset, failed, true_xmeas, xmv):
         """
@@ -1201,7 +1207,6 @@ class TEproc(gym.Env):
         """
         return 0.01 * 0.01 * self.cmpsr.cycles
 
-
     def utilities(self, true_xmeas):
         """
         cost of compressor work and steam (inflation adjusted from 1993)
@@ -1209,7 +1214,6 @@ class TEproc(gym.Env):
         COST_KWH = 0.1
         COST_STEAM = 0.065
         return -(true_xmeas[20] * COST_KWH + true_xmeas[19] * COST_STEAM)
-
 
     def production(self, true_xmeas):
         """
@@ -1222,13 +1226,11 @@ class TEproc(gym.Env):
         else:
             return 0
 
-
     def downtime(self, reset):
         """
         simple cost of assumed downtime, rather than running the simulation
         """
         return -24 * 20_000 if reset else 0
-
 
     def mechanical(self, true_xmeas):
         if true_xmeas[7] > 12_000:
@@ -1236,7 +1238,6 @@ class TEproc(gym.Env):
         else:
             reward = 0
         return reward
-
 
     def environmental(self, true_xmeas):
         """
@@ -1473,7 +1474,9 @@ parser.add_argument(
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
 parser.add_argument("--scenario", help="select from scenarios:", default="default")
-parser.add_argument("-v", help="displays debug info", action="count")
+parser.add_argument(
+    "-v", "--verbose", help="displays debug info", action="count", default=0
+)
 
 if __name__ == "teprob":
     gym.envs.registration.register(
@@ -1487,7 +1490,7 @@ elif __name__ == "__main__":
     args = parser.parse_args()
     d = str(datetime.now().date())
 
-    if "--report" in sys.argv:
+    if args.report:
         memory = []
 
     gym.envs.registration.register(
@@ -1498,7 +1501,7 @@ elif __name__ == "__main__":
     )
 
     env = gym.make("TennesseeEastmann-v1")
-    if "--fast" in sys.argv:
+    if args.fast:
         env._max_episode_steps = 3600 + int(0.1 * 3600)
 
     # logging stuff
@@ -1508,25 +1511,21 @@ elif __name__ == "__main__":
 
     if args.peaceful:
         red, blue = DummyAgent(), DummyAgent()
-        num_episodes = 3
+        args.num_episodes = 3
     else:
-        blue = TEprobManager()
-        if "-n" in sys.argv:
-            num_episodes = int(sys.argv[sys.argv.index("-n") + 1])
-        else:
-            num_episodes = 100
+        blue = BlueAgent()
         if "-i" in sys.argv:
             intent = int(sys.argv[sys.argv.index("-i") + 1])
-            red = ThreatAgent(intent=intent)
+            red = RedAgent(intent=intent)
         else:
-            red = ThreatAgent()
+            red = RedAgent()
 
     observations, _, __, ___ = env.reset()
     blue_action = blue.get_action(observations[0][1:])
     red_action = red.get_action(observations[1][1:])
     action = (blue_action, red_action)
 
-    for i in range(num_episodes):
+    for i in range(args.num_episodes):
         env.reset()
         episode_memory = []
         for t in range(env._max_episode_steps):
@@ -1534,7 +1533,7 @@ elif __name__ == "__main__":
             blue_action = blue.get_action(prev_obs[0][1:])
             red_action = red.get_action(prev_obs[1][1:])
             action = (blue_action, red_action)
-            if "-v" in sys.argv and "--peaceful" not in sys.argv:
+            if args.verbose >= 1 and "--peaceful" not in sys.argv:
                 print(blue.encode(action[0]), red.encode(action[1]))
             observations, rewards, done, info = env.step(action)
             blue_obs = observations[0]
@@ -1545,24 +1544,25 @@ elif __name__ == "__main__":
             red.remember(prev_obs[0][1:], red_action, red_reward, red_obs[1:], done)
             if args.render:
                 env.render()
-            if "--report" in sys.argv and i % 10 == 0:
+            if args.report and i % 10 == 0:
                 episode_memory.append(
-                    (
-                        i,
-                        t,
-                        blue_action,
-                        red_action,
-                        env.r.pg,
-                        env.r.tc,
-                        red_obs[7],
-                        red_obs[9],
-                        env.s.tc,
-                        env.s.level,
-                        red_obs[11],
-                        red_obs[12],
-                    )
+                    {
+                        "episode": i,
+                        "time": t,
+                        "blue action": blue_action,
+                        "red action": red_action,
+                        "true reactor pressure": env.r.pg,
+                        "true reactor temperature": env.r.tc,
+                        "reported reactor pressure": blue_obs[7],
+                        "reported reactor temperature": blue_obs[9],
+                        "true separator temperature": env.s.tc,
+                        "true separator level": env.s.level,
+                        "reported separator temperature": blue_obs[11],
+                        "reported separator level": blue_obs[12],
+                        "compressor cycles": env.cmpsr.cycles,
+                    }
                 )
-            if "-v" in sys.argv:
+            if args.verbose >= 1:
                 print(
                     f"time = {env.time}: reactor P, T, PVs = {env.r.pg}, {env.r.tc}, {info['failures']}"
                 )
@@ -1577,7 +1577,7 @@ elif __name__ == "__main__":
                     )
                 )
                 wins.append(True if info["failures"] else False)
-                if "--report" in sys.argv and i % 10 == 0:
+                if args.report and i % 10 == 0:
                     if wins:
                         try:
                             win_rate = sum(1 for w in wins if w) / 10
@@ -1585,8 +1585,8 @@ elif __name__ == "__main__":
                             win_rate = 0
                     else:
                         win_rate = "n/a"
-                    blue_modal = blue.encode(mode([i[2] for i in episode_memory]))
-                    red_modal = red.encode(mode([i[3] for i in episode_memory]))
+                    blue_modal = blue.encode(mode([i["blue action"] for i in episode_memory]))
+                    red_modal = red.encode(mode([i["red action"] for i in episode_memory]))
                     summary.append(
                         f"blue team win rate from last ten episodes: {win_rate}\n\n"
                         + f"last failure condition: {info['failures']}\n\n"
@@ -1597,34 +1597,84 @@ elif __name__ == "__main__":
         env.close()
         blue_loss = blue.replay()
         red_loss = red.replay()
-        if "--report" in sys.argv and i % 10 == 0:
+        if args.report and i % 10 == 0:
             fig, ax = plt.subplots()
-            ax.plot([m[2] for m in episode_memory], label="red team", color="red")
-            ax.plot([m[3] for m in episode_memory], label="blue team", color="blue")
+            ax.plot(
+                [m["blue action"] for m in episode_memory],
+                label="blue team",
+                color="blue",
+            )
+            ax.plot(
+                [m["red action"] for m in episode_memory], label="red team", color="red"
+            )
             ax.set_title(f"actions at episode {i}")
             ax.set_xlabel("time")
             ax.set_ylabel("actions")
             plt.legend()
             plt.savefig(f"actions_{d}_ep{i}.png")
 
-            fig, ax = plt.subplots()
-            ax.plot([m[4] for m in episode_memory], label="real pressure")
-            ax.plot([m[5] for m in episode_memory], label="real temperature")
-            ax.plot([m[6] for m in episode_memory], label="reported pressure")
-            ax.plot([m[7] for m in episode_memory], label="reported temperature")
-            ax.set_title(f"reactor parameters at episode {i}")
-            ax.set_xlabel("time")
-            plt.legend()
+            fig, ax1 = plt.subplots()
+            ax1.plot(
+                [m["true reactor pressure"] for m in episode_memory],
+                label="real pressure",
+                color="red",
+            )
+            ax1.plot(
+                [m["reported reactor pressure"] for m in episode_memory],
+                label="reported pressure",
+                color="blue",
+            )
+            ax1.set_ylabel("pressure (kPag)")
+            ax1.set_ylim(2700, 3000)
+            ax2 = ax1.twinx()
+            ax2.plot(
+                [m["true reactor temperature"] for m in episode_memory],
+                label="real temperature",
+                color="red",
+                linestyle="dashed",
+            )
+            ax2.plot(
+                [m["reported reactor temperature"] for m in episode_memory],
+                label="reported temperature",
+                color="blue",
+                linestyle="dashed",
+            )
+            ax2.set_ylabel("temperature (degC)")
+            ax2.set_ylim(90, 180)
+            ax2.set_title(f"reactor parameters at episode {i}")
+            ax2.set_xlabel("time")
+            fig.legend(bbox_to_anchor=(0.85, 0.9))
+            fig.tight_layout()
             plt.savefig(f"r_parameters_{d}_ep{i}.png")
 
-            fig, ax = plt.subplots()
-            ax.plot([m[8] for m in episode_memory], label="real pressure")
-            ax.plot([m[9] for m in episode_memory], label="real temperature")
-            ax.plot([m[10] for m in episode_memory], label="reported pressure")
-            ax.plot([m[11] for m in episode_memory], label="reported temperature")
-            ax.set_title(f"separator parameters at episode {i}")
-            ax.set_xlabel("time")
-            plt.legend()
+            fig, ax1 = plt.subplots()
+            ax1.plot(
+                [m["true separator temperature"] for m in episode_memory],
+                label="real temperature",
+                color="red",
+            )
+            ax1.plot(
+                [m["reported separator temperature"] for m in episode_memory],
+                label="reported temperature",
+                color="blue",
+            )
+            ax2 = ax1.twinx()
+            ax2.plot(
+                [m["true separator level"] for m in episode_memory],
+                label="real level",
+                color="red",
+                linestyle="dashed",
+            )
+            ax2.plot(
+                [m["reported separator level"] for m in episode_memory],
+                label="reported level",
+                color="blue",
+                linestyle="dashed",
+            )
+            ax2.set_title(f"separator parameters at episode {i}")
+            ax2.set_xlabel("time")
+            fig.legend(bbox_to_anchor=(0.85, 0.9))
+            fig.tight_layout()
             plt.savefig(f"s_parameters_{d}_ep{i}.png")
             plt.close("all")
 
@@ -1635,11 +1685,11 @@ elif __name__ == "__main__":
     ###############################################################################################
 
     # TODO: and add a timed-out opportunity to write closing remarks
-    if "--report" in sys.argv:
+    if args.report:
         with open(f"report_{d}.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
             f.write(action_txt + "\n\n")
-            for i in range(10):
+            for i in range(args.num_episodes // 10):
                 f.write(
                     f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{margin=auto}}\n"
                 )
@@ -1652,7 +1702,7 @@ elif __name__ == "__main__":
                 f.write(
                     f"{summary[i]}\n\nblue and red training losses: {losses[i]}\n\\newpage"
                 )
-#            f.write(input("closing remarks?"))
+    #            f.write(input("closing remarks?"))
 
     ###############################################################################################
     # Cleanup
@@ -1660,4 +1710,3 @@ elif __name__ == "__main__":
 
     blue.model.save("./blue.h5")
     env.close()
-

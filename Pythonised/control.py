@@ -2,7 +2,8 @@ from copy import deepcopy
 import numpy as np
 
 SETPT = np.array([120.40, 75.0, 50.0, 50.0, 22.949, 1.0, 2705.0, 13.823, 32.188])
-HUGE_VAL = 9999.
+HUGE_VAL = 9999.0
+
 
 class Dummy:
     def __init__(self):

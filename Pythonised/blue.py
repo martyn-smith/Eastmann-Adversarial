@@ -12,7 +12,7 @@ class TEDummy(Agent):
     pass
 
 
-class TEprobManager(Agent):
+class BlueAgent(Agent):
     def __init__(self):
         import logging
         import os

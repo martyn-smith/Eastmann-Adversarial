@@ -15,7 +15,7 @@ from random import choice, randint, random
 import numpy as np
 
 
-class ThreatAgent(Agent):
+class RedAgent(Agent):
     """
     ENVIRONMENTAL = 0
     MECHANICAL = 1
@@ -31,7 +31,13 @@ class ThreatAgent(Agent):
 
         self.id = "red"
         from tensorflow.keras import Sequential
-        from tensorflow.keras.layers import Dense, Dropout, Input, Normalization, SimpleRNN
+        from tensorflow.keras.layers import (
+            Dense,
+            Dropout,
+            Input,
+            Normalization,
+            SimpleRNN,
+        )
         from tensorflow.keras.optimizers import Adam
 
         super().__init__()
