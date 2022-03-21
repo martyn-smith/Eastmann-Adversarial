@@ -57,9 +57,9 @@
 
   continuous process measurements
 
-    xmeas[0]   a feed  (stream 1)                    kscmh
-    xmeas[1]   d feed  (stream 2)                    kg/hr
-    xmeas[2]   e feed  (stream 3)                    kg/hr
+    xmeas[1]   a feed  (stream 1)                    kscmh
+    xmeas[2]   d feed  (stream 2)                    kg/hr
+    xmeas[3]   e feed  (stream 3)                    kg/hr
     xmeas[4]   a and c feed  (stream 4)              kscmh
     xmeas[5]   recycle flow  (stream 8)              kscmh
     xmeas[6]   reactor feed rate  (stream 6)         kscmh
@@ -669,10 +669,18 @@ class Compressor(Vessel):
     def __init__(self):
         self.max_flow = 280275.0
         self.max_PR = 1.3
+        self.cycles = 0.0
+        self.max_cycles = 1.0e6
+        self.work = 0.0
 
     def set_work(self, flms, s, v, sm):
-        self.work = flms * (s.tk) * 1.8e-6 * 1.9872 * (v.pt - s.pt) / (sm.xmws * s.pt)
+        work = flms * (s.tk) * 1.8e-6 * 1.9872 * (v.pt - s.pt) / (sm.xmws * s.pt)
+        delta = abs(work - self.work)
+        self.work = work
+        self.cycles += delta / 100.0
 
+    def has_fatigued(self):
+        return self.cycles > self.max_cycles
 
 class Junction(GasVessel):
     def __init__(self, seed):
@@ -1245,6 +1253,8 @@ class TEproc(gym.Env):
             return "Stripper level high"
         elif xmeas[15] < -2.7:
             return "Stripper level low"
+        elif self.cmpsr.has_fatigued():
+            return "compressor has fatigued"
         else:
             return False
 
@@ -1390,7 +1400,9 @@ parser.add_argument(
 )
 parser.add_argument("--report", help="generates report template", action="store_true")
 parser.add_argument("--scenario", help="select from scenarios:", default="default")
-parser.add_argument("-v", help="displays debug info", action="count")
+parser.add_argument(
+    "-v", "--verbose", help="displays debug info", action="count", default=0
+)
 
 if __name__ == "teprob":
     gym.envs.registration.register(
@@ -1404,7 +1416,7 @@ elif __name__ == "__main__":
     args = parser.parse_args()
     d = str(datetime.now().date())
 
-    if "--report" in sys.argv:
+    if args.report:
         memory = []
 
     gym.envs.registration.register(
@@ -1425,22 +1437,18 @@ elif __name__ == "__main__":
 
     if args.peaceful:
         red, blue = DummyAgent(), DummyAgent()
-        num_episodes = 3
+        args.num_episodes = 3
     else:
         blue = DefendAgent()
         # TODO: plug in scenarios
         red = ThreatAgent()
-        if "-n" in sys.argv:
-            num_episodes = int(sys.argv[sys.argv.index("-n") + 1])
-        else:
-            num_episodes = 100
 
     observations, _, __, ___ = env.reset()
     blue_action = None
     red_action = None
     actions = (blue_action, red_action)
 
-    for i in range(num_episodes):
+    for i in range(args.num_episodes):
         env.reset()
         episode_memory = []
         for t in range(env._max_episode_steps):
@@ -1452,7 +1460,7 @@ elif __name__ == "__main__":
             blue_previous = blue_observation
             red_previous = red_observation
             actions = (blue_action, red_action)
-            if "-v" in sys.argv and "--peaceful" not in sys.argv:
+            if args.verbose >= 1 and "--peaceful" not in sys.argv:
                 print(f"{blue_action=}, {red_action=}")
             observations, rewards, done, info = env.step(actions)
             red_observation = observations[0][1:]
@@ -1465,22 +1473,23 @@ elif __name__ == "__main__":
                 env.render()
             if args.report and i % 10 == 0:
                 episode_memory.append(
-                    (
-                        i,
-                        t,
-                        blue_action,
-                        red_action,
-                        env.r.pg,
-                        env.r.tc,
-                        red_observation[7],
-                        red_observation[9],
-                        env.s.tc,
-                        env.s.level,
-                        red_observation[11],
-                        red_observation[12],
-                    )
+                    {
+                        "episodes": i,
+                        "time": t,
+                        "blue action": blue_action,
+                        "red action": red_action,
+                        "true reactor pressure": env.r.pg,
+                        "true reactor temperature": env.r.tc,
+                        "reported reactor pressure": blue_observation[7],
+                        "reported reactor temperature": blue_observation[9],
+                        "true separator temperature": env.s.tc,
+                        "true separator level": env.s.level,
+                        "reported separator temperature": blue_observation[11],
+                        "reported separator level": blue_observation[12],
+                        "compressor cycles": env.cmpsr.cycles
+                    }
                 )
-            if "-v" in sys.argv:
+            if args.verbose >= 1:
                 print(
                     f"time = {env.time}: reactor P, T, PVs = {env.r.pg}, {env.r.tc}, {info['failures']}"
                 )
@@ -1497,7 +1506,7 @@ elif __name__ == "__main__":
                     )
                 )
                 wins.append((0, 1) if info["failures"] else (1, 0))
-                if "--report" in sys.argv and i % 10 == 0:
+                if args.report and i % 10 == 0:
                     if wins:
                         try:
                             win_rate = sum(1 for w in wins if w[0]) / sum(
@@ -1513,17 +1522,15 @@ elif __name__ == "__main__":
                     )
                 break
         env.close()
-        if "--report" in sys.argv and i % 10 == 0:
+        if args.report and i % 10 == 0:
             fig, ax = plt.subplots()
             ax.plot(
-                [m[2] for m in episode_memory],
-                label="blue team xmv adjustment",
+                [m["blue action"] for m in episode_memory],
+                label="blue team",
                 color="blue",
             )
             ax.plot(
-                [m[3] for m in episode_memory],
-                label="red team xmeas adjustment",
-                color="red",
+                [m["red action"] for m in episode_memory], label="red team", color="red"
             )
             ax.set_title(f"actions at episode {i}")
             ax.set_xlabel("time")
@@ -1531,31 +1538,78 @@ elif __name__ == "__main__":
             plt.legend()
             plt.savefig(f"actions_{d}_ep{i}.png")
 
-            fig, ax = plt.subplots()
-            ax.plot([m[4] for m in episode_memory], label="real pressure")
-            ax.plot([m[5] for m in episode_memory], label="real temperature")
-            ax.plot([m[6] for m in episode_memory], label="reported pressure")
-            ax.plot([m[7] for m in episode_memory], label="reported temperature")
-            ax.set_title(f"reactor parameters at episode {i}")
-            ax.set_xlabel("time")
-            plt.legend()
+            fig, ax1 = plt.subplots()
+            ax1.plot(
+                [m["true reactor pressure"] for m in episode_memory],
+                label="real pressure",
+                color="red",
+            )
+            ax1.plot(
+                [m["reported reactor pressure"] for m in episode_memory],
+                label="reported pressure",
+                color="blue",
+            )
+            ax1.set_ylabel("pressure (kPag)")
+            ax1.set_ylim(2700, 3000)
+            ax2 = ax1.twinx()
+            ax2.plot(
+                [m["true reactor temperature"] for m in episode_memory],
+                label="real temperature",
+                color="red",
+                linestyle="dashed",
+            )
+            ax2.plot(
+                [m["reported reactor temperature"] for m in episode_memory],
+                label="reported temperature",
+                color="blue",
+                linestyle="dashed",
+            )
+            ax2.set_ylabel("temperature (degC)")
+            ax2.set_ylim(90, 180)
+            ax2.set_title(f"reactor parameters at episode {i}")
+            ax2.set_xlabel("time")
+            fig.legend(bbox_to_anchor=(0.85, 0.9))
+            fig.tight_layout()
             plt.savefig(f"r_parameters_{d}_ep{i}.png")
 
-            fig, ax = plt.subplots()
-            ax.plot([m[8] for m in episode_memory], label="real pressure")
-            ax.plot([m[9] for m in episode_memory], label="real temperature")
-            ax.plot([m[10] for m in episode_memory], label="reported pressure")
-            ax.plot([m[11] for m in episode_memory], label="reported temperature")
-            ax.set_title(f"separator parameters at episode {i}")
-            ax.set_xlabel("time")
-            plt.legend()
+            fig, ax1 = plt.subplots()
+            ax1.plot(
+                [m["true separator temperature"] for m in episode_memory],
+                label="real temperature",
+                color="red",
+            )
+            ax1.plot(
+                [m["reported separator temperature"] for m in episode_memory],
+                label="reported temperature",
+                color="blue",
+            )
+            ax2 = ax1.twinx()
+            ax2.plot(
+                [m["true separator level"] for m in episode_memory],
+                label="real level",
+                color="red",
+                linestyle="dashed",
+            )
+            ax2.plot(
+                [m["reported separator level"] for m in episode_memory],
+                label="reported level",
+                color="blue",
+                linestyle="dashed",
+            )
+            ax2.set_title(f"separator parameters at episode {i}")
+            ax2.set_xlabel("time")
+            fig.legend(bbox_to_anchor=(0.85, 0.9))
+            fig.tight_layout()
             plt.savefig(f"s_parameters_{d}_ep{i}.png")
             plt.close("all")
+
             losses.append((blue_loss, red_loss))
+
 
     ###############################################################################################
     # Report generation
     ###############################################################################################
+
     if args.report:
         with open(f"report_{d}.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
