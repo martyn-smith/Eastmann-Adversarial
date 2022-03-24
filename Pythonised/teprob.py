@@ -685,6 +685,7 @@ class Compressor(Vessel):
     def has_fatigued(self):
         return self.cycles > self.max_cycles
 
+
 class Junction(GasVessel):
     def __init__(self, seed):
         self.vt = 5000.0
@@ -739,85 +740,20 @@ class Sfr:
 
 
 class TEproc(gym.Env):
-    def __init__(self, ctrl_mode=None, red_intent="downtime"):
+    def __init__(self, red_intent, open_control=False):
         # TODO:
         # valve_stick loop
         seed = deepcopy(
             {
-                "R": [
-                    10.40491389,
-                    4.363996017,
-                    7.570059737,
-                    0.4230042431,
-                    24.15513437,
-                    2.942597645,
-                    154.3770655,
-                    159.186596,
-                    2.808522723,
-                ],
-                "S": [
-                    63.75581199,
-                    26.74026066,
-                    46.38532432,
-                    0.2464521543,
-                    15.20484404,
-                    1.852266172,
-                    52.44639459,
-                    41.20394008,
-                    0.569931776,
-                ],
-                "C": [
-                    0.4306056376,
-                    0.0079906200783,
-                    0.9056036089,
-                    0.016054258216,
-                    0.7509759687,
-                    0.088582855955,
-                    48.27726193,
-                    39.38459028,
-                    0.3755297257,
-                ],
-                "V": [
-                    107.7562698,
-                    29.77250546,
-                    88.32481135,
-                    23.03929507,
-                    62.85848794,
-                    5.546318688,
-                    11.92244772,
-                    5.555448243,
-                    0.9218489762,
-                ],
+                # fmt: off
+                "R": [10.40491389, 4.363996017, 7.570059737, 0.4230042431, 24.15513437, 2.942597645, 154.3770655, 159.186596, 2.808522723],
+                "S": [63.75581199, 26.74026066, 46.38532432, 0.2464521543, 15.20484404, 1.852266172, 52.44639459, 41.20394008, 0.569931776],
+                "C": [0.4306056376, 0.0079906200783, 0.9056036089, 0.016054258216, 0.7509759687, 0.088582855955, 48.27726193, 39.38459028, 0.3755297257],
+                "V": [107.7562698, 29.77250546, 88.32481135, 23.03929507, 62.85848794, 5.546318688, 11.92244772, 5.555448243, 0.9218489762],
                 "Twr": 94.59927549,
                 "Tws": 77.29698353,
-                "vpos": [
-                    63.05263039,
-                    53.97970677,
-                    24.64355755,
-                    61.30192144,
-                    22.21,
-                    40.06374673,
-                    38.1003437,
-                    46.53415582,
-                    47.44573456,
-                    41.10581288,
-                    18.11349055,
-                    50.0,
-                ],
-                "vrng": [
-                    400.00,
-                    400.00,
-                    100.00,
-                    1500.00,
-                    None,
-                    None,
-                    1500.00,
-                    1000.00,
-                    0.03,
-                    1000.0,
-                    1200.0,
-                    None,
-                ],
+                "vpos": [63.05263039, 53.97970677, 24.64355755, 61.30192144, 22.21, 40.06374673, 38.1003437, 46.53415582, 47.44573456, 41.10581288, 18.11349055, 50.0],
+                "vrng": [400.00, 400.00, 100.00, 1500.00, None, None, 1500.00, 1000.00, 0.03, 1000.0, 1200.0, None],
                 "vtau": [8.0, 8.0, 6.0, 9.0, 7.0, 5.0, 5.0, 5.0, 120.0, 5.0, 5.0, 5.0],
                 "sfr": [0.995, 0.991, 0.99, 0.916, 0.936, 0.938, 0.058, 0.0301],
                 0: {
@@ -835,7 +771,9 @@ class TEproc(gym.Env):
                 3: {
                     "x": [0.4850, 0.0050, 0.5100, 0.0, 0.0, 0.0, 0.0, 0.0],
                     "T": 45.0,
-                },  # A and C feed
+                },
+                # A and C feed
+                # fmt: on
             }
         )
 
@@ -871,7 +809,7 @@ class TEproc(gym.Env):
         self.cmpsr = Compressor()
         self.agtatr = Agitator()
 
-        if "--open" in sys.argv:
+        if open_control:
             self.ctrlr = control.Dummy()
         else:
             self.ctrlr = control.Controller(seed["vpos"], delta_t=DELTA_t)
@@ -882,7 +820,6 @@ class TEproc(gym.Env):
         self.red_intent = red_intent
 
         self.faults = [0] * 20
-        self.attacks = [0] * 20
         self.xmeas = None
 
     def __str__(self) -> str:
@@ -1131,13 +1068,23 @@ class TEproc(gym.Env):
         ###########################################################################################
 
         done = self.has_failed(xmeas, self.time)
-        blue = self.blue_reward(reset, done, xmeas, self.ctrlr.xmv)
-        red = self.red_reward(reset)
+        blue_reward = self.reward(reset, done, xmeas, self.ctrlr.xmv)
+        if self.red_intent == "downtime":
+            red_reward = -self.downtime(reset)
+        elif self.red_intent == "recipe":
+            red_reward = -(self.production(red_xmeas) - self.utilities(red_xmeas))
+        elif self.red_intent == "destruction":
+            self.red_intent = -self.mechanical(red_xmeas)
         self.time += DELTA_t
         self.time_since_gas += DELTA_t
-        return (blue_xmeas, red_xmeas), (blue, red), bool(done), {"failures": done}
+        return (
+            (blue_xmeas, red_xmeas),
+            (blue_reward, red_reward),
+            bool(done),
+            {"failures": done},
+        )
 
-    def blue_reward(self, reset, failed, true_xmeas, xmv):
+    def reward(self, reset, failed, true_xmeas, xmv):
         return sum(
             [
                 self.production(true_xmeas),
@@ -1147,12 +1094,6 @@ class TEproc(gym.Env):
                 self.utilities(true_xmeas),
             ]
         )
-
-    def red_reward(self, reset):
-        """
-        Currently only supports downtime
-        """
-        return -self.downtime(reset)
 
     def downtime(self, reset):
         PRODUCTIVITY_HR = 24_000
@@ -1299,7 +1240,7 @@ class TEproc(gym.Env):
         Resets the plant and burns in for one hour with no actions
         """
         print("#" * 80 + "\n\n  RESETTING  \n\n" + "#" * 80)
-        self.__init__()
+        self.__init__(self.red_intent)
         global log
         log = []
         try:
@@ -1370,6 +1311,7 @@ class TEproc(gym.Env):
             self.viewer.close()
             self.viewer = None
 
+
 ##################################################################################################
 # ArgParse preamble
 ##################################################################################################
@@ -1399,6 +1341,12 @@ parser = ArgumentParser(
 )
 parser.add_argument(
     "--fast", help="runs for fewer timesteps per episode", action="store_true"
+)
+parser.add_argument(
+    "--intent",
+    help="sets red team intent",
+    default="downtime",
+    choices=["downtime", "recipe", "destruction"],
 )
 parser.add_argument(
     "-n",
@@ -1431,7 +1379,7 @@ elif __name__ == "__main__":
     args = parser.parse_args()
     d = str(datetime.now().date())
 
-    if "--report" in sys.argv:
+    if args.report:
         memory = []
 
     gym.envs.registration.register(
@@ -1441,7 +1389,7 @@ elif __name__ == "__main__":
         reward_threshold=195.0,
     )
 
-    env = gym.make("TennesseeEastmannContinous-v1")
+    env = gym.make("TennesseeEastmannContinous-v1", red_intent=args.intent)
     if args.fast:
         env._max_episode_steps = 3600 + int(0.1 * 3600)
 
@@ -1455,11 +1403,7 @@ elif __name__ == "__main__":
         args.num_episodes = 3
     else:
         blue = DefendAgent()
-        if "-i" in sys.argv:
-            intent = int(sys.argv[sys.argv.index("-i") + 1])
-            red = ThreatAgent(intent=intent)
-        else:
-            red = ThreatAgent()
+        red = ThreatAgent()
 
     observations, _, __, ___ = env.reset()
     blue_action = None
@@ -1478,7 +1422,7 @@ elif __name__ == "__main__":
             blue_previous = blue_observation
             red_previous = red_observation
             actions = (blue_action, red_action)
-            if args.verbose >= 1 and "--peaceful" not in sys.argv:
+            if args.verbose >= 1 and not args.peaceful:
                 print(actions)
             observations, rewards, done, info = env.step(actions)
             red_observation = observations[0][1:]
@@ -1491,7 +1435,7 @@ elif __name__ == "__main__":
                 env.render()
             if args.report and i % 10 == 0:
                 episode_memory.append(
-                     {
+                    {
                         "episode": i,
                         "time": t,
                         "blue action": blue_action,
