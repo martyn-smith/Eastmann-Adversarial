@@ -682,6 +682,7 @@ class Compressor(Vessel):
     def has_fatigued(self):
         return self.cycles > self.max_cycles
 
+
 class Junction(GasVessel):
     def __init__(self, seed):
         self.vt = 5000.0
@@ -741,7 +742,7 @@ class TEproc(gym.Env):
         # valve_stick loop
         seed = deepcopy(
             {
-            # fmt: off
+                # fmt: off
                 "R": [10.40491389, 4.363996017, 7.570059737, 0.4230042431, 24.15513437, 2.942597645, 154.3770655, 159.186596, 2.808522723],
                 "S": [63.75581199, 26.74026066, 46.38532432, 0.2464521543, 15.20484404, 1.852266172, 52.44639459, 41.20394008, 0.569931776],
                 "C": [0.4306056376, 0.0079906200783, 0.9056036089, 0.016054258216, 0.7509759687, 0.088582855955, 48.27726193, 39.38459028, 0.3755297257],
@@ -1072,7 +1073,12 @@ class TEproc(gym.Env):
             self.red_intent = -self.mechanical(red_xmeas)
         self.time += DELTA_t
         self.time_since_gas += DELTA_t
-        return (blue_xmeas, red_xmeas), (blue_reward, red_reward), bool(done), {"failures": done}
+        return (
+            (blue_xmeas, red_xmeas),
+            (blue_reward, red_reward),
+            bool(done),
+            {"failures": done},
+        )
 
     def reward(self, reset, failed, true_xmeas, xmv):
         return sum(
@@ -1371,7 +1377,7 @@ elif __name__ == "__main__":
         reward_threshold=195.0,
     )
 
-    env = gym.make("TennesseeEastmannContinous-v1", red_intent = args.intent)
+    env = gym.make("TennesseeEastmannContinous-v1", red_intent=args.intent)
     if args.fast:
         env._max_episode_steps = 3600 + int(0.1 * 3600)
 
@@ -1431,7 +1437,7 @@ elif __name__ == "__main__":
                         "true separator level": env.s.level,
                         "reported separator temperature": blue_observation[11],
                         "reported separator level": blue_observation[12],
-                        "compressor cycles": env.cmpsr.cycles
+                        "compressor cycles": env.cmpsr.cycles,
                     }
                 )
             if args.verbose >= 1:
@@ -1549,7 +1555,6 @@ elif __name__ == "__main__":
             plt.close("all")
 
             losses.append((blue_loss, red_loss))
-
 
     ###############################################################################################
     # Report generation
