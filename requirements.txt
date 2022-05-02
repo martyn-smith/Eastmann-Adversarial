@@ -1,9 +1,5 @@
 # WARNING: please use pyproject.toml instead if you possibly can. This file is only for tooling that *cannot* use the toml.
 
-python = ">=3.9,<3.11"
-gym = "^0.21.0"
-numpy = "1.19.3"
-tensorflow = "2.7.0"
-matplotlib = "3.4.3"
-pyglet = "1.5.0"
-colorpy = { git = "https://github.com/martyn-smith/colorpy.git", branch = "master"}
+pandoc=="2.17"
+gcc-gfortran=="^11.2"
+te= {path = "./te"}
