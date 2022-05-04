@@ -1420,8 +1420,8 @@ elif __name__ == "__main__":
             # separating observations. We also strip out time.
             blue_observation = observations[0][1:]
             red_observation = observations[1][1:]
-            blue_action = blue.get_action(blue_observation.reshape(1, 42))[0]
-            red_action = red.get_action(red_observation.reshape(1, 42))[0]
+            blue_action = blue(blue_observation.reshape(1, 42))[0]
+            red_action = red(red_observation.reshape(1, 42))[0]
             blue_previous = blue_observation
             red_previous = red_observation
             actions = (blue_action, red_action)
