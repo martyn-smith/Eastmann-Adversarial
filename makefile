@@ -28,7 +28,7 @@ fuzzresults:
 	done
 
 clean:
-	rm -f *.mod *.png *.md *.h5 errors*.txt
+	rm -f *.mod *.png report*.md *.h5 errors*.txt
 
 report: TE clean
 	cp -r ../models/stategenerator/ Pythonised/
