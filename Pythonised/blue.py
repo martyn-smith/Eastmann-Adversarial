@@ -1,10 +1,12 @@
 from agent import Agent
 import logging
 import os
+import numpy as np
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
 import tensorflow as tf
+from tensorflow.keras.models import load_model
 
 # import tensorflow_probability as tfp
 from actorcritic import ActorCriticNetwork
@@ -18,6 +20,19 @@ class DefendAgent(Agent):
         self.gamma = GAMMA
         self.actor_critic = ActorCriticNetwork(n_actions=1)
         self.actor_critic.compile(optimizer="adam")
+        self.stategenerator = load_model("./Pythonised/stategenerator")
+
+    def __call__(self, observation):
+        state = self.stategenerator.predict([observation])[0]
+        with open("teststates/state.in") as f:
+            state = f.read()
+        xmeas = np.frombuffer(run(["../te", "-l", "-v"], input=bytes(state, "utf-8"), capture_output=True).stdout)
+        print(xmeas)
+        value = sum((self.gamma ** i) * 20_000 * xmeas[17] for i, xmeas in enumerate(xmeas))
+        # print(f"{state=}, {value=}")
+        v = value
+        pi = self.pi(value)
+        return v, pi
 
     def learn(self, previous, reward, observation, done):
         previous = tf.convert_to_tensor([previous], dtype=tf.float32)
@@ -43,5 +58,5 @@ class DefendAgent(Agent):
 
     def get_action(self, observation):
         observation = tf.convert_to_tensor([observation])
-        value, actions = self.actor_critic(observation)
+        value, actions = self(observation)
         return actions.numpy()[0]

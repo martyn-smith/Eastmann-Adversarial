@@ -70,7 +70,7 @@ program temain
 !   local variables
     logical :: aggression = .false., danger = .false., dvec = .false., fileout = .false., finalout = .false., &
                has_failed = .false., load = .false., mode = .false., open = .false., realtime = .false., &
-               verbose = .false.
+               verbose = .false., veryverbose = .false.
     integer :: i, k
     integer :: npts = 48*3600
     real(kind=8) :: time, delta_t, state(50), derivative(50)
@@ -93,7 +93,7 @@ program temain
         if (flag == "-r") realtime = .true.
         if (flag == "-t") call set_timer(npts, i)
         if (flag == "-v") verbose = .true.
-        !if (flag == "-vv") veryverbose = .true.
+        if (flag == "-vv") veryverbose = .true.
         if (any([flag == "--xmeas", flag == "--xmv", flag == "-a", flag == "--aggression", &
                  flag == "--mode"])) exit
     end do
@@ -128,7 +128,6 @@ program temain
         if (.not. danger) then
             call check_safety(has_failed, err_msg)
         end if
-
         call check_danger(has_failed, err_msg)
 
     !   check the true Reactor Pressure has not exceeded yield
@@ -141,15 +140,14 @@ program temain
 
         if (realtime) then
             call sleep(1)
-            if (verbose) then
-                print "(51e23.15,24i3)", time, (state(k), k=1,50), (idv(k), k=1,24)
-            else
-                print "(55e23.15)", time, (xmeas(k), k=1,42), (xmv(k), k=1,12)
-            end if
+        end if
+        if (verbose) then
+            print "(51e23.15,24i3)", time, (state(k), k=1,50), (idv(k), k=1,24)
+        else if (veryverbose) then
+            print "(55e23.15)", time, (xmeas(k), k=1,42), (xmv(k), k=1,12)
         end if
 
         call intgtr(state, size(state), derivative, time, delta_t)
-
         call filter_xmeas(time)
     end do
     if (finalout) then
