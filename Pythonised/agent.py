@@ -8,8 +8,9 @@ https://adventuresinmachinelearning.com/a2c-advantage-actor-critic-tensorflow-2/
 
 import logging
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  #FATAL only
-logging.getLogger('tensorflow').setLevel(logging.FATAL)
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
 from tensorflow.keras import Sequential
 from collections import deque
 import numpy as np
@@ -18,7 +19,8 @@ import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras.layers import Dense
 
-class DummyAgent():
+
+class DummyAgent:
     def __init__(self):
         pass
 
@@ -28,6 +30,7 @@ class DummyAgent():
     # def learn(self):
     #     pass
     #
+
 
 class Agent:
     def __init__(self, n_out):
@@ -93,6 +96,8 @@ class Agent:
     # def advantage(self, i):
     #     return sum(m[2] ** i for i, m in enumerate(self.memory))
     #
+
+
 class ActorCriticNetwork(keras.Model):
     def __init__(
         self,
@@ -109,7 +114,7 @@ class ActorCriticNetwork(keras.Model):
 
         self.fc1 = Dense(self.fc1_dims, activation="relu")
         self.fc2 = Dense(self.fc2_dims, activation="relu")
-        #self.lstm = LSTM(16)
+        # self.lstm = LSTM(16)
         self.v = Dense(1, activation=None)
         self.pi = Dense(n_actions, activation="softmax")
 

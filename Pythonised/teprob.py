@@ -179,7 +179,6 @@
 ===============================================================================
 """
 from argparse import Action as ArgAction, ArgumentParser, RawTextHelpFormatter
-from red import SCENARIOS
 from agent import DummyAgent
 from blue import DefendAgent
 from collections import deque
@@ -199,7 +198,7 @@ from red import ThreatAgent
 from statistics import mode
 import sys
 
-np.seterr(all="raise")
+# np.seterr(all="raise")
 
 DELTA_t = 1.0 / 3600.0
 
@@ -1058,6 +1057,7 @@ class TEproc(gym.Env):
             blue_xmeas[7] += red_action[0]
 
         self.xmeas = blue_xmeas
+        blue_xmeas = np.append(xmeas[:-1], xmv)
 
         ###########################################################################################
         # Cleanup and return
@@ -1406,7 +1406,8 @@ elif __name__ == "__main__":
             # separating observations. We also strip out time.
             blue_observation = observations[0][1:]
             red_observation = observations[1][1:]
-            blue_action = blue(blue_observation.reshape(1, 42))[0]
+            # print(blue_observation.shape, " ", red_observation.shape)
+            blue_action = blue(blue_observation.reshape(1, 53))[0]
             red_action = red(red_observation.reshape(1, 42))[0]
             blue_previous = blue_observation
             red_previous = red_observation
@@ -1414,8 +1415,8 @@ elif __name__ == "__main__":
             if args.verbose >= 1 and not args.peaceful:
                 print(f"{blue_action=}, {red_action=}")
             observations, rewards, done, info = env.step(actions)
-            red_observation = observations[0][1:]
-            blue_obervation = observations[1][1:]
+            blue_observation = observations[0][1:]
+            red_obervation = observations[1][1:]
             blue_reward = rewards[0]
             red_reward = rewards[1]
             blue_loss = blue.learn(blue_previous, blue_reward, blue_observation, done)
