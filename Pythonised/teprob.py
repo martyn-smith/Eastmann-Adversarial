@@ -1428,8 +1428,8 @@ elif __name__ == "__main__":
             if args.verbose >= 1 and not args.peaceful:
                 print(actions)
             observations, rewards, done, info = env.step(actions)
-            red_observation = observations[0][1:]
-            blue_obervation = observations[1][1:]
+            blue_observation = observations[0][1:]
+            red_obervation = observations[1][1:]
             blue_reward = rewards[0]
             red_reward = rewards[1]
             blue.learn(blue_previous, blue_reward, blue_observation, done)
