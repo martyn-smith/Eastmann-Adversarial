@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import sys
 from agent import Agent
 from subprocess import run
 import tensorflow as tf
@@ -19,13 +20,16 @@ class DefendAgent(Agent):
         super().__init__(1)
 
     def value(self, observation):
-        print(observation)
         observation = observation.reshape(1,53)
-        print(observation)
         state = self.stategenerator.predict([observation])[0] # np.ndarray, 74 inputs
-        print(state)
         state = bytes(str(state[:50])[2:-1] + " " + str(state[50:].astype(int))[1:-1], "utf-8")
-        xmeas = run(["./te", "-l", "-v"], input=state, capture_output=True).stdout.decode("utf-8")
+        try:
+            output = run(["./te", "-l", "-v"], input=state, capture_output=True)
+            assert output.stderr == b""
+            xmeas = output.stdout.decode("utf-8")
+        except AssertionError as e:
+            print(f"twin output error: {e}", file=sys.stderr)
+            exit(1)
         n = xmeas.count('\n')
         xmeas = np.fromstring(xmeas, sep=' ').reshape(n, -1)
         value = sum(
@@ -35,6 +39,7 @@ class DefendAgent(Agent):
 
     def learn(self, previous, reward, observation, done):
         value = self.value(observation)
+        value = tf.convert_to_tensor([value], dtype=tf.float32)
         return super().learn(previous, reward, observation, done)
         # previous = tf.convert_to_tensor([previous], dtype=tf.float32)
         # observation = observation[:42]

@@ -4,8 +4,8 @@ SHELL:= /bin/bash
 TE:
 	gfortran -g3 -o tedbg_$$(date +"%d%m%y") -fall-intrinsics -fbacktrace -fdefault-real-8 \
 	    -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none  \
-		-Wall -std=f2003 src/temain.f95;
-	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$$(date +"%d%m%y") src/temain.f95;
+		-Wall -std=f2003 -fbackslash src/temain.f95;
+	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -fbackslash -o te_$$(date +"%d%m%y") src/temain.f95;
 	ln -s -f te_$$(date +"%d%m%y") te;
 	./te_$$(date +"%d%m%y");
 	rm *.mod;
@@ -31,7 +31,7 @@ clean:
 	rm -f *.mod *.png report*.md *.h5 errors*.txt te_* tedbg_*
 
 report: clean TE
-	cp -r ../models/stategenerator/ Pythonised/
+	cp -r ../models/saved/stategenerator/ Pythonised/
 	python Pythonised/teprob.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm *.png *.md

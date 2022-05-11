@@ -330,6 +330,7 @@ end subroutine teinit
 
 subroutine teload(state, idv)
 
+    use iso_fortran_env, only : ERROR_UNIT
     integer :: io, k
     integer, intent(inout) :: idv(24)
     real(kind=8), intent(inout) :: state(50)
@@ -338,7 +339,8 @@ subroutine teload(state, idv)
 !   Afraid this is the best way I can see of checking the latter.
     read (*, "(50e23.15,24i3)", IOSTAT=io) (state(k), k=1,50), (idv(k), k=1,24)
     if (io > 0) then
-        print *, "Couldn't load state. empty file?"
+        write(ERROR_UNIT, *) "\x1B[31m Couldn't load state. empty or corrupted input file? \x1B[31m"
+        ! exit(1)
     end if
     ! read (*, "(24i3)") (idv(k), k=1,24)
     if (any(abs(idv) > 1)) then
