@@ -1562,7 +1562,7 @@ elif __name__ == "__main__":
         with open(f"report_{d}.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
             f.write(action_txt + "\n\n")
-            f.write(args.intent + "\n\n")
+            f.write(f"red intent: {args.intent}\n\n")
             for i in range(10):
                 f.write(
                     f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{margin=auto}}\n"
