@@ -33,7 +33,7 @@ clean:
 report: TE clean
 	python Pythonised/teprob.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
-	rm *.png *.md
+	rm f *.png report*.md
 
 figures: TE clean
 	cp -r ../models/stategenerator/ Pythonised/

@@ -1471,7 +1471,6 @@ elif __name__ == "__main__":
                         + f"last failure condition: {info['failures']}\n\n"
                     )
                 break
-        env.close()
         if args.report and i % 10 == 0:
             fig, ax = plt.subplots()
             ax.plot(
@@ -1576,3 +1575,9 @@ elif __name__ == "__main__":
                 )
                 # f.write(f"{summary[i]}\n\nblue and red training losses: {losses[i]}\n\\newpage")
             # f.write(input("closing remarks?"))
+
+    ###############################################################################################
+    # Cleanup
+    ###############################################################################################
+
+    env.close()
