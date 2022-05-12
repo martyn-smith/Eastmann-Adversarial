@@ -50,7 +50,7 @@ class BlueAgent(Agent):
         else:
             return 13
 
-    def get_action(self, observation):
+    def __call__(self, observation):
         if random() >= self.epsilon:
             q = self.model.predict(observation.reshape(1, 42))[0]
             try:

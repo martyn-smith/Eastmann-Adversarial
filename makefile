@@ -31,7 +31,6 @@ clean:
 	rm -f *.mod *.png report*.md *.h5 errors*.txt te_* tedbg_*
 
 report: TE clean
-	cp -r ../models/stategenerator/ Pythonised/
 	python Pythonised/teprob.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm *.png *.md

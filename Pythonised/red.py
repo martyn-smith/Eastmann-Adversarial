@@ -22,7 +22,7 @@ class RedAgent(Agent):
     DOWNTIME = 2
     """
 
-    def __init__(self, intent="downtime"):
+    def __init__(self):
         import logging
         import os
 
@@ -41,7 +41,6 @@ class RedAgent(Agent):
         from tensorflow.keras.optimizers import Adam
 
         super().__init__()
-        self.intent = intent
         model = Sequential()
         model.add(Input(shape=(42,)))
         model.add(Dense(64, activation="relu"))
@@ -70,7 +69,7 @@ class RedAgent(Agent):
         elif "setpt" in action:
             return action["setpt"] + 55
 
-    def get_action(self, observation):
+    def __call__(self, observation):
         # TODO: pick action_space
         if random() >= self.epsilon:
             q = self.model.predict(observation.reshape(1, 42))[0]

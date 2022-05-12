@@ -1481,8 +1481,8 @@ elif __name__ == "__main__":
         episode_memory = []
         for t in range(env._max_episode_steps):
             prev_obs = observations
-            blue_action = blue.get_action(prev_obs[0][1:])
-            red_action = red.get_action(prev_obs[1][1:])
+            blue_action = blue(prev_obs[0][1:])
+            red_action = red(prev_obs[1][1:])
             action = (blue_action, red_action)
             if args.verbose >= 1 and "--peaceful" not in sys.argv:
                 print(blue.encode(action[0]), red.encode(action[1]))
@@ -1550,8 +1550,8 @@ elif __name__ == "__main__":
                     )
                 break
         env.close()
-        blue_loss = blue.replay()
-        red_loss = red.replay()
+        blue_loss = blue.learn()
+        red_loss = red.learn()
         if args.report and i % 10 == 0:
             fig, ax = plt.subplots()
             ax.plot(
@@ -1644,6 +1644,7 @@ elif __name__ == "__main__":
         with open(f"report_{d}.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
             f.write(action_txt + "\n\n")
+            f.write(f"red intent: {args.intent}\n\n")
             for i in range(args.num_episodes // 10):
                 f.write(
                     f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{margin=auto}}\n"

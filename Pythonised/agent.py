@@ -34,7 +34,7 @@ class Agent:
         # this could only be inheritable if model shape is known.
         pass
 
-    def replay(self):
+    def learn(self):
         # x is state (dims (42,1)). y is Q-value of all possible actions (14 for blue, ..? for red)
         x_batch, y_batch = [], []
         # memory here is [(state, action, reward, observation, done)]
