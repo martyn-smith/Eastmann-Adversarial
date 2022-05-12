@@ -1342,14 +1342,13 @@ parser.add_argument(
     type=int,
     default=100,
 )
-parser.add_argument(
-    "--peaceful",
-    help="no red or blue team action (overrides scenario)",
-    action="store_true",
-)
+group = parser.add_mutually_exclusive_group()
+group.add_argument("--nored", help="no red team actions", action="store_true")
+group.add_argument("--noblue", help="no blue team actions", action="store_true")
+group.add_argument("--peaceful", help="no blue or red team actions", action="store_true")
+
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
-parser.add_argument("--scenario", help="select from scenarios:", default="default")
 parser.add_argument(
     "-v", "--verbose", help="displays debug info", action="count", default=0
 )
@@ -1385,13 +1384,14 @@ elif __name__ == "__main__":
     summary = []
     losses = []
 
-    if args.peaceful:
-        red, blue = DummyAgent(), DummyAgent()
-        args.num_episodes = 3
+    if args.peaceful or args.nored:
+        red = DummyAgent()
+    else:
+        red = ThreatAgent()
+    if args.peaceful or args.noblue:
+        blue = DummyAgent()
     else:
         blue = DefendAgent()
-        # TODO: plug in scenarios
-        red = ThreatAgent()
 
     observations, _, __, ___ = env.reset()
     blue_action = None
@@ -1563,6 +1563,7 @@ elif __name__ == "__main__":
         with open(f"report_{d}.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
             f.write(action_txt + "\n\n")
+            f.write(args.intent + "\n\n")
             for i in range(10):
                 f.write(
                     f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{margin=auto}}\n"
