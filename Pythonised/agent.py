@@ -6,18 +6,22 @@ n1try on cartpole (https://gym.openai.com/evaluations/eval_EIcM1ZBnQW2LBaFN6FY65
 https://keon.io/deep-q-learning
 """
 
-# import logging
-# import os
-# os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  #FATAL only
-# logging.getLogger('tensorflow').setLevel(logging.FATAL)
-# from tensorflow.keras import Sequential
+import logging
+import os
+
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.layers.experimental.preprocessing import Normalization
+from tensorflow.keras.optimizers import Adam
 from collections import deque
 import numpy as np
-from random import choice, sample
+from random import choice, sample, randint, random
 
 
 class Agent:
-    def __init__(self):
+    def __init__(self, n_actions):
         # create model here in child process
         self.memory = deque(maxlen=100_000)
         self.batch_size = 64
@@ -25,7 +29,15 @@ class Agent:
         self.epsilon = 1.0
         self.epsilon_min = 0.01
         self.epsilon_decay = 0.095
-        # self.model = Sequential()
+        self.n_actions = n_actions
+        model = Sequential()
+        model.add(Input(shape=(42,)))
+        model.add(Dense(64, activation="tanh"))
+        model.add(Dense(64, activation="tanh"))
+        model.add(Dense(n_actions, activation="relu"))
+        opt = Adam(learning_rate=0.01)
+        model.compile(loss="mae", optimizer="adam")
+        self.model = model
 
     def remember(self, state, action, reward, observation, done):
         self.memory.append((state, action, reward, observation, done))
@@ -33,6 +45,18 @@ class Agent:
     def get_action(self, observation):
         # this could only be inheritable if model shape is known.
         pass
+
+    def __call__(self, observation):
+        # TODO: pick action_space
+        if random() >= self.epsilon:
+            q = self.model.predict(observation.reshape(1, 42))[0]
+            try:
+                action = np.nanargmax(q)
+            except ValueError:
+                action = randint(0, self.n_actions - 1)
+        else:
+            action = randint(0, self.n_actions - 1)
+        return action
 
     def learn(self):
         # x is state (dims (42,1)). y is Q-value of all possible actions (14 for blue, ..? for red)
@@ -63,14 +87,11 @@ class DummyAgent(Agent):
     def __init__(self):
         pass
 
-    def intent(self, *args):
-        return 0.0
-
     def remember(self, *args):
         pass
 
-    def replay(self, *args):
+    def __call__(self, *args):
         pass
 
-    def get_action(self, *args):
+    def learn(self, *args):
         pass

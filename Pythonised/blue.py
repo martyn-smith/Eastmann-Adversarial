@@ -4,35 +4,10 @@ import numpy as np
 from random import choice, randint, random
 
 
-class TEDummy(Agent):
-    """
-    Dummy class if we want to run the process without all the awkward setup.
-    """
-
-    pass
-
-
 class BlueAgent(Agent):
     def __init__(self):
-        import logging
-        import os
-
-        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
-        logging.getLogger("tensorflow").setLevel(logging.FATAL)
-        from tensorflow.keras import Sequential
-        from tensorflow.keras.layers import Dense, Dropout, Input
-        from tensorflow.keras.layers.experimental.preprocessing import Normalization
-        from tensorflow.keras.optimizers import Adam
-
         self.id = "blue"
-        super().__init__()
-        model = Sequential()
-        model.add(Input(shape=(42,)))
-        model.add(Dense(54, activation="tanh"))
-        model.add(Dense(14, activation="relu"))
-        opt = Adam(learning_rate=0.01)
-        model.compile(loss="mae", optimizer="adam")
-        self.model = model
+        super().__init__(14)
 
     def encode(self, action):
         if action == 0:
