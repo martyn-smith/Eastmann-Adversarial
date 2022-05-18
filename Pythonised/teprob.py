@@ -1055,7 +1055,6 @@ class TEproc(gym.Env):
 
         if red_action is not None:
             blue_xmeas[7] += red_action[0]
-
         self.xmeas = blue_xmeas
 
         ###########################################################################################
@@ -1069,7 +1068,7 @@ class TEproc(gym.Env):
         elif self.red_intent == "recipe":
             red_reward = -(self.production(red_xmeas) - self.utilities(red_xmeas))
         elif self.red_intent == "destruction":
-            self.red_intent = -self.mechanical(red_xmeas)
+            red_reward = -self.mechanical(red_xmeas)
         self.time += DELTA_t
         self.time_since_gas += DELTA_t
         return (
@@ -1310,17 +1309,12 @@ class TEproc(gym.Env):
 description = """
     Tennessee Eastmann Adversarial Control Challenge - Single Continunous Control version.
 
-    Scenarios:
-
-    "default" [default] - red team attempts to maximise downtime
-    "chaos" - red team acts at random
-    "nored" - red team takes no action
 """
 
 action_txt = """
-    Red team action:   adjust xmeas[7]
+Red team action:   adjust xmeas[7]
 
-    Blue team action:  adjust xmv[3]
+Blue team action:  adjust xmv[3]
 """
 
 parser = ArgumentParser(
@@ -1345,7 +1339,9 @@ parser.add_argument(
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--nored", help="no red team actions", action="store_true")
 group.add_argument("--noblue", help="no blue team actions", action="store_true")
-group.add_argument("--peaceful", help="no blue or red team actions", action="store_true")
+group.add_argument(
+    "--peaceful", help="no blue or red team actions", action="store_true"
+)
 
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
@@ -1434,8 +1430,8 @@ elif __name__ == "__main__":
                         "reported reactor temperature": blue_observation[9],
                         "true separator temperature": env.s.tc,
                         "true separator level": env.s.level,
-                        "reported separator temperature": blue_observation[11],
-                        "reported separator level": blue_observation[12],
+                        "reported separator temperature": blue_observation[10],
+                        "reported separator level": blue_observation[11],
                         "compressor cycles": env.cmpsr.cycles,
                     }
                 )
@@ -1532,6 +1528,8 @@ elif __name__ == "__main__":
                 label="reported temperature",
                 color="blue",
             )
+            ax1.set_ylabel("temperature (degC)")
+            ax1.set_ylim(30, 20)
             ax2 = ax1.twinx()
             ax2.plot(
                 [m["true separator level"] for m in episode_memory],
@@ -1545,6 +1543,8 @@ elif __name__ == "__main__":
                 color="blue",
                 linestyle="dashed",
             )
+            ax2.set_ylabel("level (%)")
+            ax2.set_ylim(0, 100)
             ax2.set_title(f"separator parameters at episode {i}")
             ax2.set_xlabel("time")
             fig.legend(bbox_to_anchor=(0.85, 0.9))
