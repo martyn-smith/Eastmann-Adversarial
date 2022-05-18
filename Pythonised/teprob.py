@@ -1070,7 +1070,7 @@ class TEproc(gym.Env):
         elif self.red_intent == "recipe":
             red_reward = -(self.production(red_xmeas) - self.utilities(red_xmeas))
         elif self.red_intent == "destruction":
-            self.red_intent = -self.mechanical(red_xmeas)
+            red_reward = -self.mechanical(red_xmeas)
         self.time += DELTA_t
         self.time_since_gas += DELTA_t
         return (
@@ -1311,11 +1311,6 @@ class TEproc(gym.Env):
 description = """
     Tennessee Eastmann Adversarial Control Challenge - Single Continunous Control version.
 
-    Scenarios:
-
-    "default" [default] - red team attempts to maximise downtime
-    "chaos" - red team acts at random
-    "nored" - red team takes no action
 """
 
 action_txt = """
@@ -1343,14 +1338,14 @@ parser.add_argument(
     type=int,
     default=100,
 )
-parser.add_argument(
-    "--peaceful",
-    help="no red or blue team action (overrides scenario)",
-    action="store_true",
-)
+
+group = parser.add_mutually_exclusive_group()
+group.add_argument("--nored", help="no red team actions", action="store_true")
+group.add_argument("--noblue", help="no blue team actions", action="store_true")
+group.add_argument("--peaceful", help="no blue or red team actions", action="store_true")
+
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
-parser.add_argument("--scenario", help="select from scenarios:", default="default")
 parser.add_argument(
     "-v", "--verbose", help="displays debug info", action="count", default=0
 )

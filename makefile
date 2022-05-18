@@ -30,12 +30,30 @@ fuzzresults:
 clean:
 	rm -f *.mod *.png report*.md *.h5 errors*.txt te_* tedbg_*
 
-report: clean TE
+model:
 	cp -r ../models/saved/stategenerator/ Pythonised/
+
+report: clean TE model
 	python Pythonised/teprob.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
-figures: TE clean
-	cp -r ../models/stategenerator/ Pythonised/
+figures: clean TE model
 	python Pythonised/teprob.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
+
+scenarios: clean TE model
+	python Pythonised/teprob.py --fast --intent downtime --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_downtime_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+	python Pythonised/teprob.py --fast --intent recipe --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_recipe_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+	python Pythonised/teprob.py --fast --intent destruction --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_destruction_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+	python Pythonised/teprob.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+	python Pythonised/teprob.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
