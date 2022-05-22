@@ -1469,18 +1469,18 @@ elif __name__ == "__main__":
                 break
         if args.report and i % 10 == 0:
             fig, ax = plt.subplots()
-            ax.plot(
-                [m["blue action"] for m in episode_memory],
-                label="blue team",
-                color="blue",
-            )
+            # ax.plot(
+            #     [m["blue action"] for m in episode_memory],
+            #     label="blue team",
+            #     color="blue",
+            # )
             ax.plot(
                 [m["red action"] for m in episode_memory], label="red team", color="red"
             )
             ax.set_title(f"actions at episode {i}")
             ax.set_xlabel("time")
             ax.set_ylabel("actions")
-            plt.legend()
+            # plt.legend()
             plt.savefig(f"actions_{d}_ep{i}.png")
 
             fig, ax1 = plt.subplots()
