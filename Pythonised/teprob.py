@@ -1396,12 +1396,8 @@ elif __name__ == "__main__":
     summary = []
     losses = []
 
-    if args.peaceful:
-        red, blue = DummyAgent(), DummyAgent()
-        args.num_episodes = 3
-    else:
-        blue = DefendAgent()
-        red = ThreatAgent()
+    blue = DummyAgent() if args.peaceful or args.noblue else DefendAgent()
+    red = DummyAgent() if args.peaceful or args.nored else ThreatAgent()
 
     observations, _, __, ___ = env.reset()
     blue_action = None
@@ -1481,13 +1477,19 @@ elif __name__ == "__main__":
                 break
         if args.report and i % 10 == 0:
             fig, ax = plt.subplots()
+            # ax.plot(
+            #     [m["blue action"] for m in episode_memory],
+            #     label="blue team",
+            #     color="blue",
+            # )
             ax.plot(
-                [m["blue action"] for m in episode_memory],
-                label="blue team",
-                color="blue",
+                [m["red action"][6] for m in episode_memory], label="reactor pressure setpoint change", color="red"
             )
             ax.plot(
-                [m["red action"] for m in episode_memory], label="red team", color="red"
+                [m["red action"][16] for m in episode_memory], label="reactor pressure readout change", color="red", linestyle="-"
+            )
+            ax.plot(
+                [m["blue action"][3] for m in episode_memory], label="A and C feed change", color="blue"
             )
             ax.set_title(f"actions at episode {i}")
             ax.set_xlabel("time")

@@ -25,7 +25,7 @@ module entities
                         vt, vl, vv, &  ! total, liquid and vapour volumes
                         pt, &          ! total pressure
                         qu             ! work?
-        real(kind=8), dimension(8) :: ucl, ucv, &    ! PRIMARY: molar components amounts in liquid and gas phase 
+        real(kind=8), dimension(8) :: ucl, ucv, &    ! PRIMARY: molar components amounts in liquid and gas phase
                                                      ! (only liquid for C, only gas for V)
                                       xl, xv, &      ! concentrations in liquid and gas phase
                                       pp             ! partial pressure

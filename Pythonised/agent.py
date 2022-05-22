@@ -35,16 +35,15 @@ class Agent:
         self.memory = deque(maxlen=100_000)
         self.batch_size = 64
         self.gamma = 0.95
-        self.epsilon = 1.0
-        self.epsilon_min = 0.01
-        self.epsilon_decay = 0.095
+        self.epsilon = 0.05
+        self.rng = np.random.random
         self.actor_critic = ActorCriticNetwork(n_out)
         self.actor_critic.compile(optimizer="adam")
 
     def __call__(self, observation):
         observation = tf.convert_to_tensor([observation])
         value, actions = self.actor_critic(observation)
-        return actions.numpy()[0]
+        return actions.numpy()[0] + (self.epsilon * self.rng())
 
     def learn(self, previous, reward, observation, done):
         previous = tf.convert_to_tensor([previous], dtype=tf.float32)
