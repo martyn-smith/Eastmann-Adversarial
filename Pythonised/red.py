@@ -5,3 +5,6 @@ class ThreatAgent(Agent):
     def __init__(self):
         self.id = "red"
         super().__init__(51)
+
+    def __call__(self, observation):
+        return 100.0 * super(ThreatAgent, self).__call__(observation)

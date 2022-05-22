@@ -33,9 +33,8 @@ class Agent:
     def __init__(self, n_out):
         # create model here in child process
         self.memory = deque(maxlen=100_000)
-        self.batch_size = 64
-        self.gamma = 0.95
-        self.epsilon = 0.05
+        self.gamma = 0.98
+        self.epsilon = 0.0001
         self.rng = np.random.random
         self.actor_critic = ActorCriticNetwork(n_out)
         self.actor_critic.compile(optimizer="adam")
@@ -64,6 +63,7 @@ class Agent:
         self.actor_critic.optimizer.apply_gradients(
             zip(gradient, self.actor_critic.trainable_variables)
         )
+        return gradient
 
     # def remember(self, state, action, reward, observation, done):
     #     self.memory.append((state, action, reward, observation, done))

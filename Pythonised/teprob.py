@@ -1486,7 +1486,7 @@ elif __name__ == "__main__":
                 [m["red action"][6] for m in episode_memory], label="reactor pressure setpoint change", color="red"
             )
             ax.plot(
-                [m["red action"][16] for m in episode_memory], label="reactor pressure readout change", color="red", linestyle="-"
+                [m["red action"][16] for m in episode_memory], label="reactor pressure readout change", color="red", linestyle="--"
             )
             ax.plot(
                 [m["blue action"][3] for m in episode_memory], label="A and C feed change", color="blue"
