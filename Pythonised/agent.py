@@ -33,7 +33,7 @@ class Agent:
         # create model here in child process
         self.memory = deque(maxlen=100_000)
         self.batch_size = 64
-        self.gamma = 0.95
+        self.gamma = 0.98
         self.epsilon = 0.05
         self.actor_critic = ActorCriticNetwork(n_out)
         self.actor_critic.compile(optimizer="adam")
@@ -59,10 +59,10 @@ class Agent:
             total_loss = actor_loss + critic_loss
 
         gradient = tape.gradient(total_loss, self.actor_critic.trainable_variables)
-        print(gradient)
         self.actor_critic.optimizer.apply_gradients(
             zip(gradient, self.actor_critic.trainable_variables)
         )
+        return gradient
 
     # def remember(self, state, action, reward, observation, done):
     #     self.memory.append((state, action, reward, observation, done))
