@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 ==============================================================================
                tennessee eastman process control test problem
@@ -1239,7 +1240,7 @@ class TEproc(gym.Env):
         try:
             try:
                 for i in range(3600):
-                    observations, _, done, info = self.step((None, None))
+                    observations, _, done, info = env.step((None, None))
                     log.append([self.s.level * 100, self.ctrlr.xmv[10]])
                     self.has_failed_extra()
             except FloatingPointError as e:
@@ -1303,3 +1304,274 @@ class TEproc(gym.Env):
         if hasattr(self, "viewer"):
             self.viewer.close()
             self.viewer = None
+
+
+description = """
+    Tennessee Eastmann Adversarial Control Challenge - Single Continunous Control version.
+
+"""
+
+action_txt = """
+Red team action:   adjust xmeas[7]
+
+Blue team action:  adjust xmv[3]
+"""
+
+parser = ArgumentParser(
+    description=description + "\n" + action_txt, formatter_class=RawTextHelpFormatter
+)
+parser.add_argument(
+    "--fast", help="runs for fewer timesteps per episode", action="store_true"
+)
+parser.add_argument(
+    "--intent",
+    help="sets red team intent",
+    default="downtime",
+    choices=["downtime", "recipe", "destruction"],
+)
+parser.add_argument(
+    "-n",
+    "--num_episodes",
+    help="number of episodes (default 100)",
+    type=int,
+    default=100,
+)
+group = parser.add_mutually_exclusive_group()
+group.add_argument("--nored", help="no red team actions", action="store_true")
+group.add_argument("--noblue", help="no blue team actions", action="store_true")
+group.add_argument(
+    "--peaceful", help="no blue or red team actions", action="store_true"
+)
+
+parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
+parser.add_argument("--report", help="generates report template", action="store_true")
+parser.add_argument(
+    "-v", "--verbose", help="displays debug info", action="count", default=0
+)
+
+if __name__ == "teprob":
+    gym.envs.registration.register(
+        id="TennesseeEastmannContinuous-v1",
+        entry_point="teprob:TEproc",
+        max_episode_steps=int(48 * 3600),
+        reward_threshold=195.0,
+    )
+elif __name__ == "__main__":
+
+    args = parser.parse_args()
+    d = str(datetime.now().date())
+
+    if args.report:
+        memory = []
+
+    gym.envs.registration.register(
+        id="TennesseeEastmannContinous-v1",
+        entry_point="__main__:TEproc",
+        max_episode_steps=int(48 * 3600),
+        reward_threshold=195.0,
+    )
+
+    env = gym.make("TennesseeEastmannContinous-v1", red_intent=args.intent)
+    if args.fast:
+        env._max_episode_steps = 3600 + int(0.1 * 3600)
+
+    # logging stuff
+    wins = deque(maxlen=10)
+    summary = []
+    losses = []
+
+    blue = DummyAgent() if args.peaceful or args.noblue else DefendAgent()
+    red = DummyAgent() if args.peaceful or args.nored else ThreatAgent()
+
+    observations, _, __, ___ = env.reset()
+    blue_action = None
+    red_action = None
+    actions = (blue_action, red_action)
+
+    for i in range(args.num_episodes):
+        env.reset()
+        episode_memory = []
+        for t in range(env._max_episode_steps):
+            # separating observations. We also strip out time.
+            blue_observation = observations[0][1:]
+            red_observation = observations[1][1:]
+            blue_action = blue(blue_observation.reshape(1, 42))[0]
+            red_action = red(red_observation.reshape(1, 42))[0]
+            blue_previous = blue_observation
+            red_previous = red_observation
+            actions = (blue_action, red_action)
+            if args.verbose >= 1 and not args.peaceful:
+                print(f"{blue_action=}, {red_action=}")
+            observations, rewards, done, info = env.step(actions)
+            blue_observation = observations[0][1:]
+            red_observation = observations[1][1:]
+            blue_reward = rewards[0]
+            red_reward = rewards[1]
+            blue_loss = blue.learn(blue_previous, blue_reward, blue_observation, done)
+            red_loss = red.learn(red_previous, red_reward, red_observation, done)
+            if args.render:
+                env.render()
+            if args.report and i % 10 == 0:
+                episode_memory.append(
+                    {
+                        "episodes": i,
+                        "time": t,
+                        "blue action": blue_action,
+                        "red action": red_action,
+                        "true reactor pressure": env.r.pg,
+                        "true reactor temperature": env.r.tc,
+                        "reported reactor pressure": blue_observation[7],
+                        "reported reactor temperature": blue_observation[9],
+                        "true separator temperature": env.s.tc,
+                        "true separator level": env.s.level,
+                        "reported separator temperature": blue_observation[10],
+                        "reported separator level": blue_observation[11],
+                        "compressor cycles": env.cmpsr.cycles,
+                    }
+                )
+            if args.verbose >= 1:
+                print(
+                    f"time = {env.time}: reactor P, T, PVs = {env.r.pg}, {env.r.tc}, {info['failures']}"
+                )
+                print(f"{blue_reward=}, {red_reward=}")
+                print(f"{red_loss=}")
+                print(f"{blue_loss=}")
+            if done:
+                print(
+                    f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
+                    + (
+                        f"red team wins: {info['failures']}"
+                        if info["failures"]
+                        else "blue team wins"
+                    )
+                )
+                wins.append((0, 1) if info["failures"] else (1, 0))
+                if args.report and i % 10 == 0:
+                    if wins:
+                        try:
+                            win_rate = sum(1 for w in wins if w[0]) / sum(
+                                1 for w in wins if w[1]
+                            )
+                        except ZeroDivisionError:
+                            win_rate = 1 if wins[0][0] else 0
+                    else:
+                        win_rate = "n/a"
+                    summary.append(
+                        f"blue team win rate from last ten episodes: {win_rate}\n\n"
+                        + f"last failure condition: {info['failures']}\n\n"
+                    )
+                break
+        if args.report and i % 10 == 0:
+            fig, ax = plt.subplots()
+            # ax.plot(
+            #     [m["blue action"] for m in episode_memory],
+            #     label="blue team",
+            #     color="blue",
+            # )
+            ax.plot(
+                [m["red action"] for m in episode_memory], label="red team", color="red"
+            )
+            ax.set_title(f"actions at episode {i}")
+            ax.set_xlabel("time")
+            ax.set_ylabel("actions")
+            # plt.legend()
+            plt.savefig(f"actions_{d}_ep{i}.png")
+
+            fig, ax1 = plt.subplots()
+            ax1.plot(
+                [m["true reactor pressure"] for m in episode_memory],
+                label="real pressure",
+                color="red",
+            )
+            ax1.plot(
+                [m["reported reactor pressure"] for m in episode_memory],
+                label="reported pressure",
+                color="blue",
+            )
+            ax1.set_ylabel("pressure (kPag)")
+            ax1.set_ylim(2700, 3000)
+            ax2 = ax1.twinx()
+            ax2.plot(
+                [m["true reactor temperature"] for m in episode_memory],
+                label="real temperature",
+                color="red",
+                linestyle="dashed",
+            )
+            ax2.plot(
+                [m["reported reactor temperature"] for m in episode_memory],
+                label="reported temperature",
+                color="blue",
+                linestyle="dashed",
+            )
+            ax2.set_ylabel("temperature (degC)")
+            ax2.set_ylim(90, 180)
+            ax2.set_title(f"reactor parameters at episode {i}")
+            ax2.set_xlabel("time")
+            fig.legend(bbox_to_anchor=(0.85, 0.9))
+            fig.tight_layout()
+            plt.savefig(f"r_parameters_{d}_ep{i}.png")
+
+            fig, ax1 = plt.subplots()
+            ax1.plot(
+                [m["true separator temperature"] for m in episode_memory],
+                label="real temperature",
+                color="red",
+            )
+            ax1.plot(
+                [m["reported separator temperature"] for m in episode_memory],
+                label="reported temperature",
+                color="blue",
+            )
+            ax1.set_ylabel("temperature (degC)")
+            ax1.set_ylim(30, 20)
+            ax2 = ax1.twinx()
+            ax2.plot(
+                [m["true separator level"] for m in episode_memory],
+                label="real level",
+                color="red",
+                linestyle="dashed",
+            )
+            ax2.plot(
+                [m["reported separator level"] for m in episode_memory],
+                label="reported level",
+                color="blue",
+                linestyle="dashed",
+            )
+            ax2.set_ylabel("level (%)")
+            ax2.set_ylim(0, 100)
+            ax2.set_title(f"separator parameters at episode {i}")
+            ax2.set_xlabel("time")
+            fig.legend(bbox_to_anchor=(0.85, 0.9))
+            fig.tight_layout()
+            plt.savefig(f"s_parameters_{d}_ep{i}.png")
+            plt.close("all")
+
+            losses.append((blue_loss, red_loss))
+
+    ###############################################################################################
+    # Report generation
+    ###############################################################################################
+
+    if args.report:
+        with open(f"report_{d}.md", "w") as f:
+            f.write(f"wargame of TE process generated on {d}\n===\n")
+            f.write(action_txt + "\n\n")
+            f.write(f"red intent: {args.intent}\n\n")
+            for i in range(10):
+                f.write(
+                    f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{margin=auto}}\n"
+                )
+                f.write(
+                    f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{margin=auto}}\n"
+                )
+                f.write(
+                    f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{margin=auto}}\n"
+                )
+                # f.write(f"{summary[i]}\n\nblue and red training losses: {losses[i]}\n\\newpage")
+            # f.write(input("closing remarks?"))
+
+    ###############################################################################################
+    # Cleanup
+    ###############################################################################################
+
+    env.close()
