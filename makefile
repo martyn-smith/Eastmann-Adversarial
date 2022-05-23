@@ -1,14 +1,13 @@
 #all: TE results
 SHELL:= /bin/bash
 
-TE:
+build:
 	gfortran -g3 -o tedbg_$$(date +"%d%m%y") -fall-intrinsics -fbacktrace -fdefault-real-8 \
 	    -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none  \
-		-Wall -std=f2003 src/temain.f95;
-	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$$(date +"%d%m%y") src/temain.f95;
+		-Wall -std=f2003 src/main.f95;
+	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$$(date +"%d%m%y") src/main.f95;
 	ln -s -f te_$$(date +"%d%m%y") te;
 	./te_$$(date +"%d%m%y");
-	rm *.mod;
 
 moveresults:
 	@echo "making output folder"
@@ -28,29 +27,29 @@ fuzzresults:
 	done
 
 clean:
-	rm -f *.mod *.png report*.md *.h5 errors*.txt te_* tedbg_*
+	rm -f *.mod *.png report*.md *.h5 errors*.txt te_* tedbg_* __pycache__
 
-report: TE clean
-	python Pythonised/teprob.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
+report: build clean
+	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
-figures: TE clean
-	python Pythonised/teprob.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
+figures: build clean
+	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
 
-scenarios: TE clean
-	python Pythonised/teprob.py --fast --intent downtime --report 2>> errors_$$(date +"%Y-%m-%d").txt
+scenarios: build clean
+	Pythonised/main.py --fast --intent downtime --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_downtime_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	python Pythonised/teprob.py --fast --intent recipe --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --intent recipe --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_recipe_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	python Pythonised/teprob.py --fast --intent destruction --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --intent destruction --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_destruction_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	python Pythonised/teprob.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	python Pythonised/teprob.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
