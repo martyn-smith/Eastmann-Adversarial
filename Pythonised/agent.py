@@ -24,12 +24,12 @@ class DummyAgent:
     def __init__(self):
         pass
 
-    def __call__(self):
+    def __call__(self, *_):
         return None
 
-    # def learn(self):
-    #     pass
-    #
+    def learn(self, *_):
+        pass
+
 
 
 class Agent:

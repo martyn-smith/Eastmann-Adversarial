@@ -32,16 +32,19 @@ class DefendAgent(Agent):
             exit(1)
         n = xmeas.count('\n')
         xmeas = np.fromstring(xmeas, sep=' ').reshape(n, -1)
-        value = sum(
-            (self.gamma**i) * 20_000 * xmeas[17] for i, xmeas in enumerate(xmeas)
-        )
+        try:
+            value = sum(
+                (self.gamma**i) * 20_000 * xmeas[17] for i, xmeas in enumerate(xmeas)
+            )
+        except FloatingPointError:
+            value = 0.
         return value
 
     def learn(self, previous, reward, observation, done):
         value = self.value(observation)
         value = tf.convert_to_tensor([value], dtype=tf.float32)
         # return super().learn(previous, reward, observation, done)
-        print(value)
+        # print(value)
         previous = tf.convert_to_tensor([previous], dtype=tf.float32)
         observation = observation[:42]
         observation = tf.convert_to_tensor([observation], dtype=tf.float32)
