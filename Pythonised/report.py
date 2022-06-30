@@ -2,18 +2,18 @@ import matplotlib.pyplot as plt
 
 def make_figures(episode_memory, i, d):
     fig, ax = plt.subplots()
-    # ax.plot(
-    #     [m["blue action"] for m in episode_memory],
-    #     label="blue team",
-    #     color="blue",
-    # )
-    ax.plot(
-        [m["red action"] for m in episode_memory], label="red team", color="red"
-    )
+    if episode_memory[0]["red action"] is not None:
+        ax.plot(
+            [m["red action"] for m in episode_memory], label="reactor pressure readout change", color="red", linestyle="--"
+        )
+    if episode_memory[0]["blue action"] is not None:
+        ax.plot(
+            [m["blue action"] for m in episode_memory], label="A and C feed change", color="blue"
+        )
     ax.set_title(f"actions at episode {i}")
     ax.set_xlabel("time")
     ax.set_ylabel("actions")
-    # plt.legend()
+    plt.legend()
     plt.savefig(f"actions_{d}_ep{i}.png")
 
     fig, ax1 = plt.subplots()
@@ -61,8 +61,6 @@ def make_figures(episode_memory, i, d):
         label="reported temperature",
         color="blue",
     )
-    ax1.set_ylabel("temperature (degC)")
-    ax1.set_ylim(30, 20)
     ax2 = ax1.twinx()
     ax2.plot(
         [m["true separator level"] for m in episode_memory],
@@ -76,15 +74,12 @@ def make_figures(episode_memory, i, d):
         color="blue",
         linestyle="dashed",
     )
-    ax2.set_ylabel("level (%)")
-    ax2.set_ylim(0, 100)
     ax2.set_title(f"separator parameters at episode {i}")
     ax2.set_xlabel("time")
     fig.legend(bbox_to_anchor=(0.85, 0.9))
     fig.tight_layout()
     plt.savefig(f"s_parameters_{d}_ep{i}.png")
     plt.close("all")
-
 
 def make_report(d, action_txt, intent):
     with open(f"report_{d}.md", "w") as f:
