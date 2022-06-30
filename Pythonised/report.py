@@ -2,20 +2,17 @@ import matplotlib.pyplot as plt
 
 def make_figures(episode_memory, i, d):
     fig, ax = plt.subplots()
-    # ax.plot(
-    #     [m["blue action"] for m in episode_memory],
-    #     label="blue team",
-    #     color="blue",
-    # )
-    ax.plot(
-        [m["red action"][6] for m in episode_memory], label="reactor pressure setpoint change", color="red"
-    )
-    ax.plot(
-        [m["red action"][16] for m in episode_memory], label="reactor pressure readout change", color="red", linestyle="--"
-    )
-    ax.plot(
-        [m["blue action"][3] for m in episode_memory], label="A and C feed change", color="blue"
-    )
+    if episode_memory[0]["red action"] is not None:
+        ax.plot(
+            [m["red action"][16] for m in episode_memory], label="reactor pressure readout change", color="red", linestyle="--"
+        )
+        ax.plot(
+            [m["red action"][6] for m in episode_memory], label="reactor pressure setpoint change", color="red"
+        )
+    if episode_memory[0]["blue action"] is not None:
+        ax.plot(
+            [m["blue action"][3] for m in episode_memory], label="A and C feed change", color="blue"
+        )
     ax.set_title(f"actions at episode {i}")
     ax.set_xlabel("time")
     ax.set_ylabel("actions")
