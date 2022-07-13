@@ -326,12 +326,12 @@ elif __name__ == "__main__":
             if args.verbose >= 1 and "--peaceful" not in sys.argv:
                 print(blue.encode(action[0]), red.encode(action[1]))
             observations, rewards, done, info = env.step(action)
-            blue_obs = observations[0]
-            red_obs = observations[1]
+            blue_observation = observations[0]
+            red_observation = observations[1]
             blue_reward = rewards[0]
             red_reward = rewards[1]
-            blue.remember(prev_obs[1][1:], blue_action, blue_reward, blue_obs[1:], done)
-            red.remember(prev_obs[0][1:], red_action, red_reward, red_obs[1:], done)
+            blue.remember(prev_obs[1][1:], blue_action, blue_reward, blue_observation[1:], done)
+            red.remember(prev_obs[0][1:], red_action, red_reward, red_observation[1:], done)
             if args.render:
                 env.render()
             if args.report and i % 10 == 0:
@@ -341,15 +341,20 @@ elif __name__ == "__main__":
                         "time": t,
                         "blue action": blue_action,
                         "red action": red_action,
+                        "blue reward": blue_reward,
+                        "red reward": red_reward,
                         "true reactor pressure": env.r.pg,
                         "true reactor temperature": env.r.tc,
-                        "reported reactor pressure": blue_obs[7],
-                        "reported reactor temperature": blue_obs[9],
+                        "reported reactor pressure": blue_observation[7],
+                        "reported reactor temperature": blue_observation[9],
                         "true separator temperature": env.s.tc,
                         "true separator level": env.s.level,
-                        "reported separator temperature": blue_obs[11],
-                        "reported separator level": blue_obs[12],
-                        "compressor cycles": env.cmpsr.cycles,
+                        "reported separator temperature": blue_observation[11],
+                        "reported separator level": blue_observation[12],
+                        "real inflows": red_observation[1] + red_observation[2] + red_observation[3],
+                        "real outflows": red_observation[17],
+                        "compressor work": red_observation[20],
+                        "compressor cycles": env.cmpsr.cycles
                     }
                 )
             if args.verbose >= 1:
