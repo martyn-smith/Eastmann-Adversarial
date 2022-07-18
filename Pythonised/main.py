@@ -406,4 +406,4 @@ elif __name__ == "__main__":
 
     # TODO: and add a timed-out opportunity to write closing remarks
     if args.report:
-        make_report(d, action_txt, args.intent)
+        make_report(d, action_txt, args.intent, summary)
