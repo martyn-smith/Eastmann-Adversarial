@@ -121,7 +121,7 @@ def make_figures(episode_memory, i, d):
 
     plt.close("all")
 
-def make_report(d, action_txt, intent):
+def make_report(d, action_txt, intent, summary):
      with open(f"report_{d}.md", "w") as f:
         f.write(f"wargame of TE process generated on {d}\n===\n")
         f.write(action_txt + "\n\n")
@@ -146,4 +146,5 @@ def make_report(d, action_txt, intent):
             f.write(
                 f"![Compressor parameters at episode {10*i}](compressor_{d}_ep{10*i}.png){{width=50%}}\n"
             )
+            f.write(summary[i])
             f.write("\\newpage\n")
