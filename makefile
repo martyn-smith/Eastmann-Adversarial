@@ -41,6 +41,17 @@ report: clean TE model
 figures: clean TE model
 	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
 
+controls: clean TE model
+	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+	Pythonised/main.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+	Pythonised/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+
 scenarios: clean TE model
 	Pythonised/main.py --fast --intent downtime --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_downtime_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
