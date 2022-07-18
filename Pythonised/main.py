@@ -1478,4 +1478,4 @@ elif __name__ == "__main__":
     ###############################################################################################
 
     if args.report:
-       make_report(d, action_txt, args.intent)
+       make_report(d, action_txt, args.intent, summary)
