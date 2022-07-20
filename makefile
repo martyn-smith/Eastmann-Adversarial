@@ -36,7 +36,6 @@ report: TE clean
 	rm -f *.png report*.md
 
 figures: TE clean
-	cp -r ../models/stategenerator/ Pythonised/
 	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
 
 controls: TE clean
