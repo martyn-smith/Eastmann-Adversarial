@@ -74,6 +74,7 @@ def make_figures(episode_memory, i, d):
         label="real temperature",
         color="red",
     )
+    ax1.set_ylabel("temperature (degC)")
     ax2 = ax1.twinx()
     ax2.plot(
         [m["reported separator level"] for m in episode_memory],
@@ -87,6 +88,7 @@ def make_figures(episode_memory, i, d):
         color="red",
         linestyle="dashed",
     )
+    ax2.set_ylabel("level (%)")
     ax2.set_title(f"separator parameters at episode {i}")
     ax2.set_xlabel("time")
     fig.legend(bbox_to_anchor=(0.85, 0.9))
@@ -95,22 +97,27 @@ def make_figures(episode_memory, i, d):
 
     fix, ax = plt.subplots()
     ax.plot(
-        [m["real inflows"] for m in episode_memory], label="real inflows"
+        [m["real inflows"] for m in episode_memory], label="real inflows", color="red"
     )
     ax.plot(
-        [m["real outflows"] for m in episode_memory], label="real outflows"
+        [m["real outflows"] for m in episode_memory], label="real outflows", color="blue"
     )
+    ax.set_xlabel("time")
     ax.set_title(f"inflows and outflows at episode {i}")
     fig.legend()
     plt.savefig(f"flows_{d}_ep{i}.png")
 
-    fix, ax = plt.subplots()
-    ax.plot(
-        [m["compressor work"] for m in episode_memory], label="real inflows"
+    fix, ax1 = plt.subplots()
+    ax1.plot(
+        [m["compressor work"] for m in episode_memory], label="compressor load", color="red"
     )
-    ax.plot(
-        [m["compressor cycles"] for m in episode_memory], label="real outflows"
+    ax1.set_ylabel("load (kW)")
+    ax2 = ax1.twinx()
+    ax2.plot(
+        [m["compressor cycles"] for m in episode_memory], label="compressor cycles", color="blue"
     )
+    ax2.set_ylabel("cycles")
+    ax2.set_xlabel("time")
     ax.set_title(f"compressor features at episode {i}")
     fig.legend()
     plt.savefig(f"compressor_{d}_ep{i}.png")
