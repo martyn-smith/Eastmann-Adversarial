@@ -107,7 +107,7 @@ def make_figures(episode_memory, i, d):
     fig.legend()
     plt.savefig(f"flows_{d}_ep{i}.png")
 
-    fix, ax1 = plt.subplots()
+    fig, ax1 = plt.subplots()
     ax1.plot(
         [m["compressor work"] for m in episode_memory], label="compressor load", color="red"
     )
@@ -120,6 +120,7 @@ def make_figures(episode_memory, i, d):
     ax2.set_xlabel("time")
     ax.set_title(f"compressor features at episode {i}")
     fig.legend()
+    fig.tight_layout()
     plt.savefig(f"compressor_{d}_ep{i}.png")
 
     plt.close("all")
