@@ -346,6 +346,8 @@ elif __name__ == "__main__":
                         "time": t,
                         "blue action": blue_action,
                         "red action": red_action,
+                        "blue reward": blue_reward,
+                        "red reward": red_reward,
                         "reported reactor pressure": blue_observation[7],
                         "reported reactor temperature": blue_observation[9],
                         "true reactor pressure": red_observation[7],

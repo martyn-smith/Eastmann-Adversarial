@@ -24,9 +24,9 @@
 !===============================================================================
 
 include "entities.f95"
-include "tecontrol.f95"
-include "teout.f95"
-include "tewalk.f95"
+include "control.f95"
+include "out.f95"
+include "walk.f95"
 include "teprob.f95"
 !include "tesense.f95"
 

@@ -1,13 +1,15 @@
 #all: TE results
 SHELL:= /bin/bash
+date:= $(shell date +"%Y-%m-%d")
+sdate:= $(shell date +"%d%m%y")
 
 TE:
-	gfortran -g3 -o tedbg_$$(date +"%d%m%y") -fall-intrinsics -fbacktrace -fdefault-real-8 \
+	gfortran -g3 -o tedbg_$(sdate) -fall-intrinsics -fbacktrace -fdefault-real-8 \
 	    -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none  \
-		-Wall -std=f2003 -fbackslash src/temain.f95;
-	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -fbackslash -o te_$$(date +"%d%m%y") src/temain.f95;
-	ln -s -f te_$$(date +"%d%m%y") te;
-	./te_$$(date +"%d%m%y");
+		-Wall -std=f2003 -fbackslash src/main.f95;
+	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -fbackslash -o te_$(sdate) src/main.f95;
+	ln -s -f te_$(sdate) te;
+	./te_$(sdate);
 	rm *.mod;
 
 moveresults:
@@ -31,40 +33,44 @@ clean:
 	rm -f *.mod *.png report*.md *.h5 errors*.txt te_* tedbg_*
 
 model:
-	cp -r ../models/saved/stategenerator/ Pythonised/
+	if ! [ -d "Pythonised/stategenerator" ]; then \
+		cp -r ../models/saved/stategenerator/ Pythonised/; \
+	else \
+		echo "found model: skipping..."; \
+	fi \
 
 report: clean TE model
-	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --report 2>> errors_$(date).txt
+	pandoc -o report_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
 
 figures: clean TE model
-	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --report 2>> errors_$(date).txt
 
 controls: clean TE model
-	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --report 2>> errors_$(date).txt
+	pandoc -o report_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --nored --report 2>> errors_$(date).txt
+	pandoc -o report_nored_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --noblue --report 2>> errors_$(date).txt
+	pandoc -o report_noblue_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
 
 scenarios: clean TE model
-	Pythonised/main.py --fast --intent downtime --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_downtime_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --intent downtime --report 2>> errors_$(date).txt
+	pandoc -o report_downtime_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --intent recipe --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_recipe_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --intent recipe --report 2>> errors_$(date).txt
+	pandoc -o report_recipe_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --intent destruction --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_destruction_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --intent destruction --report 2>> errors_$(date).txt
+	pandoc -o report_destruction_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --nored --report 2>> errors_$(date).txt
+	pandoc -o report_nored_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	Pythonised/main.py --fast --noblue --report 2>> errors_$(date).txt
+	pandoc -o report_noblue_$(date).pdf report_$(date).md
 	rm -f *.png report*.md

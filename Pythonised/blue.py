@@ -20,25 +20,43 @@ class DefendAgent(Agent):
         super().__init__(1)
 
     def value(self, observation):
+        """
+        Deriving the value from a digital twin.
+
+        Method:
+
+        We receive an observation - an array of 41 (?) measured variables. We then feed that
+        into a neural net, generating a full state vector of 50 floating point variables
+        plus 24 fault flags. (Technically, the zeroth variable is time, so we should
+        always set that to zero ourselves). We then feed that to the twin, and capture
+        its output at t+48 hours. (Note that we capture output at t+48 hours *only*,
+        for speed).
+
+        The twin returns xmeas (42 floating point variables) + xmv
+        (12 floating point variables) if -verbose was not enabled, otherwise it returns
+        the same state + fault flags as before. We obtain the value from those
+        (currently set to NOT verbose).
+
+        Note that the Twin outputs to stderr ONLY if it fails to load the seed state.
+        A successful load that results in plant failure still outputs to stdout.
+        """
         observation = observation.reshape(1,53)
-        state = self.stategenerator.predict([observation])[0] # np.ndarray, 74 inputs
+        state = self.stategenerator.predict([observation])[0]
         state = bytes(str(state[:50])[2:-1] + " " + str(state[50:].astype(int))[1:-1], "utf-8")
         try:
-            output = run(["./te", "-l", "-v"], input=state, capture_output=True)
+            output = run(["./te", "-l", "-t", "-f"], input=state, capture_output=True)
             assert output.stderr == b""
-            xmeas = output.stdout.decode("utf-8")
+            output = output.stdout.decode("utf-8")
+            # print(output)
+            n = output.count('\n')
+            xmeas = np.fromstring(output, sep=' ').reshape(n, -1)
+            if xmeas.shape == (1, 55):
+                return 20_000. * xmeas[0][17]
+            else:
+                return -999.
         except AssertionError as e:
             print(f"twin output error: {e}", file=sys.stderr)
             exit(1)
-        n = xmeas.count('\n')
-        xmeas = np.fromstring(xmeas, sep=' ').reshape(n, -1)
-        try:
-            value = sum(
-                (self.gamma**i) * 20_000 * xmeas[17] for i, xmeas in enumerate(xmeas)
-            )
-        except FloatingPointError:
-            value = 0.
-        return value
 
     def learn(self, previous, reward, observation, done):
         value = self.value(observation)
