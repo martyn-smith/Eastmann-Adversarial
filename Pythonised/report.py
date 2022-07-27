@@ -97,7 +97,7 @@ def make_figures(episode_memory, i, d):
     fig.tight_layout()
     plt.savefig(f"s_parameters_{d}_ep{i}.png")
 
-    fix, ax = plt.subplots()
+    fig, ax = plt.subplots()
     ax.plot(
         [m["real inflows"] for m in episode_memory], label="real inflows", color="red"
     )
@@ -121,6 +121,7 @@ def make_figures(episode_memory, i, d):
     ax2.set_xlabel("time")
     ax2.set_title(f"compressor features at episode {i}")
     fig.legend()
+    fig.tight_layout()
     plt.savefig(f"compressor_{d}_ep{i}.png")
 
     plt.close("all")
