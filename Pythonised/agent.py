@@ -25,7 +25,7 @@ class DummyAgent:
         pass
 
     def __call__(self, *_):
-        return None
+        return [None]
 
     def learn(self, *_):
         pass
