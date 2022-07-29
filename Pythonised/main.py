@@ -356,7 +356,7 @@ elif __name__ == "__main__":
                         "reported separator level": blue_observation[12],
                         "true separator temperature": red_observation[11],
                         "true separator level": red_observation[12],
-                        "real inflows": [red_observation[1] * 22.32) + red_observation[2] + red_observation[3],
+                        "real inflows": (red_observation[1] * 22.32) + red_observation[2] + red_observation[3],
                         "real outflows": red_observation[17],
                         "compressor work": red_observation[20],
                         "compressor cycles": env.cmpsr.cycles
