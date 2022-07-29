@@ -109,7 +109,7 @@ class ActorCriticNetwork(keras.Model):
         self.fc2 = Dense(self.fc2_dims, activation="relu")
         #self.lstm = LSTM(16)
         self.v = Dense(1, activation=None)
-        self.pi = Dense(n_actions, activation="softmax")
+        self.pi = Dense(n_actions, activation="sigmoid")
 
     def __call__(self, state):
         value = self.fc1(state)
