@@ -41,7 +41,7 @@ class DefendAgent(Agent):
         A successful load that results in plant failure still outputs to stdout.
         """
         observation = observation.reshape(1,53)
-        state = self.stategenerator.predict([observation])[0]
+        state = self.stategenerator([observation]).numpy()[0]
         state = bytes(str(state[:50])[2:-1] + " " + str(state[50:].astype(int))[1:-1], "utf-8")
         try:
             output = run(["./te", "-l", "-t", "-f"], input=state, capture_output=True)
