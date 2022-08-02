@@ -2,7 +2,6 @@ Oxidised/target/
 builds/
 reference/
 data/
-Pythonised/stategenerator/
 errors*.txt
 *.dat
 *.mod

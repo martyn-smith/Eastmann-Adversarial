@@ -48,10 +48,11 @@ class DefendAgent(Agent):
             assert output.stderr == b""
             output = output.stdout.decode("utf-8")
             # print(output)
-            n = output.count('\n')
-            xmeas = np.fromstring(output, sep=' ').reshape(n, -1)
-            if xmeas.shape == (1, 55):
-                return 20_000. * xmeas[0][17]
+            # n = output.count('\n')
+            # xmeas = np.fromstring(output, sep=" ").reshape(n, -1)
+            xmeas = np.fromstring(output, sep=" ")[1:42]
+            if xmeas.shape == (41,):
+                return 20_000. * xmeas[17]
             else:
                 return -999.
         except AssertionError as e:
