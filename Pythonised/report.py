@@ -1,14 +1,19 @@
 import matplotlib.pyplot as plt
 
+
 def make_figures(episode_memory, i, d):
     fig, ax = plt.subplots()
     if episode_memory[0]["blue action"] is not None:
         ax.plot(
-            [m["blue action"] for m in episode_memory], label="A and C feed change", color="blue"
+            [m["blue action"] for m in episode_memory],
+            label="A and C feed change",
+            color="blue",
         )
     if episode_memory[0]["red action"] is not None:
         ax.plot(
-            [m["red action"] for m in episode_memory], label="reactor pressure readout change", color="red"
+            [m["red action"] for m in episode_memory],
+            label="reactor pressure readout change",
+            color="red",
         )
     ax.set_title(f"actions at episode {i}")
     ax.set_xlabel("time")
@@ -16,16 +21,28 @@ def make_figures(episode_memory, i, d):
     plt.legend()
     plt.savefig(f"actions_{d}_ep{i}.png")
 
-    fig, ax = plt.subplots()
-    ax.plot(
-            [m["blue reward"] for m in episode_memory], label="blue reward", color="blue"
+    fig, ax1 = plt.subplots()
+    ax1.plot(
+        [m["blue reward"] for m in episode_memory], label="blue reward", color="blue"
     )
-    ax.plot(
-            [m["red reward"] for m in episode_memory], label="red reward", color="red"
+    ax1.plot([m["red reward"] for m in episode_memory], label="red reward", color="red")
+    ax1.set_ylabel("reward")
+    ax2 = ax1.twinx()
+    ax2.plot(
+        [m["blue loss"] for m in episode_memory],
+        label="blue loss",
+        color="blue",
+        linestyle="dashed",
     )
+    ax2.plot(
+        [m["red loss"] for m in episode_memory],
+        label="red loss",
+        color="red",
+        linestyle="dashed",
+    )
+
     ax.set_title(f"rewards at episode {i}")
     ax.set_xlabel("time")
-    ax.set_ylabel("reward")
     plt.legend()
     plt.savefig(f"rewards_{d}_ep{i}.png")
 
@@ -33,12 +50,12 @@ def make_figures(episode_memory, i, d):
     ax1.plot(
         [m["reported reactor pressure"] for m in episode_memory],
         label="reported pressure",
-        color="blue"
+        color="blue",
     )
     ax1.plot(
         [m["true reactor pressure"] for m in episode_memory],
         label="real pressure",
-        color="red"
+        color="red",
     )
     ax1.set_ylabel("pressure (kPag)")
     ax1.set_ylim(2700, 3000)
@@ -100,25 +117,30 @@ def make_figures(episode_memory, i, d):
         [m["real inflows"] for m in episode_memory], label="real inflows", color="red"
     )
     ax.plot(
-        [m["real outflows"] for m in episode_memory], label="real outflows", color="blue"
+        [m["real outflows"] for m in episode_memory],
+        label="real outflows",
+        color="blue",
     )
-    ax.set_xlabel("time")
     ax.set_title(f"inflows and outflows at episode {i}")
     fig.legend()
     plt.savefig(f"flows_{d}_ep{i}.png")
 
     fig, ax1 = plt.subplots()
     ax1.plot(
-        [m["compressor work"] for m in episode_memory], label="compressor load", color="red"
+        [m["compressor work"] for m in episode_memory],
+        label="compressor load",
+        color="red",
     )
     ax1.set_ylabel("load (kW)")
     ax2 = ax1.twinx()
     ax2.plot(
-        [m["compressor cycles"] for m in episode_memory], label="compressor cycles", color="blue"
+        [m["compressor cycles"] for m in episode_memory],
+        label="compressor cycles",
+        color="blue",
     )
     ax2.set_ylabel("cycles")
     ax2.set_xlabel("time")
-    ax.set_title(f"compressor features at episode {i}")
+    ax2.set_title(f"compressor features at episode {i}")
     fig.legend()
     fig.tight_layout()
     plt.savefig(f"compressor_{d}_ep{i}.png")
