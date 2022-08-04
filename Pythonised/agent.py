@@ -66,7 +66,7 @@ class Agent:
         self.actor_critic.optimizer.apply_gradients(
             zip(gradient, self.actor_critic.trainable_variables)
         )
-        return gradient
+        return total_loss.numpy().sum()
 
     # def remember(self, state, action, reward, observation, done):
     #     self.memory.append((state, action, reward, observation, done))

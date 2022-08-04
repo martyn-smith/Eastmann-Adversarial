@@ -168,16 +168,18 @@
     sm[11] sm[3] + S (Separator) -> C (Stripper)
     sm[12] C (Stripper) -> prod
 
-    Red team action
+    Red team actions
 
-    adjust xmeas[7]
+    i = [0..8] => set setpt[i]
+    i = [9..49] => set xmeas[i-9]
 
-    Blue team action
+    Blue team actions
 
-    adjust xmv[3]
+    i = [0..11] => set xmv[i]
 
 ===============================================================================
 """
+
 from argparse import Action as ArgAction, ArgumentParser, RawTextHelpFormatter
 from agent import DummyAgent
 from blue import DefendAgent
@@ -198,6 +200,7 @@ from red import ThreatAgent
 from teprob import TEproc
 from report import make_figures, make_report
 
+# from sense import Sensors
 from statistics import mode
 import sys
 
@@ -206,6 +209,7 @@ np.seterr(all="raise")
 DELTA_t = 1.0 / 3600.0
 
 log = []
+
 
 class ProcessError(Exception):
     """
@@ -223,15 +227,19 @@ class ProcessError(Exception):
         plt.show()
         print("goodbye")
 
+
+##################################################################################################
+# ArgParse preamble
+##################################################################################################
+
 description = """
     Tennessee Eastmann Adversarial Control Challenge - Single Continunous Control version.
-
 """
 
 action_txt = """
-Red team action:   adjust xmeas[7]
 
 Blue team action:  adjust xmv[3]
+Red team action:   adjust xmeas[7]
 """
 
 parser = ArgumentParser(
@@ -283,7 +291,7 @@ elif __name__ == "__main__":
 
     gym.envs.registration.register(
         id="TennesseeEastmannContinous-v1",
-        entry_point="__main__:TEproc",
+        entry_point="teprob:TEproc",
         max_episode_steps=int(48 * 3600),
         reward_threshold=195.0,
     )
@@ -318,25 +326,31 @@ elif __name__ == "__main__":
             red_previous = red_observation
             actions = (blue_action, red_action)
             if args.verbose >= 1 and not args.peaceful:
-                print(f"{blue_action=}, {red_action=}")
+                print(actions)
             observations, rewards, done, info = env.step(actions)
             blue_observation = observations[0]
             red_observation = observations[1]
             blue_reward = rewards[0]
             red_reward = rewards[1]
-            blue_loss = blue.learn(blue_previous[1:], blue_reward, blue_observation[1:], done)
-            red_loss = red.learn(red_previous[1:], red_reward, red_observation[1:], done)
+            blue_loss = blue.learn(
+                blue_previous[1:], blue_reward, blue_observation[1:], done
+            )
+            red_loss = red.learn(
+                red_previous[1:], red_reward, red_observation[1:], done
+            )
             if args.render:
                 env.render()
             if args.report and i % 10 == 0:
                 episode_memory.append(
                     {
-                        "episodes": i,
+                        "episode": i,
                         "time": t,
                         "blue action": blue_action,
                         "red action": red_action,
                         "blue reward": blue_reward,
                         "red reward": red_reward,
+                        "blue loss": blue_loss,
+                        "red loss": red_loss,
                         "reported reactor pressure": blue_observation[7],
                         "reported reactor temperature": blue_observation[9],
                         "true reactor pressure": red_observation[7],
@@ -345,10 +359,12 @@ elif __name__ == "__main__":
                         "reported separator level": blue_observation[12],
                         "true separator temperature": red_observation[11],
                         "true separator level": red_observation[12],
-                        "real inflows": (red_observation[1] * 22.32) + red_observation[2] + red_observation[3],
+                        "real inflows": (red_observation[1] * 22.32)
+                        + red_observation[2]
+                        + red_observation[3],
                         "real outflows": red_observation[17],
                         "compressor work": red_observation[20],
-                        "compressor cycles": env.cmpsr.cycles
+                        "compressor cycles": env.cmpsr.cycles,
                     }
                 )
             if args.verbose >= 1:
@@ -356,8 +372,6 @@ elif __name__ == "__main__":
                     f"time = {env.time}: reactor P, T, PVs = {env.r.pg}, {env.r.tc}, {info['failures']}"
                 )
                 print(f"{blue_reward=}, {red_reward=}")
-                print(f"{red_loss=}")
-                print(f"{blue_loss=}")
             if done:
                 print(
                     f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
@@ -385,11 +399,16 @@ elif __name__ == "__main__":
                 break
         if args.report and i % 10 == 0:
             make_figures(episode_memory, i, d)
-            losses.append((blue_loss, red_loss))
 
     ###############################################################################################
     # Report generation
     ###############################################################################################
 
     if args.report:
-       make_report(d, action_txt, args.intent, summary)
+        make_report(d, action_txt, args.intent, summary)
+
+    ###############################################################################################
+    # Cleanup
+    ###############################################################################################
+
+    env.close()

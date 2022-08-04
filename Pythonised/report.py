@@ -18,7 +18,7 @@ def make_figures(episode_memory, i, d):
     ax.set_title(f"actions at episode {i}")
     ax.set_xlabel("time")
     ax.set_ylabel("actions")
-    plt.legend()
+    fig.legend()
     plt.savefig(f"actions_{d}_ep{i}.png")
 
     fig, ax1 = plt.subplots()
@@ -40,10 +40,10 @@ def make_figures(episode_memory, i, d):
         color="red",
         linestyle="dashed",
     )
-
-    ax.set_title(f"rewards at episode {i}")
-    ax.set_xlabel("time")
-    plt.legend()
+    ax2.set_ylabel("loss")
+    ax1.set_title(f"rewards and actions at episode {i}")
+    ax1.set_xlabel("time")
+    fig.legend()
     plt.savefig(f"rewards_{d}_ep{i}.png")
 
     fig, ax1 = plt.subplots()
