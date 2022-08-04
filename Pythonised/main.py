@@ -237,16 +237,9 @@ description = """
 """
 
 action_txt = """
-Red team actions
-
-    i = [0..8] => set setpt[i]
-    i = [9..49] => set xmeas[i-9]
-
-    Blue team actions
-
-    i = [0..11] => set xmv[i]
+Blue team action:  adjust xmv[3]
+Red team action:   adjust xmeas[7]
 """
-
 
 parser = ArgumentParser(
     description=description + "\n" + action_txt, formatter_class=RawTextHelpFormatter
@@ -335,7 +328,7 @@ elif __name__ == "__main__":
                 print(actions)
             observations, rewards, done, info = env.step(actions)
             blue_observation = observations[0]
-            red_obervation = observations[1]
+            red_observation = observations[1]
             blue_reward = rewards[0]
             red_reward = rewards[1]
             blue_loss = blue.learn(
