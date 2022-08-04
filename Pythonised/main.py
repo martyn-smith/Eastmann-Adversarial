@@ -332,11 +332,11 @@ elif __name__ == "__main__":
                 print(actions)
             observations, rewards, done, info = env.step(actions)
             blue_observation = observations[0]
-            red_obervation = observations[1]
+            red_observation = observations[1]
             blue_reward = rewards[0]
             red_reward = rewards[1]
-            blue.learn(blue_previous[1:], blue_reward, blue_observation[1:], done)
-            red.learn(red_previous[1:], red_reward, red_observation[1:], done)
+            blue_loss = blue.learn(blue_previous[1:], blue_reward, blue_observation[1:], done)
+            red_loss = red.learn(red_previous[1:], red_reward, red_observation[1:], done)
             if args.render:
                 env.render()
             if args.report and i % 10 == 0:
@@ -348,6 +348,8 @@ elif __name__ == "__main__":
                         "red action": red_action,
                         "blue reward": blue_reward,
                         "red reward": red_reward,
+                        "blue loss": blue_loss,
+                        "red loss": red_loss,
                         "reported reactor pressure": blue_observation[7],
                         "reported reactor temperature": blue_observation[9],
                         "true reactor pressure": red_observation[7],
