@@ -210,6 +210,7 @@ DELTA_t = 1.0 / 3600.0
 
 log = []
 
+
 class ProcessError(Exception):
     """
     Catches a situation where the plant model has reached an implausible state
@@ -269,7 +270,9 @@ parser.add_argument(
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--nored", help="no red team actions", action="store_true")
 group.add_argument("--noblue", help="no blue team actions", action="store_true")
-group.add_argument("--peaceful", help="no blue or red team actions", action="store_true")
+group.add_argument(
+    "--peaceful", help="no blue or red team actions", action="store_true"
+)
 
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
@@ -335,8 +338,12 @@ elif __name__ == "__main__":
             red_obervation = observations[1]
             blue_reward = rewards[0]
             red_reward = rewards[1]
-            blue.learn(blue_previous[1:], blue_reward, blue_observation[1:], done)
-            red.learn(red_previous[1:], red_reward, red_observation[1:], done)
+            blue_loss = blue.learn(
+                blue_previous[1:], blue_reward, blue_observation[1:], done
+            )
+            red_loss = red.learn(
+                red_previous[1:], red_reward, red_observation[1:], done
+            )
             if args.render:
                 env.render()
             if args.report and i % 10 == 0:
@@ -348,6 +355,8 @@ elif __name__ == "__main__":
                         "red action": red_action,
                         "blue reward": blue_reward,
                         "red reward": red_reward,
+                        "blue loss": blue_loss,
+                        "red loss": red_loss,
                         "reported reactor pressure": blue_observation[7],
                         "reported reactor temperature": blue_observation[9],
                         "true reactor pressure": red_observation[7],
@@ -356,10 +365,12 @@ elif __name__ == "__main__":
                         "reported separator level": blue_observation[12],
                         "true separator temperature": red_observation[11],
                         "true separator level": red_observation[12],
-                        "real inflows": (red_observation[1] * 22.32) + red_observation[2] + red_observation[3],
+                        "real inflows": (red_observation[1] * 22.32)
+                        + red_observation[2]
+                        + red_observation[3],
                         "real outflows": red_observation[17],
                         "compressor work": red_observation[20],
-                        "compressor cycles": env.cmpsr.cycles
+                        "compressor cycles": env.cmpsr.cycles,
                     }
                 )
             if args.verbose >= 1:

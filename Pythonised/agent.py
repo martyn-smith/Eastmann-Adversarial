@@ -31,7 +31,6 @@ class DummyAgent:
         pass
 
 
-
 class Agent:
     def __init__(self, n_out):
         # create model here in child process
@@ -47,9 +46,9 @@ class Agent:
     def __call__(self, observation):
         observation = tf.convert_to_tensor([observation])
         value, actions = self.actor_critic(observation)
-        return np.clip(actions.numpy()[0] + (self.epsilon * self.rng()) * self.scale,
-                       0.,
-                       100.)
+        return np.clip(
+            actions.numpy()[0] + (self.epsilon * self.rng()) * self.scale, 0.0, 100.0
+        )
 
     def learn(self, previous, reward, observation, done):
         previous = tf.convert_to_tensor([previous], dtype=tf.float32)
@@ -70,6 +69,7 @@ class Agent:
         self.actor_critic.optimizer.apply_gradients(
             zip(gradient, self.actor_critic.trainable_variables)
         )
+        return total_loss.numpy()[0][0]
 
     # def remember(self, state, action, reward, observation, done):
     #     self.memory.append((state, action, reward, observation, done))

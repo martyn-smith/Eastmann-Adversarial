@@ -6,6 +6,7 @@ from subprocess import run
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 
+
 class DefendAgent(Agent):
     def __init__(self):
         self.id = "blue"
@@ -27,22 +28,23 @@ class DefendAgent(Agent):
 
         We receive an observation - an array of 41 (?) measured variables. We then feed that
         into a neural net, generating a full state vector of 50 floating point variables
-        plus 24 fault flags. (Technically, the zeroth variable is time, so we should
-        always set that to zero ourselves). We then feed that to the twin, and capture
-        its output at t+48 hours. (Note that we capture output at t+48 hours *only*,
-        for speed).
+        plus 24 fault flags. We then feed that to the twin, and capture
+        its output at t+48 hours, discarding the zeroth variable (time).
+        (Note that we capture output at t+48 hours *only*, for speed).
 
-        The twin returns xmeas (42 floating point variables) + xmv
-        (12 floating point variables) if -verbose was not enabled, otherwise it returns
-        the same state + fault flags as before. We obtain the value from those
-        (currently set to NOT verbose).
+        The twin returns time, plus xmeas (42 floating point variables, the last being a convenience
+        variable) + xmv (12 floating point variables) if -verbose was not enabled,
+        otherwise it returns time, plus the same state vector (plus fault flags) as before.
+        We obtain the value from those (currently set to NOT verbose).
 
         Note that the Twin outputs to stderr ONLY if it fails to load the seed state.
         A successful load that results in plant failure still outputs to stdout.
         """
-        observation = observation.reshape(1,53)
+        observation = observation.reshape(1, 53)
         state = self.stategenerator([observation]).numpy()[0]
-        state = bytes(str(state[:50])[2:-1] + " " + str(state[50:].astype(int))[1:-1], "utf-8")
+        state = bytes(
+            str(state[:50])[2:-1] + " " + str(state[50:].astype(int))[1:-1], "utf-8"
+        )
         try:
             output = run(["./te", "-l", "-t", "-f"], input=state, capture_output=True)
             assert output.stderr == b""
@@ -52,9 +54,9 @@ class DefendAgent(Agent):
             # xmeas = np.fromstring(output, sep=" ").reshape(n, -1)
             xmeas = np.fromstring(output, sep=" ")[1:42]
             if xmeas.shape == (41,):
-                return 20_000. * xmeas[17]
+                return 20_000.0 * xmeas[17]
             else:
-                return -999.
+                return -999.0
         except AssertionError as e:
             print(f"twin output error: {e}", file=sys.stderr)
             exit(1)
