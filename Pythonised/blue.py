@@ -87,4 +87,4 @@ class DefendAgent(Agent):
         self.actor_critic.optimizer.apply_gradients(
             zip(gradient, self.actor_critic.trainable_variables)
         )
-        return total_loss.numpy()[0][0]
+        return total_loss.numpy().sum()
