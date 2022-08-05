@@ -28,7 +28,7 @@ class DummyAgent:
         return [None]
 
     def learn(self, *_):
-        return 0.
+        return 0.0
 
 
 class Agent:
