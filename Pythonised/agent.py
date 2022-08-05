@@ -36,13 +36,16 @@ class Agent:
         self.gamma = 0.98
         self.epsilon = 0.0001
         self.rng = np.random.random
+        self.scale = 100.
         self.actor_critic = ActorCriticNetwork(n_out)
         self.actor_critic.compile(optimizer="adam")
 
     def __call__(self, observation):
         observation = tf.convert_to_tensor([observation])
         value, actions = self.actor_critic(observation)
-        return actions.numpy()[0] + (self.epsilon * self.rng())
+        return np.clip((actions.numpy()[0] + (self.epsilon * self.rng()) * self.scale),
+                       0.,
+                       100.)
 
     def learn(self, previous, reward, observation, done):
         previous = tf.convert_to_tensor([previous], dtype=tf.float32)

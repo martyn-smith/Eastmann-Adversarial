@@ -391,7 +391,7 @@ elif __name__ == "__main__":
                         win_rate = "n/a"
                     summary.append(
                         f"blue team win rate from last ten episodes: {win_rate}\n\n"
-                        + f"last failure condition: {info['failures']}\n\n"
+                        + f"last failure condition: {info['failures']} after {t/3600.:1f} hrs ({t} timesteps): \n\n"
                     )
                 break
         if args.report and i % 10 == 0:
