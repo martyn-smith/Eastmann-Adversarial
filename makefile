@@ -64,3 +64,14 @@ scenarios: build clean
 	Pythonised/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
+
+pretrain: build clean
+	Pythonised/main.py --fast --saveblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_trainblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+
+static: pretrain
+	Pythonised/main.py --fast --loadblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_testblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+		
