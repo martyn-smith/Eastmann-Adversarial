@@ -74,3 +74,13 @@ scenarios: clean TE model
 	Pythonised/main.py --fast --noblue --report 2>> errors_$(date).txt
 	pandoc -o report_noblue_$(date).pdf report_$(date).md
 	rm -f *.png report*.md
+
+pretrain: clean TE model
+	Pythonised/main.py --fast --saveblue --report 2>> errors_$(date).txt
+	pandoc -o report_trainblue_$(date).pdf report_$(date).md
+	rm -f *.png report*.md
+
+static: pretrain
+	Pythonised/main.py --fast --loadblue --report 2>> errors_$(date).txt
+	pandoc -o report_testblue_$(date).pdf report_$(date).md
+	rm -f *.png report*.md

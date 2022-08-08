@@ -266,6 +266,12 @@ group.add_argument("--noblue", help="no blue team actions", action="store_true")
 group.add_argument(
     "--peaceful", help="no blue or red team actions", action="store_true"
 )
+group.add_argument(
+    "--loadblue", help="loads a pretrained blue team", action="store_true"
+)
+group.add_argument(
+    "--saveblue", help="loads a pretrained blue team", action="store_true"
+)
 
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
@@ -304,8 +310,11 @@ elif __name__ == "__main__":
     summary = []
     losses = []
 
-    blue = DummyAgent() if args.peaceful or args.noblue else DefendAgent()
+    blue = DummyAgent() if args.peaceful or args.noblue else DefendAgent(args.loadblue)
     red = DummyAgent() if args.peaceful or args.nored else ThreatAgent()
+
+    if args.loadblue:
+        blue.actor_critic.load_weights("./Pythonised/actorcritic")
 
     observations, _, __, ___ = env.reset()
     blue_action = None
@@ -398,6 +407,9 @@ elif __name__ == "__main__":
                 break
         if args.report and i % 10 == 0:
             make_figures(episode_memory, i, d)
+
+    if args.saveblue:
+        blue.actor_critic.save_weights("./Pythonised/actorcritic")
 
     ###############################################################################################
     # Report generation
