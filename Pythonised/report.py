@@ -29,10 +29,10 @@ def make_figures(episode_memory, i, d):
     ax1.set_ylabel("reward")
     ax2 = ax1.twinx()
     ax2.plot(
-            [m["blue loss"] for m in episode_memory], label="blue reward", color="blue", linestyle="dashed"
+            [m["blue loss"] for m in episode_memory], label="blue loss", color="blue", linestyle="dashed"
     )
     ax2.plot(
-            [m["blue loss"] for m in episode_memory], label="blue reward", color="blue", linestyle="dashed"
+            [m["blue loss"] for m in episode_memory], label="blue loss", color="blue", linestyle="dashed"
     )
     ax2.set_ylabel("loss")
     ax1.set_title(f"rewards at episode {i}")

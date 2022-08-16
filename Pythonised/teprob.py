@@ -198,7 +198,6 @@ from random import choice  # , uniform
 from red import ThreatAgent
 
 # from sense import Sensors
-from statistics import mode
 import sys
 
 np.seterr(all="raise")
@@ -828,7 +827,10 @@ class TEproc(gym.Env):
         """
         Convenience representation function. Should be harmonised with the Fortran output.
         """
-        return f"{sum(self.measure()[40:])}"
+        return f"{self.r}"
+
+    def __repr__(self) -> str:
+        return f"{self.time}"
 
     def step(
         self, action
@@ -1025,11 +1027,11 @@ class TEproc(gym.Env):
             if xmeas_tgt == 0:
                 xmeas_tgt = np.ceiling(rand() * 42.0)
 
-            if time > 0.012 and time < 0.027:
+            if self.time > 0.012 and self.time < 0.027:
                 xmeas[xmeas_tgt] = 0.0
 
         if idv(21):
-            if time > 0.012 and time < 0.027:
+            if self.time > 0.012 and self.time < 0.027:
                 xmeas[9] = 500.0
 
         if self.time_since_gas >= self.T_GAS or not hasattr(

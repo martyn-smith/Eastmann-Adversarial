@@ -185,13 +185,8 @@ from agent import DummyAgent
 from blue import DefendAgent
 from collections import deque
 from colorpy.blackbody import blackbody_color
-import control
-from constants import *
 from copy import deepcopy
 from datetime import datetime
-import gym
-from gym import spaces
-from gym.envs.classic_control import rendering
 from matplotlib import pyplot as plt
 import numpy as np
 from os import system
@@ -199,7 +194,7 @@ from random import choice  # , uniform
 from red import ThreatAgent
 from teprob import TEproc
 from report import make_figures, make_report
-
+import gym
 # from sense import Sensors
 from statistics import mode
 import sys
@@ -209,23 +204,6 @@ np.seterr(all="raise")
 DELTA_t = 1.0 / 3600.0
 
 log = []
-
-class ProcessError(Exception):
-    """
-    Catches a situation where the plant model has reached an implausible state
-    due to modelling imperfections.
-    (The modelled error checks may not catch an implausible state, since they represent
-    checks on a physical plant).
-    """
-
-    def __init__(self, msg, log):
-        print(f"Plant has reached an implausible state: {msg}")
-        plt.plot([l[0] for l in log], label="s.level")
-        plt.plot([l[1] for l in log], label="xmv[10]")
-        plt.legend()
-        plt.show()
-        print("goodbye")
-
 
 ##################################################################################################
 # ArgParse preamble
@@ -269,10 +247,13 @@ parser.add_argument(
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--nored", help="no red team actions", action="store_true")
 group.add_argument("--noblue", help="no blue team actions", action="store_true")
-group.add_argument("--peaceful", help="no blue or red team actions", action="store_true")
+group.add_argument(
+    "--peaceful", help="no blue or red team actions", action="store_true"
+)
 
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
+parser.add_argument("--data", help="outputs structured data", action="store_true")
 parser.add_argument(
     "-v", "--verbose", help="displays debug info", action="count", default=0
 )
@@ -316,6 +297,10 @@ elif __name__ == "__main__":
     red_action = None
     actions = (blue_action, red_action)
 
+    if args.data:
+        state_log = open("state.dat", "w")
+        blue_xmeas_log = open("blue_xmeas.dat", "w")
+        red_xmeas_log = open("red_xmeas.dat", "w")
     for i in range(args.num_episodes):
         env.reset()
         episode_memory = []
@@ -330,13 +315,21 @@ elif __name__ == "__main__":
             actions = (blue_action, red_action)
             if args.verbose >= 1 and not args.peaceful:
                 print(actions)
+            if args.data:
+                state_log.write(f"{t / 3600.}  {env.r}  {env.s}\n")
+                blue_xmeas_log.write(f"{blue_observation}\n")
+                red_xmeas_log.write(f"{red_observation}\n")
             observations, rewards, done, info = env.step(actions)
             blue_observation = observations[0]
             red_observation = observations[1]
             blue_reward = rewards[0]
             red_reward = rewards[1]
-            blue_loss = blue.learn(blue_previous[1:], blue_reward, blue_observation[1:], done)
-            red_loss = red.learn(red_previous[1:], red_reward, red_observation[1:], done)
+            blue_loss = blue.learn(
+                blue_previous[1:], blue_reward, blue_observation[1:], done
+            )
+            red_loss = red.learn(
+                red_previous[1:], red_reward, red_observation[1:], done
+            )
             if args.render:
                 env.render()
             if args.report and i % 10 == 0:
@@ -358,10 +351,12 @@ elif __name__ == "__main__":
                         "reported separator level": blue_observation[12],
                         "true separator temperature": red_observation[11],
                         "true separator level": red_observation[12],
-                        "real inflows": (red_observation[1] * 22.32) + red_observation[2] + red_observation[3],
+                        "real inflows": (red_observation[1] * 22.32)
+                        + red_observation[2]
+                        + red_observation[3],
                         "real outflows": red_observation[17],
                         "compressor work": red_observation[20],
-                        "compressor cycles": env.cmpsr.cycles
+                        "compressor cycles": env.cmpsr.cycles,
                     }
                 )
             if args.verbose >= 1:
@@ -409,3 +404,7 @@ elif __name__ == "__main__":
     ###############################################################################################
 
     env.close()
+    if args.data:
+        state_log.close()
+        blue_xmeas_log.close()
+        red_xmeas_log.close()

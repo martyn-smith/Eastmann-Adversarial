@@ -3,6 +3,8 @@ builds/
 reference/
 data/
 Pythonised/stategenerator/
+Pythonised/actorcritic*
+Pythonised/checkpoint
 errors*.txt
 *.dat
 *.mod

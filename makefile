@@ -27,15 +27,15 @@ fuzzresults:
 	done
 
 clean:
-	rm -f *.mod *.png report*.md *.h5 errors*.txt te_* tedbg_* __pycache__
+	rm -f *.mod *.png report*.md *.h5 *.dat errors*.txt  te_* tedbg_* __pycache__
 
 report: build clean
-	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
 figures: build clean
-	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 
 controls: build clean
 	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
