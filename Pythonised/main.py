@@ -195,6 +195,7 @@ from red import ThreatAgent
 from teprob import TEproc
 from report import make_figures, make_report
 import gym
+
 # from sense import Sensors
 from statistics import mode
 import sys
@@ -316,9 +317,17 @@ elif __name__ == "__main__":
             if args.verbose >= 1 and not args.peaceful:
                 print(actions)
             if args.data:
-                state_log.write(f"{t / 3600.}  {env.r}  {env.s}\n")
-                blue_xmeas_log.write(f"{blue_observation}\n")
-                red_xmeas_log.write(f"{red_observation}\n")
+                out = f"  {t / 3600.:.15E}"
+                for o in [env.r, env.s, env.c, env.j, env.r.cl, env.s.cl]:
+                    out += f"{o}"
+                for v in env.valves:
+                    out += f"{v}"
+                out += "\n"
+                state_log.write(out)
+                blue_out = "  ".join(f"{x:.15E}" for x in blue_observation)
+                blue_xmeas_log.write(f"{blue_out}\n")
+                red_out = "  ".join(f"{x:.15E}" for x in red_observation)
+                red_xmeas_log.write(f"{red_out}\n")
             observations, rewards, done, info = env.step(actions)
             blue_observation = observations[0]
             red_observation = observations[1]

@@ -63,7 +63,9 @@ class Agent:
         action = self.actor(observation)
         self.action = action[0][0]
         return np.clip(
-            (action.numpy()[0] + (self.epsilon * self.rng()) * self.scale), 0.0, self.scale
+            (action.numpy()[0] + (self.epsilon * self.rng()) * self.scale),
+            0.0,
+            self.scale,
         )
 
     def update(self):
@@ -86,8 +88,12 @@ class Agent:
 
         batch = choices(self.memory, k=self.batch_size)
 
-        previous = tf.convert_to_tensor([b["previous"] for b in batch], dtype=tf.float32)
-        observation = tf.convert_to_tensor([b["observation"] for b in batch], dtype=tf.float32)
+        previous = tf.convert_to_tensor(
+            [b["previous"] for b in batch], dtype=tf.float32
+        )
+        observation = tf.convert_to_tensor(
+            [b["observation"] for b in batch], dtype=tf.float32
+        )
         reward = tf.convert_to_tensor([b["reward"] for b in batch], dtype=tf.float32)
         action = tf.convert_to_tensor([b["action"] for b in batch], dtype=tf.float32)
         done = tf.convert_to_tensor([int(b["done"]) for b in batch], dtype=tf.float32)
@@ -121,6 +127,7 @@ class Agent:
 
         self.update()
         return actor_loss.numpy().sum() + critic_loss.numpy().sum()
+
 
 class Actor(keras.Model):
     def __init__(self, n_actions):

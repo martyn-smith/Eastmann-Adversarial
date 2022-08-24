@@ -38,13 +38,13 @@ figures: build clean
 	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 
 controls: build clean
-	Pythonised/main.py --fast --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --nored --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	Pythonised/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 

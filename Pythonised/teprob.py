@@ -333,6 +333,15 @@ class Vessel:
         raise FloatingPointError("failed to converge")
         self.tc = T_in
 
+    def __str__(self):
+        out = ""
+        for u in self.ucv[:4]:
+            out += f"  {u:.15E}"
+        for u in self.ucl[4:]:
+            out += f"  {u:.15E}"
+        out += f"  {self.et:.15E}"
+        return out
+
 
 class GasVessel(Vessel):
     @property
@@ -399,7 +408,7 @@ class Stream:
         )
 
     def __str__(self):
-        return f"{self.fcm}"
+        return f"  {self.fcm}"
 
 
 class FeedStream(Stream):
@@ -424,7 +433,7 @@ class FCMStream:
         )
 
     def __str__(self):
-        return f"{self.x}, {self.T}\n"
+        return f"  {self.x:.15E}  {self.T:.15E}"
 
 
 class FCMLiquidStream:
@@ -458,7 +467,7 @@ class Valve:
         self.tau = tau / 3600.0
 
     def __str__(self):
-        return f"{self.id}, {self.pos}\n"
+        return f"  {self.pos:.15E}"
 
     def fail(self):
         return False
@@ -488,6 +497,8 @@ class Coolant:
         self.T_in = T_in
         self.T_out = T_out
 
+    def __str__(self):
+        return f"  {self.T_out:.15E}"
 
 class Sensor:
     def __init__(self, period):
@@ -503,9 +514,6 @@ class Reactor(Vessel):
             [0.0, 0.0, 0.0, seed[3], seed[4], seed[5], seed[6], seed[7]]
         )
         self.et = seed[8]
-
-    def __str__(self):
-        return f"R: {[*self.ucv[0:3], *self.ucl[3:8], self.et]}\n"
 
     @property
     def level(self):
@@ -595,9 +603,6 @@ class Separator(Vessel):
         )
         self.et = seed[8]
 
-    def __str__(self):
-        return f"S: {[*self.ucv[0:3], *self.ucl[3:8], self.et]}\n"
-
     def set_et(self, in_stream, out_streams, cmpsr):  # out => 8,9,10
         derivative = (
             (in_stream.H * in_stream.ftm)
@@ -640,7 +645,11 @@ class Stripper(Vessel):
         self.et = np.array(seed[-1])
 
     def __str__(self):
-        return f"{[*self.ucl, self.et]}\n"
+        out = ""
+        for u in self.ucl:
+            out += f"  {u:.15E}"
+        out += f"  {self.et:.15E}"
+        return out
 
     def set_et(self, in_streams, out_streams):
         derivative = (
@@ -691,7 +700,11 @@ class Junction(GasVessel):
         self.et = seed[-1]
 
     def __str__(self):
-        return f"{self.ucv}, {self.et}\n"
+        out = ""
+        for u in self.ucv:
+            out += f"  {u:.15E}"
+        out += f"  {self.et:.15E}"
+        return out
 
     def set_et(self, in_streams, out_stream):
         derivative = sum(sm.H * sm.ftm for sm in in_streams) - (
@@ -709,7 +722,7 @@ class Sfr:
         self.fcm = np.array(seed)
 
     def __str__(self):
-        return f"{self.fcm}\n"
+        return f"  {self.fcm:.15E}"
 
     @property
     def ftm(self):
@@ -816,7 +829,7 @@ class TEproc(gym.Env):
             self.ctrlr = control.Controller(seed["vpos"], delta_t=DELTA_t)
         # stub for if we implement Sensors as a separate module
         # self.sensors = Sensors()
-        self.red_action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(51,))
+        self.red_action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(9,))
         self.blue_action_space = spaces.Box(low=0.0, high=100.0, shape=(12,))
         self.red_intent = red_intent
 
@@ -827,10 +840,7 @@ class TEproc(gym.Env):
         """
         Convenience representation function. Should be harmonised with the Fortran output.
         """
-        return f"{self.r}"
-
-    def __repr__(self) -> str:
-        return f"{self.time}"
+        return f""
 
     def step(
         self, action
@@ -1057,9 +1067,6 @@ class TEproc(gym.Env):
         # Final red action: alter measured values. Red team still gets the real ones.
         red_xmeas = xmeas
         blue_xmeas = xmeas
-        if red_action is not None:
-            for i in range(9, 50):
-                blue_xmeas[i - 9] += red_action[i]
 
         if red_action is not None:
             for i in range(0, 9):
@@ -1118,7 +1125,7 @@ class TEproc(gym.Env):
         G_H_LOWER = 0.95
         G_H_UPPER = 1.05
         if G_H_LOWER < true_xmeas[42] < G_H_UPPER:
-            return 20_000 * true_xmeas[17]
+            return 20_000 * np.abs(true_xmeas[17] - 22.949)
         else:
             return 0
 
@@ -1127,7 +1134,7 @@ class TEproc(gym.Env):
         if true_xmeas[7] > R_MAX_STRESS:
             reward = -1e6
         else:
-            reward = 0
+            reward = -0.1 * self.cmpsr.cycles
         return reward
 
     def environmental(self, true_xmeas):
