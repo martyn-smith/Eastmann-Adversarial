@@ -42,9 +42,9 @@ def make_figures(episode_memory, i, d):
         linestyle="dashed",
     )
     ax2.plot(
-        [m["blue loss"] for m in episode_memory],
-        label="blue loss",
-        color="blue",
+        [m["red loss"] for m in episode_memory],
+        label="red loss",
+        color="red",
         linestyle="dashed",
     )
     ax2.set_ylabel("loss")
@@ -157,11 +157,10 @@ def make_figures(episode_memory, i, d):
     plt.close("all")
 
 
-def make_report(d, action_txt, intent, summary):
+def make_report(d, action_txt, reward_txt, intent, summary):
     with open(f"report_{d}.md", "w") as f:
         f.write(f"wargame of TE process generated on {d}\n===\n")
-        f.write(action_txt + "\n\n")
-        f.write(f"red intent: {intent}\n\n")
+        f.write(f"{action_txt}\n\n{reward_txt}\n\nred intent: {intent}\n\n")
         for i in range(10):
             f.write("\\newpage\n")
             f.write(

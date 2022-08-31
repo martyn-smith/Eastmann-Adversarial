@@ -1114,18 +1114,15 @@ class TEproc(gym.Env):
         """
         cost of compressor work and steam (inflation adjusted from 1993)
         """
-        COST_KWH = 0.1
-        COST_STEAM = 0.065
         return -(true_xmeas[20] * COST_KWH + true_xmeas[19] * COST_STEAM)
 
     def production(self, true_xmeas):
         """
         value of product
         """
-        G_H_LOWER = 0.95
-        G_H_UPPER = 1.05
         if G_H_LOWER < true_xmeas[42] < G_H_UPPER:
-            return 20_000 * np.abs(true_xmeas[17] - 22.949)
+            # L1 norm
+            return 20_000 * (1.0 - np.abs(true_xmeas[17] - SETPT[4]))
         else:
             return 0
 
@@ -1146,6 +1143,7 @@ class TEproc(gym.Env):
             reward = -1e3 * true_xmeas[10] * true_xmeas[35]
         else:
             reward = 0
+        reward -= COST_CO2 * true_xmeas[20]
         return reward
 
     @property

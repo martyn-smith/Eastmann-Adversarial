@@ -39,7 +39,7 @@ class Agent:
         # learning parameters
         self.gamma = 0.98
         self.tau = 0.01
-        self.alpha = 0.01
+        self.alpha = 0.03
 
         # exploration noise and scaling
         self.rng = np.random.random

@@ -25,6 +25,11 @@ htr = np.array([0.06899381054, 0.05])  # calmol-1 !
 x_costs = np.array(
     [2.206, 0.0, 6.177, 22.06, 14.56, 17.89, 30.44, 22.94]
 )  # kgmol-1 . B is incorrect?
-compressor_cost = 0.0536  # kWh-1
-strip_steam_cost = 0.0318  # kg-1
-# setpt_max = np.array([,,,,, 100.0,])
+
+SETPT = np.array([120.40, 75.0, 50.0, 50.0, 22.949, 1.0, 2705.0, 13.823, 32.188])
+
+G_H_LOWER = 0.95
+G_H_UPPER = 1.05
+COST_KWH = 0.0536 # kWh-1
+COST_STEAM = 0.0316 #kg-1
+COST_CO2 = 0.3

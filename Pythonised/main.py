@@ -171,7 +171,6 @@
     Red team actions
 
     i = [0..8] => set setpt[i]
-    i = [9..49] => set xmeas[i-9]
 
     Blue team actions
 
@@ -218,13 +217,20 @@ action_txt = """
 Red team actions
 
     i = [0..8] => set setpt[i]
-    i = [9..49] => set xmeas[i-9]
 
     Blue team actions
 
     i = [0..11] => set xmv[i]
 """
 
+reward_txt = """
+Blue team reward
+
+  - production (valued at $20,000 per cubic metre of within-specification product,\n (G:H between 0.95 and 1.05)\n
+  - utilities (valued at $ 0.1 per kWh for power and $ 0.065 per kg steam)\n
+  - $ 1 M penalty if reactor overstress occurs;\n
+  - $ 1000 penalty if the purge stream contains excess G.\n
+"""
 
 parser = ArgumentParser(
     description=description + "\n" + action_txt, formatter_class=RawTextHelpFormatter
@@ -406,7 +412,7 @@ elif __name__ == "__main__":
     ###############################################################################################
 
     if args.report:
-        make_report(d, action_txt, args.intent, summary)
+        make_report(d, action_txt, reward_txt, args.intent, summary)
 
     ###############################################################################################
     # Cleanup
