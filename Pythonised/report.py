@@ -1,5 +1,19 @@
 import matplotlib.pyplot as plt
 
+blue_team_key = [
+"a feed flow (stream 0)",
+"d feed flow (stream 1)",
+"e feed flow (stream 2)",
+"a and c feed flow (stream 3)",
+"compressor recycle valve",
+"purge valve (stream 8)",
+"separator pot liquid flow (stream 9)",
+"stripper liquid product flow (stream 10)",
+"stripper steam valve",
+"reactor cooling water flow",
+"condenser cooling water flow",
+"agitator speed"
+]
 
 def make_figures(episode_memory, i, d):
     fig, ax = plt.subplots()
@@ -17,11 +31,12 @@ def make_figures(episode_memory, i, d):
         # )
         pass
     if episode_memory[0]["blue action"] is not None:
-        ax.plot(
-            [m["blue action"][3] for m in episode_memory],
-            label="A and C feed change",
-            color="blue",
-        )
+        for j in range(len(blue_team_key)):
+            ax.plot(
+                [m["blue action"][j] for m in episode_memory],
+                label=blue_team_key[j],
+                color="blue",
+            )
     ax.set_title(f"actions at episode {i}")
     ax.set_xlabel("time")
     ax.set_ylabel("actions")

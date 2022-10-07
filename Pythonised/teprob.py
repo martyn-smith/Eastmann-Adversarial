@@ -830,7 +830,7 @@ class TEproc(gym.Env):
         # stub for if we implement Sensors as a separate module
         # self.sensors = Sensors()
         self.red_action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(9,))
-        self.blue_action_space = spaces.Box(low=0.0, high=100.0, shape=(12,))
+        self.blue_action_space = spaces.Box(low=-100.0, high=100.0, shape=(12,))
         self.red_intent = red_intent
 
         self.faults = [0] * 20

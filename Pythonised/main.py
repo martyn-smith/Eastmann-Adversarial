@@ -296,8 +296,8 @@ elif __name__ == "__main__":
     summary = []
     losses = []
 
-    blue = DummyAgent() if args.peaceful or args.noblue else DefendAgent()
-    red = DummyAgent() if args.peaceful or args.nored else ThreatAgent()
+    blue = DummyAgent("blue") if args.peaceful or args.noblue else DefendAgent()
+    red = DummyAgent("red") if args.peaceful or args.nored else ThreatAgent()
 
     observations, _, __, ___ = env.reset()
     blue_action = None

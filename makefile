@@ -37,6 +37,16 @@ report: build clean
 figures: build clean
 	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 
+nored: build clean
+	Pythonised/main.py --fast --nored --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+
+noblue: build clean
+	Pythonised/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	rm -f *.png report*.md
+
 controls: build clean
 	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
@@ -45,8 +55,6 @@ controls: build clean
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 	Pythonised/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
-	rm -f *.png report*.md
 
 scenarios: build clean
 	Pythonised/main.py --fast --intent downtime --report 2>> errors_$$(date +"%Y-%m-%d").txt

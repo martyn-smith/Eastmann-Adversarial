@@ -24,11 +24,15 @@ from copy import deepcopy
 
 
 class DummyAgent:
-    def __init__(self):
-        pass
+    def __init__(self, id):
+        self.id = id
 
     def __call__(self, *_):
-        return [None]
+        #no, numpy does NOT return the correct dimension is np.zeros() is used. Don't know why.
+        if self.id == "blue":
+            return [[0.0, 0.0, 0.0,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+        if self.id == "red":
+            return [[0.0, 0.0, 0.0,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0]]
 
     def learn(self, *_):
         return 0.0
@@ -63,8 +67,8 @@ class Agent:
         action = self.actor(observation)
         self.action = action[0][0]
         return np.clip(
-            (action.numpy()[0] + (self.epsilon * self.rng()) * self.scale),
-            0.0,
+            (action.numpy()[0] + (self.epsilon * self.rng()) * 2.0 * self.scale),
+            -self.scale,
             self.scale,
         )
 
