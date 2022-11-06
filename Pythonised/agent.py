@@ -30,13 +30,15 @@ class DummyAgent:
     def __call__(self, *_):
         #no, numpy does NOT return the correct dimension is np.zeros() is used. Don't know why.
         if self.id == "blue":
-            return [[0.0, 0.0, 0.0,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+            return [13]
         if self.id == "red":
             return [[0.0, 0.0, 0.0,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0]]
 
     def learn(self, *_):
         return 0.0
 
+    def remember(self, *_):
+        pass
 
 class Agent:
     def __init__(self, n_out):

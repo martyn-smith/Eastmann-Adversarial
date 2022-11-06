@@ -1,165 +1,109 @@
-"""
-DDPG-based policy gradient solver.
-
-Inspired by:
-https://adventuresinmachinelearning.com/a2c-advantage-actor-critic-tensorflow-2/
-
-"""
-
+from gym.spaces import Discrete
+import numpy as np
 import logging
 import os
+from random import choice, sample, randint, randint, random
+from collections import deque
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
 from tensorflow.keras import Sequential
-from collections import deque
-import numpy as np
-from random import choices
-import tensorflow as tf
-import tensorflow.keras as keras
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout, Input
+from tensorflow.keras.layers.experimental.preprocessing import Normalization
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.regularizers import L2
-from tensorflow.keras.losses import MSE
-from copy import deepcopy
+
+class Agent:
+    def __init__(self, n_actions):
+        # create model here in child process
+        self.memory = deque(maxlen=100_000)
+        self.batch_size = 64
+        self.gamma = 1.0
+        self.epsilon = 1.0
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.095
+        self.n_actions = n_actions
+        model = Sequential()
+        model.add(Input(shape=(42,)))
+        model.add(Dense(12, activation="softmax"))
+        model.add(Dense(n_actions, activation="relu"))
+        opt = Adam(learning_rate=0.01)
+        model.compile(loss="mae", optimizer="adam")
+        self.model = model
+
+    def remember(self, state, action, reward, observation, done):
+        self.memory.append((state, action, reward, observation, done))
+
+    def get_action(self, observation):
+        # this could only be inheritable if model shape is known.
+        pass
+
+    def __call__(self, observation):
+        # TODO: pick action_space
+        if random() >= self.epsilon:
+            q = self.model.predict(observation.reshape(1, 42))[0]
+            try:
+                action = np.nanargmax(q)
+            except ValueError:
+                action = randint(0, self.n_actions - 1)
+        else:
+            action = randint(0, self.n_actions - 1)
+        return [action]
+
+    def learn(self):
+        # x is state (dims (42,1)). y is Q-value of all possible actions (14 for blue, ..? for red)
+        x_batch, y_batch = [], []
+        # memory here is [(state, action, reward, observation, done)]
+        minibatch = sample(self.memory, min(len(self.memory), self.batch_size))
+        for state, action, reward, observation, done in minibatch:
+            # y_target = np.zeros(self.model.layers[-1].output_shape[1])
+            y_target = self.model.predict(state.reshape(1, 42))[0]
+            y_target[action] = (
+                reward
+                if done
+                else reward
+                + self.gamma * np.max(self.model.predict(observation.reshape(1, 42))[0])
+            )
+            x_batch.append(state)
+            # print(f"{y_target=}")
+            y_batch.append(y_target)
+
+        loss = self.model.train_on_batch(np.array(x_batch), np.array(y_batch))
+        print(f"{self.id} training {loss=}")
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+        return loss
 
 
-class DummyAgent:
+class DummyAgent(Agent):
     def __init__(self):
         pass
 
-    def __call__(self, *_):
-        return [None]
+    def remember(self, *args):
+        pass
 
-    def learn(self, *_):
-        return 0.0
+    def __call__(self, *args):
+        return 13
 
-
-class Agent:
-    def __init__(self, n_out):
-        # learning parameters
-        self.gamma = 0.98
-        self.tau = 0.01
-        self.alpha = 0.1
-
-        # exploration noise and scaling
-        self.rng = np.random.random
-        self.epsilon = 0.0001
-        self.scale = 100.0
-        self.eta = 0.01
-
-        # replay parameters
-        self.memory = deque(maxlen=100_000)
-        self.batch_size = 100
-
-        # networks
-        self.actor = Actor(n_out)
-        self.critic = Critic()
-        self.actor.compile(optimizer=Adam(learning_rate=self.alpha))
-        self.critic.compile(optimizer=Adam(learning_rate=self.alpha))
-        self.target_actor = deepcopy(self.actor)
-        self.target_critic = deepcopy(self.critic)
-
-    def __call__(self, observation):
-        observation = tf.convert_to_tensor([observation])
-        action = self.actor(observation)
-        self.action = action[0][0]
-        return np.clip(
-            (action.numpy()[0] + (self.epsilon * self.rng()) * 2.0 * self.scale),
-            -self.scale,
-            self.scale,
-        )
-
-    def update(self):
-        weights = [
-            w * self.tau + t * (1 - self.tau)
-            for w, t in zip(self.actor.weights, self.target_actor.weights)
-        ]
-        self.target_actor.set_weights(weights)
-
-    def learn(self, previous, reward, observation, done):
-        self.memory += [
-            {
-                "previous": previous,
-                "action": self.action,
-                "reward": reward,
-                "observation": observation,
-                "done": done,
-            }
-        ]
-
-        batch = choices(self.memory, k=self.batch_size)
-
-        previous = tf.convert_to_tensor(
-            [b["previous"] for b in batch], dtype=tf.float32
-        )
-        observation = tf.convert_to_tensor(
-            [b["observation"] for b in batch], dtype=tf.float32
-        )
-        reward = tf.convert_to_tensor([b["reward"] for b in batch], dtype=tf.float32)
-        action = tf.convert_to_tensor([b["action"] for b in batch], dtype=tf.float32)
-        done = tf.convert_to_tensor([int(b["done"]) for b in batch], dtype=tf.float32)
-
-        with tf.GradientTape() as tape:
-            target_actions = self.target_actor(observation)
-            critic_value = tf.squeeze(
-                self.target_critic(observation, target_actions), 1
-            )
-            prev_critic_value = tf.squeeze(self.critic(previous, action), 1)
-            target = reward + self.gamma * critic_value * (1 - done)
-            critic_loss = MSE(target, prev_critic_value)
-
-        critic_network_gradient = tape.gradient(
-            critic_loss, self.critic.trainable_variables
-        )
-        self.critic.optimizer.apply_gradients(
-            zip(critic_network_gradient, self.critic.trainable_variables)
-        )
-
-        with tf.GradientTape() as tape:
-            policy_actions = self.actor(previous)
-            # ratio = policy_actions / action
-            # TODO: add advantage
-            # policy_actions = tf.clip_by_value(ratio, 1 - self.eta, 1 + self.eta)
-            actor_loss = tf.math.reduce_mean(-self.critic(previous, policy_actions))
-
-        actor_network_gradient = tape.gradient(
-            actor_loss, self.actor.trainable_variables
-        )
-        #print(actor_network_gradient)
-        self.actor.optimizer.apply_gradients(
-            zip(actor_network_gradient, self.actor.trainable_variables)
-        )
-
-        self.update()
-        return actor_loss.numpy().sum() + critic_loss.numpy().sum()
-
-
-class Actor(keras.Model):
-    def __init__(self, n_actions):
-        super().__init__()
-        self.layer_1 = Dense(256, activation="relu", activity_regularizer=L2(1e-1))
-        self.mu = Dense(n_actions, activation="sigmoid", activity_regularizer=L2(1e-1))
-
-    def __call__(self, observation):
-        return self.mu(self.layer_1(observation))
-
-
-class Critic(keras.Model):
-    def __init__(self):
-        super().__init__()
-        self.layer_1 = Dense(256, activation="relu")
-        self.layer_2 = Dense(256, activation="relu")
-        self.q = Dense(1, activation=None)
-
-    def __call__(self, observation, action):
-        return self.q(
-            self.layer_2(self.layer_1(tf.concat([observation, action], axis=1)))
-        )
+    def learn(self, *args):
+        pass
 
 class DefendAgent(Agent):
     def __init__(self):
-        super().__init__(12)
         self.id = "blue"
+        super().__init__(12)
 
+    def encode(self, action):
+        if action == 0:
+            return None
+        elif action < 13:
+            return {"reset": action - 1}
+        else:
+            return "reset_all"
 
+    def decode(self, action):
+        if action is None:
+            return 0
+        elif type(action) is dict:
+            return action["reset"] + 1
+        else:
+            return 13

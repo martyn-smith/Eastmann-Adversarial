@@ -1,42 +1,47 @@
 import matplotlib.pyplot as plt
 
-blue_team_key = [
-"a feed flow (stream 0)",
-"d feed flow (stream 1)",
-"e feed flow (stream 2)",
-"a and c feed flow (stream 3)",
-"compressor recycle valve",
-"purge valve (stream 8)",
-"separator pot liquid flow (stream 9)",
-"stripper liquid product flow (stream 10)",
-"stripper steam valve",
-"reactor cooling water flow",
-"condenser cooling water flow",
-"agitator speed"
+setpt_key = [
+"reactor temperature",
+"reactor level",
+"separator level",
+"stripper level",
+"stripper underflow",
+"G:H ratio",
+"reactor pressure",
+"purge gas b fraction",
+"reactor feed a component"
+]
+
+valves_key = [
+"A feed flow",
+"D feed flow",
+"E feed flow",
+"A and C feed flow",
+"Compressor recycle valve",
+"Purge valve",
+"Separator underflow",
+"Stripper underflow",
+"Stripper steam",
+"Reactor coolant flow",
+"Condensor coolant flow",
+"Agitator speed"
 ]
 
 def make_figures(episode_memory, i, d):
     fig, ax = plt.subplots()
     if episode_memory[0]["red action"] is not None:
-        # ax.plot(
-        #     [m["red action"][16] for m in episode_memory],
-        #     label="reactor pressure readout change",
-        #     color="red",
-        #     linestyle="--",
-        # )
-        # ax.plot(
-        #     [m["red action"][6] for m in episode_memory],
-        #     label="reactor pressure setpoint change",
-        #     color="red",
-        # )
-        pass
-    if episode_memory[0]["blue action"] is not None:
-        for j in range(len(blue_team_key)):
+        for j in range(len(setpt_key)):
             ax.plot(
-                [m["blue action"][j] for m in episode_memory],
-                label=blue_team_key[j],
-                color="blue",
+                [m["red action"][j] for m in episode_memory],
+                label=setpt_key[j],
+                color="red",
+                linestyle="--",
             )
+    if episode_memory[0]["blue action"] is not None:
+        ax.plot(
+            [m["blue action"] for m in episode_memory],
+            color="blue",
+        )
     ax.set_title(f"actions at episode {i}")
     ax.set_xlabel("time")
     ax.set_ylabel("actions")
@@ -49,24 +54,34 @@ def make_figures(episode_memory, i, d):
     )
     ax1.plot([m["red reward"] for m in episode_memory], label="red reward", color="red")
     ax1.set_ylabel("reward")
-    ax2 = ax1.twinx()
-    ax2.plot(
-        [m["blue loss"] for m in episode_memory],
-        label="blue loss",
-        color="blue",
-        linestyle="dashed",
-    )
-    ax2.plot(
-        [m["red loss"] for m in episode_memory],
-        label="red loss",
-        color="red",
-        linestyle="dashed",
-    )
-    ax2.set_ylabel("loss")
+    # ax2 = ax1.twinx()
+    # ax2.plot(
+    #     [m["blue loss"] for m in episode_memory],
+    #     label="blue loss",
+    #     color="blue",
+    #     linestyle="dashed",
+    # )
+    # ax2.plot(
+    #     [m["red loss"] for m in episode_memory],
+    #     label="red loss",
+    #     color="red",
+    #     linestyle="dashed",
+    # )
+    # ax2.set_ylabel("loss")
     ax1.set_title(f"rewards at episode {i}")
     ax1.set_xlabel("time")
     fig.legend()
     plt.savefig(f"rewards_{d}_ep{i}.png")
+
+    fig, ax1 = plt.subplots()
+    for j in range(len(valves_key)):
+        ax1.plot(
+            [m["valves"][j].pos for m in episode_memory],
+            label=valves_key[j]
+        )
+    fig.legend(bbox_to_anchor=(0.85, 0.9))
+    fig.tight_layout()
+    plt.savefig(f"valve_positions_{d}_ep{i}.png")
 
     fig, ax1 = plt.subplots()
     ax1.plot(
@@ -183,6 +198,9 @@ def make_report(d, action_txt, reward_txt, intent, summary):
             )
             f.write(
                 f"![Rewards at episode {10*i}](rewards_{d}_ep{10*i}.png){{width=50%}}\n"
+            )
+            f.write(
+                f"![Valve positions at episode {10*i}](valve_positions_{d}_ep{10*i}.png){{width=50%}}\\ "
             )
             f.write(
                 f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{width=50%}}\\ "

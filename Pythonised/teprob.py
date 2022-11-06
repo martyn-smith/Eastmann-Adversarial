@@ -50,7 +50,7 @@
     xmv[6]     separator pot liquid flow (stream 9)
     xmv[7]     stripper liquid product flow (stream 10)
     xmv[8]     stripper steam valve
-    xmv[9]    reactor cooling water flow
+    xmv[9]     reactor cooling water flow
     xmv[10]    condenser cooling water flow
     xmv[11]    agitator speed
 
@@ -829,8 +829,8 @@ class TEproc(gym.Env):
             self.ctrlr = control.Controller(seed["vpos"], delta_t=DELTA_t)
         # stub for if we implement Sensors as a separate module
         # self.sensors = Sensors()
+        self.blue_action_space = spaces.Discrete(14)
         self.red_action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(9,))
-        self.blue_action_space = spaces.Box(low=-100.0, high=100.0, shape=(12,))
         self.red_intent = red_intent
 
         self.faults = [0] * 20
@@ -863,10 +863,9 @@ class TEproc(gym.Env):
             assert self.blue_action_space.contains(blue_action), blue_action
         if red_action is not None:
             assert self.red_action_space.contains(red_action), red_action
-        if blue_action is not None:
-            for i in range(12):
-                self.ctrlr.xmv[i] += blue_action[i]
-                self.ctrlr.xmv[i] = np.clip(self.ctrlr.xmv[i], 0.0, 100.0)
+        if blue_action in range(12):
+            self.ctrlr.reset_single(blue_action, self.time)
+        #if 12, 13, no action
 
         # setting valves
         for mv, valve in zip(xmv, self.valves):
