@@ -2,6 +2,7 @@ from copy import deepcopy
 import numpy as np
 from constants import SETPT
 
+
 class Dummy:
     def __init__(self):
         self.xmv = np.array([0.5] * 12)

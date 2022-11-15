@@ -167,42 +167,25 @@
     sm[11] sm[3] + S (Separator) -> C (Stripper)
     sm[12] C (Stripper) -> prod
 
-    Red team actions
-
-    i = [0..8] => set setpt[i]
-    i = [9..49] => set xmeas[i-9]
-
-    Blue team actions
-
-    i = [0..11] => set xmv[i]
-
 ===============================================================================
 """
 
-from argparse import Action as ArgAction, ArgumentParser, RawTextHelpFormatter
-from agent import DummyAgent
-from blue import DefendAgent
-from collections import deque
 from colorpy.blackbody import blackbody_color
 import control
 from constants import *
 from copy import deepcopy
-from datetime import datetime
 import gym
 from gym import spaces
 from gym.envs.classic_control import rendering
 from matplotlib import pyplot as plt
 import numpy as np
-from os import system
 from random import choice  # , uniform
-from red import ThreatAgent
 
 # from sense import Sensors
 import sys
 
 np.seterr(all="raise")
 
-DELTA_t = 1.0 / 3600.0
 
 log = []
 
@@ -500,6 +483,7 @@ class Coolant:
     def __str__(self):
         return f"  {self.T_out:.15E}"
 
+
 class Sensor:
     def __init__(self, period):
         self.period = period
@@ -751,7 +735,7 @@ class Sfr:
 
 
 class TEproc(gym.Env):
-    def __init__(self, red_intent, open_control=False):
+    def __init__(self, blue_type, red_type, red_intent):
         # TODO:
         # valve_stick loop
         seed = deepcopy(
@@ -823,14 +807,32 @@ class TEproc(gym.Env):
         self.cmpsr = Compressor()
         self.agtatr = Agitator()
 
-        if open_control:
-            self.ctrlr = control.Dummy()
-        else:
-            self.ctrlr = control.Controller(seed["vpos"], delta_t=DELTA_t)
+        self.ctrlr = control.Controller(seed["vpos"], delta_t=DELTA_t)
         # stub for if we implement Sensors as a separate module
         # self.sensors = Sensors()
-        self.blue_action_space = spaces.Discrete(14)
-        self.red_action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(9,))
+
+        # if blue_type == "none":
+        #     self.blue_action_space = None
+        # elif blue_type == "discrete":
+        #     self.blue_action_space = spaces.Discrete(14)
+        # elif blue_type == "singlecontinuous":
+        #     self.blue_action_space = spaces.Box(low=-100., high=100., shape=(1,))
+        # elif blue_type == "continuous":
+        #     self.blue_action_space = spaces.Box(low=-100., high=100., shape=(12,))
+        # elif blue_type == "twin":
+        #     self.blue_action_space = spaces.Box(low=-100., high=100., shape=(12,))
+        #
+        # if red_type == "none":
+        #     self.red_action_space = None
+        # elif red_type == "discrete":
+        #     self.red_action_space = spaces.Discrete(64)
+        # elif red_type == "singlecontinuous":
+        #     self.red_action_space = spaces.Box(low=-100., high=100., shape=(1,))
+        # elif red_type == "continuous":
+        #     self.red_action_space = spaces.Box(low=-100., high=100., shape=(9,))
+
+        self.blue_type = blue_type
+        self.red_type = red_type
         self.red_intent = red_intent
 
         self.faults = [0] * 20
@@ -843,7 +845,7 @@ class TEproc(gym.Env):
         return f""
 
     def step(
-        self, action
+        self, action, burn_in = False
     ) -> tuple[tuple[np.ndarray, np.ndarray], tuple[float, float], bool, dict]:
         """
         main loop for the TE process
@@ -859,14 +861,22 @@ class TEproc(gym.Env):
         xmv = self.ctrlr.control(self.xmeas, self.time)
 
         blue_action, red_action = (action[0], action[1])
-        if blue_action is not None:
-            assert self.blue_action_space.contains(blue_action), blue_action
-        if red_action is not None:
-            assert self.red_action_space.contains(red_action), red_action
-        if blue_action in range(12):
+        if self.blue_type == "none" or burn_in:
+            pass
+        elif self.blue_type == "discrete":
+            assert spaces.Discrete(14).contains(blue_action)
             self.ctrlr.reset_single(blue_action, self.time)
-        #if 12, 13, no action
-
+        elif self.blue_type == "singlecontinuous":
+            assert spaces.Box(low=-100., high=100., shape=(1,)).contains(blue_action)
+            xmv[3] += blue_action
+            np.clip(blue_action, 0., 100.)
+        elif self.blue_type == "continuous":
+            assert spaces.Box(low=-100., high=100., shape=(12,)).contains(blue_action)
+            for (a, x) in zip(blue_action, xmv):
+                x += a
+                np.clip(x, 0., 100.)
+        elif self.blue_type == "twin":
+            assert spaces.Box(low=-100., high=100., shape=(12,)).contains(blue_action)
         # setting valves
         for mv, valve in zip(xmv, self.valves):
             valve.set(mv)
@@ -1067,7 +1077,21 @@ class TEproc(gym.Env):
         red_xmeas = xmeas
         blue_xmeas = xmeas
 
-        if red_action is not None:
+        if self.red_type == "none" or burn_in:
+            pass
+        elif self.red_type == "discrete":
+            assert spaces.Discrete(64).contains(red_action)
+            if red_action <= 40:
+                blue_xmeas = 0.
+            elif red_Action <= 49:
+                self.ctrlr.setpt[red_action - 40] *= 10.
+            else:
+                pass
+        elif self.red_type == "singlecontinuous":
+            assert spaces.Box(low=-100., high=100., shape=(1,)).contains(red_action)
+            self.ctrly.setpt[6] += red_action
+        elif self.red_type == "continuous":
+            assert spaces.Box(low=-np.inf, high=np.inf, shape=(9,)).contains(red_action)
             for i in range(0, 9):
                 self.ctrlr.setpt[i] += red_action[i]
 
@@ -1079,11 +1103,13 @@ class TEproc(gym.Env):
 
         done = self.has_failed(xmeas, self.time)
         blue_reward = self.reward(reset, done, xmeas, self.ctrlr.xmv)
-        if self.red_intent == "downtime":
-            red_reward = -self.downtime(reset)
+        if self.red_intent == "oppose":
+            red_reward = - blue_reward
         elif self.red_intent == "recipe":
             red_reward = -(self.production(red_xmeas) - self.utilities(red_xmeas))
         elif self.red_intent == "destruction":
+            red_reward = -self.mechanical(red_xmeas)
+        elif self.red_intent == "environmental":
             red_reward = -self.mechanical(red_xmeas)
         self.time += DELTA_t
         self.time_since_gas += DELTA_t
@@ -1248,13 +1274,13 @@ class TEproc(gym.Env):
         Resets the plant and burns in for one hour with no actions
         """
         print("#" * 80 + "\n\n  RESETTING  \n\n" + "#" * 80)
-        self.__init__(self.red_intent)
+        self.__init__(self.blue_type, self.red_type, self.red_intent)
         global log
         log = []
         try:
             try:
                 for i in range(3600):
-                    observations, _, done, info = self.step((None, None))
+                    observations, _, done, info = self.step((None, None), burn_in = True)
                     log.append([self.s.level * 100, self.ctrlr.xmv[10]])
                     self.has_failed_extra()
             except FloatingPointError as e:
@@ -1264,9 +1290,9 @@ class TEproc(gym.Env):
                 )
             except AssertionError as e:
                 raise ProcessError(
-                    f" plant failed after {i}/{self.time} timesteps due to {e}!", log
+                        f"assertion error: plant failed after {i}/{self.time} timesteps due to {e}!", log
                 )
-            return self.step([None, None])
+            return self.step((None, None), burn_in = True)
         except ProcessError as e:
             exit()
 

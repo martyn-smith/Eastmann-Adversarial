@@ -9,8 +9,6 @@ https://adventuresinmachinelearning.com/a2c-advantage-actor-critic-tensorflow-2/
 import logging
 import os
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
-logging.getLogger("tensorflow").setLevel(logging.FATAL)
 from tensorflow.keras import Sequential
 from collections import deque
 import numpy as np
@@ -22,23 +20,8 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.losses import MSE
 from copy import deepcopy
 
-
-class DummyAgent:
-    def __init__(self, id):
-        self.id = id
-
-    def __call__(self, *_):
-        #no, numpy does NOT return the correct dimension is np.zeros() is used. Don't know why.
-        if self.id == "blue":
-            return [13]
-        if self.id == "red":
-            return [[0.0, 0.0, 0.0,  0.0, 0.0, 0.0,  0.0, 0.0, 0.0]]
-
-    def learn(self, *_):
-        return 0.0
-
-    def remember(self, *_):
-        pass
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
 
 class Agent:
     def __init__(self, n_out):
