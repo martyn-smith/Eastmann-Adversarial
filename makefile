@@ -9,6 +9,9 @@ build:
 	ln -s -f te_$$(date +"%d%m%y") te;
 	./te_$$(date +"%d%m%y");
 
+install:
+	poetry install
+
 moveresults:
 	@echo "making output folder"
 	if [! -d '../../datasets/$date +"%d%m%C"' ]; then
@@ -29,47 +32,47 @@ fuzzresults:
 clean:
 	rm -f *.mod *.png report*.md *.h5 *.dat errors*.txt  te_* tedbg_* __pycache__
 
-report: build clean
-	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+report: build install clean
+	poetry run env/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
 figures: build clean
-	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 
 nored: build clean
-	Pythonised/main.py --fast --nored --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --nored --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
 noblue: build clean
-	Pythonised/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
 controls: build clean
-	Pythonised/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --nored --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --nored --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 
 scenarios: build clean
-	Pythonised/main.py --fast --intent downtime --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --intent downtime --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_downtime_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --intent recipe --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --intent recipe --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_recipe_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --intent destruction --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --intent destruction --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_destruction_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	Pythonised/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md

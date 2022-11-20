@@ -34,29 +34,31 @@ class Logger:
         self._summary = []
         self.losses = []
         self.memory = []
-        if config.data:
+        self.data = config.data
+        if self.data:
             self.state_log = open("state.dat", "w")
             self.blue_xmeas_log = open("blue_xmeas.dat", "w")
             self.red_xmeas_log = open("red_xmeas.dat", "w")
 
     def close(self):
-        if config.data:
+        if self.data:
             self.state_log.close()
             self.blue_xmeas_log.close()
             self.red_xmeas_log.close()
 
-    def log_to_file(self, t, env, blue_observation, red_observation):
+    def log_to_file(self, env, t, blue_observation, red_observation):
         out = f"  {t / 3600.:.15E}"
         for o in [env.r, env.s, env.c, env.j, env.r.cl, env.s.cl]:
             out += f"{o}"
         for v in env.valves:
             out += f"{v}"
         out += "\n"
-        state_log.write(out)
-        blue_out = "  ".join(f"{x:.15E}" for x in blue_observation)
-        blue_xmeas_log.write(f"{blue_out}\n")
-        red_out = "  ".join(f"{x:.15E}" for x in red_observation)
-        red_xmeas_log.write(f"{red_out}\n")
+        if self.data:
+            self.state_log.write(out)
+            blue_out = "  ".join(f"{x:.15E}" for x in blue_observation)
+            self.blue_xmeas_log.write(f"{blue_out}\n")
+            red_out = "  ".join(f"{x:.15E}" for x in red_observation)
+            self.red_xmeas_log.write(f"{red_out}\n")
 
     def log(
         self,
