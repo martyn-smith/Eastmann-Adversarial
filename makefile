@@ -33,31 +33,31 @@ clean:
 	rm -f *.mod *.png report*.md *.h5 *.dat errors*.txt  te_* tedbg_* __pycache__
 
 report: build install clean
-	poetry run env/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
 figures: build clean
-	poetry run env/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
 
 nored: build clean
-	poetry run env/main.py --fast --nored --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --red none --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
 noblue: build clean
-	poetry run env/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --blue none --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
 
-controls: build clean
-	poetry run env/main.py --fast --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+controls: build install clean
+	poetry run env/main.py --fast --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	poetry run env/main.py --fast --nored --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --red none --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	poetry run env/main.py --fast --noblue --report --data 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --blue none --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 
 scenarios: build clean
@@ -70,9 +70,9 @@ scenarios: build clean
 	poetry run env/main.py --fast --intent destruction --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_destruction_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	poetry run env/main.py --fast --nored --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast  --red none --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
-	poetry run env/main.py --fast --noblue --report 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast  --blue none --report 2>> errors_$$(date +"%Y-%m-%d").txt
 	pandoc -o report_noblue_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
 	rm -f *.png report*.md
