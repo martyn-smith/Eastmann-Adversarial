@@ -50,14 +50,14 @@ For the Discrete variant:
 
 Blue team actions
 
-[0..11] => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
+[0..12) => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
 12 => restart entire plant (no production for 24 hours)
 13 => continue (no action, no reward)
 
 Red team actions
 
-[0..40] => set xmeas[i] to 0.
-[41..49] => setpt[i-41] *= 10
+[0..41) => set xmeas[i] to 0.
+[41..50) => setpt[i-41] *= 10
 50 => no action
 
 For the Single Continuous variant:
@@ -74,11 +74,11 @@ For the Continuous variant:
 
 Blue team actions:
 
-[0..11] => adjust xmv[i]
+[0..12) => adjust xmv[i]
 
 Red team actions:
 
-[0..8] => adjust setpoint[i]
+[0..9) => adjust setpoint[i]
 """
 
 reward_txt = """
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     elif args.blue == "singlecontinuous":
         blue = ContinuousDefendAgent(n_actions=1)
     elif args.blue == "continuous":
-        blue = ContinuousThreatAgent()
+        blue = ContinuousDefendAgent()
     elif args.blue == "twin":
         blue = TwinBasedDefendAgent()
 
@@ -203,8 +203,10 @@ if __name__ == "__main__":
                     blue_observation[1:],
                     done,
                 )
-            else:
-                pass
+            elif args.blue == "continuous":
+                blue_loss = blue.learn(
+                    blue_previous[1:], blue_reward, blue_observation[1:], done
+                )
             if args.red == "discrete":
                 red.remember(
                     prev_obvs[1][1:], red_action, red_reward, red_observation[1:], done
@@ -245,7 +247,8 @@ if __name__ == "__main__":
         if args.report and i % 10 == 0:
             log.summary(t, info)
             log.make_figures( i, d, args.blue, args.red)
-        blue.learn()
+        if args.blue == "discrete":
+            blue.learn()
 
     ###############################################################################################
     # Report generation

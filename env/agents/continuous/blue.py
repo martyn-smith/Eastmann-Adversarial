@@ -2,9 +2,9 @@ from .agent import Agent
 
 
 class DefendAgent(Agent):
-    def __init__(self, n_actions=9):
+    def __init__(self, n_actions=12):
         # self.id = "red"
         super().__init__(n_actions)
 
     def __call__(self, observation):
-        return 100.0 * super(ThreatAgent, self).__call__(observation)
+        return 100.0 * super().__call__(observation)

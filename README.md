@@ -72,15 +72,15 @@ The process represents internal state with 50 floating points, plus 24 booleans.
 
 ```
 0                     time
-[1..3]                R.ucv
-[4..8]                R.ucl
+[1..4)                R.ucv
+[4..9)                R.ucl
 9                     R.et
-[10..12]              S.ucv
-[13..17]              S.ucl
+[10..13)              S.ucv
+[13..18)              S.ucl
 18                    S.et
-[19..26]              C.ucl
+[19..27)              C.ucl
 27                    C.et
-[28..35]              V.ucv
+[28..36)              V.ucv
 36                    V.et
 37                    twr
 38                    tws
@@ -161,7 +161,7 @@ For the **Discrete** variant:
 Blue team actions
 
 ```
-[0..11] => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
+[0..12) => reset PLC 0-11 (TEproc will resort to open-loop for that PLC for one hour)
 12 => restart entire plant (no production for 24 hours)
 13 => continue (no action, no reward)
 ```
@@ -169,10 +169,9 @@ Blue team actions
 Red team actions
 
 ```
-[0..11] => set xmv[i] to MAX
-[12..53] => set xmeas[i-12] to 0.
-[54..62] => setpt[i-54] *= 10
-63 => no action
+[0..41) => set xmv[i] to MAX
+[41..50) => set xmeas[i-12] to 0.
+50 => no action
 ```
 
 For the **Single Continuous** variant:
@@ -194,14 +193,13 @@ For the **Continuous** variant:
 Blue team actions:
 
 ```
-[0..11) => adjust xmv[i]
+[0..12) => adjust xmv[i]
 ```
 
 Red team actions:
 
 ```
-[0..8) => adjust setpoint[i]
-[9..49) => adjust xmeas[i-9]
+[0..9) => adjust setpoint[i]
 ```
 
 Further work

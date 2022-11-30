@@ -29,6 +29,15 @@ class Logger:
         "Agitator speed",
     ]
 
+    streams_key = [
+        "A feed flow",
+        "D feed flow",
+        "E feed flow",
+        "A and C feed flow",
+        "Recycle flow",
+        "Reactor feed rate"
+    ]
+
     def __init__(self, config):
         self.wins = deque(maxlen=10)
         self._summary = []
@@ -83,6 +92,22 @@ class Logger:
                 # "blue loss": blue_loss,
                 # "red loss": red_loss,
                 "valves": env.valves,
+                "reported streams": [
+                    blue_observation[1],
+                    blue_observation[2],
+                    blue_observation[3],
+                    blue_observation[4],
+                    blue_observation[5],
+                    blue_observation[6],
+                ],
+                "true streams": [
+                    red_observation[1],
+                    red_observation[2],
+                    red_observation[3],
+                    red_observation[4],
+                    red_observation[5],
+                    red_observation[6],
+                ],
                 "reported reactor pressure": blue_observation[7],
                 "reported reactor temperature": blue_observation[9],
                 "true reactor pressure": red_observation[7],
@@ -182,6 +207,16 @@ class Logger:
         #######################################################################
         # Plot key measured variables
         #######################################################################
+
+        #streams
+        fig, ax1 = plt.subplots()
+        for j in range(len(self.streams_key)):
+            ax1.plot([m["true streams"][j] for m in self.memory], label=self.valves_key[j])
+        fig.legend(bbox_to_anchor=(0.85, 0.9))
+        fig.tight_layout()
+        plt.savefig(f"flows_{d}_ep{i}.png")
+
+        #reactor
         fig, ax1 = plt.subplots()
         ax1.plot(
             [m["true reactor pressure"] for m in self.memory],
@@ -216,6 +251,7 @@ class Logger:
         fig.tight_layout()
         plt.savefig(f"r_parameters_{d}_ep{i}.png")
 
+        #separator
         fig, ax1 = plt.subplots()
         ax1.plot(
             [m["true separator temperature"] for m in self.memory],
@@ -248,23 +284,24 @@ class Logger:
         fig.tight_layout()
         plt.savefig(f"s_parameters_{d}_ep{i}.png")
 
-        fig, ax = plt.subplots()
-        ax.plot(
-            [m["real inflows"] for m in self.memory],
-            label="real inflows",
-            color="red",
-        )
-        ax.plot(
-            [m["real outflows"] for m in self.memory],
-            label="real outflows",
-            color="blue",
-        )
-        ax.set_ylabel("flow (a.u.)")
-        ax.set_xlabel("time")
-        ax.set_title(f"inflows and outflows at episode {i}")
-        plt.legend()
-        plt.savefig(f"flows_{d}_ep{i}.png")
+        # fig, ax = plt.subplots()
+        # ax.plot(
+        #     [m["real inflows"] for m in self.memory],
+        #     label="real inflows",
+        #     color="red",
+        # )
+        # ax.plot(
+        #     [m["real outflows"] for m in self.memory],
+        #     label="real outflows",
+        #     color="blue",
+        # )
+        # ax.set_ylabel("flow (a.u.)")
+        # ax.set_xlabel("time")
+        # ax.set_title(f"inflows and outflows at episode {i}")
+        # plt.legend()
+        # plt.savefig(f"flows_{d}_ep{i}.png")
 
+        #compressor
         fig, ax1 = plt.subplots()
         ax1.plot(
             [m["compressor work"] for m in self.memory],
@@ -286,12 +323,15 @@ class Logger:
         plt.savefig(f"compressor_{d}_ep{i}.png")
         plt.close("all")
 
+        self.memory = []
+
     def make_report(self, d, action_txt, reward_txt, intent):
         with open(f"report_{d}.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
             f.write(f"{action_txt}\n\n{reward_txt}\n\nred intent: {intent}\n\n")
             for i in range(10):
                 f.write("\\newpage\n")
+                f.write(f"episode {10*i}\n===\n")
                 f.write(
                     f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{width=50%}}\\ "
                 )
@@ -302,16 +342,18 @@ class Logger:
                     f"![Valve positions at episode {10*i}](valve_positions_{d}_ep{10*i}.png){{width=50%}}\\ "
                 )
                 f.write(
+                    f"![Stream readings at episode {10*i}](flows_{d}_ep{10*i}.png){{width=50%}}\n"
+                )
+                f.write(
                     f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{width=50%}}\\ "
                 )
                 f.write(
                     f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{width=50%}}\n"
                 )
-                f.write(
-                    f"![Stream parameters at episode {10*i}](flows_{d}_ep{10*i}.png){{width=50%}}\\ "
-                )
+                f.write("\\newpage\n")
                 f.write(
                     f"![Compressor parameters at episode {10*i}](compressor_{d}_ep{10*i}.png){{width=50%}}\n"
                 )
+                f.write("\n===\n")
                 f.write(self._summary[i])
                 f.write("\\newpage\n")

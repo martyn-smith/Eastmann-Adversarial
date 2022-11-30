@@ -33,7 +33,7 @@ class Agent:
         # exploration noise and scaling
         self.rng = np.random.random
         self.epsilon = 0.0001
-        self.scale = 100.0
+        self.scale = 1.0
 
         # replay parameters
         self.memory = deque(maxlen=100_000)
