@@ -1,23 +1,26 @@
 #all: TE results
 SHELL:= /bin/bash
+sdate := $$(date +"%d%m%y")
+ldate := $$(date +"%Y-%m-%d")
+cdate := $$(date +"%d%m%C")
 
 build:
-	gfortran -g3 -o tedbg_$$(date +"%d%m%y") -fall-intrinsics -fbacktrace -fdefault-real-8 \
+	gfortran -g3 -o tedbg_$(sdate) -fall-intrinsics -fbacktrace -fdefault-real-8 \
 	    -ffpe-trap=invalid,zero,overflow,underflow,denormal -fimplicit-none  \
 		-Wall -std=f2003 src/main.f95;
-	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$$(date +"%d%m%y") src/main.f95;
-	ln -s -f te_$$(date +"%d%m%y") te;
-	./te_$$(date +"%d%m%y");
+	gfortran -fall-intrinsics -fdefault-real-8 -O3 -std=f2003 -o te_$(sdate) src/main.f95;
+	ln -s -f te_$(sdate) te;
+	./te_$(sdate);
 
 install:
 	poetry install
 
 moveresults:
 	@echo "making output folder"
-	if [! -d '../../datasets/$date +"%d%m%C"' ]; then
-	mkdir ../../datasets/$(date +"%d%m%C") # Control will enter here if $DIRECTORY exists.
+	if [! -d '../../datasets/$(cdate)' ]; then
+	mkdir ../../datasets/$(cdate) # Control will enter here if $DIRECTORY exists.
 	fi
-	mv *.dat ../../datasets/$(date +"%d%m%C")
+	mv *.dat ../../datasets/$(cdate)
 
 fuzzresults:
 	for i in {1..64}
@@ -32,17 +35,31 @@ fuzzresults:
 clean:
 	rm -f *.mod *.png report*.md *.h5 *.dat errors*.txt  te_* tedbg_* __pycache__
 
+threereport: build install clean
+	# poetry run env/main.py --fast --report --blue none --red none -n 100 2>> errors_$(ldate).txt
+	# pandoc -o report_peaceful_$(ldate).pdf report_$(ldate).md
+	# rm -f *.png report*.md
+	# poetry run env/main.py --fast --report --blue discrete --red none -n 100 2>> errors_$(ldate).txt
+	# pandoc -o report_blue_discrete_validation_$(ldate).pdf report_$(ldate).md
+	# rm -f *.png report*.md
+	# poetry run env/main.py --fast --report --blue discrete --red continuous -n 100 2>> errors_$(ldate).txt
+	# pandoc -o report_blue_discrete_red_continuous_$(ldate).pdf report_$(ldate).md
+	# rm -f *.png report*.md
+	poetry run env/main.py --fast --report --blue continuous --red continuous -n 100 2>> errors_$(ldate).txt
+	pandoc -o report_blue_continous_red_continuous_$(ldate).pdf report_$(ldate).md
+	rm -f *.png report*.md
+
 report: build install clean
-	poetry run env/main.py --fast --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	poetry run env/main.py --fast --report -n 300 2>> errors_$(ldate).txt
+	pandoc -o report_$(ldate).pdf report_$(ldate).md
 	rm -f *.png report*.md
 
 figures: build clean
-	poetry run env/main.py --fast --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
+	poetry run env/main.py --fast --report -n 300 2>> errors_$(ldate).txt
 
 nored: build clean
-	poetry run env/main.py --fast --red none --report -n 300 2>> errors_$$(date +"%Y-%m-%d").txt
-	pandoc -o report_nored_$$(date +"%Y-%m-%d").pdf report_$$(date +"%Y-%m-%d").md
+	poetry run env/main.py --fast --red none --report -n 300 2>> errors_$(ldate).txt
+	pandoc -o report_nored_$(ldate).pdf report_$(ldate).md
 	rm -f *.png report*.md
 
 noblue: build clean

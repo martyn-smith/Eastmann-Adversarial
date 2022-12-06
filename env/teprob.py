@@ -1169,6 +1169,7 @@ class TEproc(gym.Env):
         else:
             reward = 0
         reward -= COST_CO2 * true_xmeas[20]
+        reward -= COST_CO2 * CO2_STEAM * true_xmeas[19] / 3600.
         return reward
 
     @property
