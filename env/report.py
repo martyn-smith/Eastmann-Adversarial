@@ -1,6 +1,10 @@
 import matplotlib.pyplot as plt
 from collections import deque
 
+plt.rcParams["figure.figsize"] = (5.0, 3.0)
+plt.rcParams["figure.dpi"] = 300
+plt.rcParams["font.size"] = 8
+
 class Logger:
     setpt_key = [
         "reactor temperature",
@@ -142,23 +146,23 @@ class Logger:
         #######################################################################
         # Plot actions
         #######################################################################
-        fig, ax = plt.subplots()
+        fig, ax1 = plt.subplots()
         if blue_type == "discrete":
-            ax.plot(
+            ax1.plot(
                 [m["blue action"] for m in self.memory],
                 color="blue",
             )
         if red_type == "continuous":
             for j in range(len(self.setpt_key)):
-                ax.plot(
+                ax1.plot(
                     [m["red action"][j] for m in self.memory],
                     label=self.setpt_key[j],
                     color="red",
                     linestyle="--",
                 )
-        ax.set_title(f"actions at episode {i}")
-        ax.set_xlabel("time")
-        ax.set_ylabel("actions")
+        ax1.set_title(f"actions at episode {i}")
+        ax1.set_xlabel("time")
+        ax1.set_ylabel("actions")
         fig.legend()
         plt.savefig(f"actions_{d}_ep{i}.png")
 
@@ -197,9 +201,11 @@ class Logger:
         #######################################################################
         # Plot manipulated variables
         #######################################################################
+
         fig, ax1 = plt.subplots()
         for j in range(len(self.valves_key)):
             ax1.plot([m["valves"][j].pos for m in self.memory], label=self.valves_key[j])
+        ax1.set_title(f"manipulated variables at episode {i}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
         plt.savefig(f"valve_positions_{d}_ep{i}.png")
@@ -212,6 +218,7 @@ class Logger:
         fig, ax1 = plt.subplots()
         for j in range(len(self.streams_key)):
             ax1.plot([m["true streams"][j] for m in self.memory], label=self.valves_key[j])
+        ax1.set_title(f"measured variables at episode {i}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
         plt.savefig(f"flows_{d}_ep{i}.png")
@@ -245,8 +252,8 @@ class Logger:
         )
         ax2.set_ylabel("temperature (degC)")
         ax2.set_ylim(90, 180)
-        ax2.set_title(f"reactor parameters at episode {i}")
-        ax2.set_xlabel("time")
+        ax1.set_title(f"reactor parameters at episode {i}")
+        ax1.set_xlabel("time")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
         plt.savefig(f"r_parameters_{d}_ep{i}.png")
@@ -278,8 +285,8 @@ class Logger:
             linestyle="dashed",
         )
         ax2.set_ylabel("level (%)")
-        ax2.set_title(f"separator parameters at episode {i}")
-        ax2.set_xlabel("time")
+        ax1.set_title(f"separator parameters at episode {i}")
+        ax1.set_xlabel("time")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
         plt.savefig(f"s_parameters_{d}_ep{i}.png")
@@ -329,31 +336,29 @@ class Logger:
         with open(f"report_{d}.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
             f.write(f"{action_txt}\n\n{reward_txt}\n\nred intent: {intent}\n\n")
-            for i in range(10):
+            for i in range(len(self._summary)):
                 f.write("\\newpage\n")
                 f.write(f"episode {10*i}\n===\n")
                 f.write(
-                    f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{width=50%}}\\ "
+                    f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{width=320px}}\\ "
                 )
                 f.write(
-                    f"![Rewards at episode {10*i}](rewards_{d}_ep{10*i}.png){{width=50%}}\n"
+                    f"![Rewards at episode {10*i}](rewards_{d}_ep{10*i}.png){{width=320px}}\n"
                 )
                 f.write(
-                    f"![Valve positions at episode {10*i}](valve_positions_{d}_ep{10*i}.png){{width=50%}}\\ "
+                    f"![Valve positions at episode {10*i}](valve_positions_{d}_ep{10*i}.png){{width=320px}}\\ "
                 )
                 f.write(
-                    f"![Stream readings at episode {10*i}](flows_{d}_ep{10*i}.png){{width=50%}}\n"
+                    f"![Stream readings at episode {10*i}](flows_{d}_ep{10*i}.png){{width=320px}}\n"
                 )
                 f.write(
-                    f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{width=50%}}\\ "
+                    f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{width=320px}}\\ "
                 )
                 f.write(
-                    f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{width=50%}}\n"
+                    f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{width=320px}}\n"
                 )
-                f.write("\\newpage\n")
                 f.write(
-                    f"![Compressor parameters at episode {10*i}](compressor_{d}_ep{10*i}.png){{width=50%}}\n"
+                    f"![Compressor parameters at episode {10*i}](compressor_{d}_ep{10*i}.png){{width=320px}}\n"
                 )
-                f.write("\n===\n")
                 f.write(self._summary[i])
                 f.write("\\newpage\n")

@@ -49,8 +49,18 @@ threereport: build install clean
 	pandoc -o report_blue_continous_red_continuous_$(ldate).pdf report_$(ldate).md
 	rm -f *.png report*.md
 
+shortreport: build install clean
+	poetry run env/main.py --fast --report -n 100 2>> errors_$(ldate).txt
+	pandoc -V geometry:margin=0.8in -o report_$(ldate).pdf report_$(ldate).md
+	rm -f *.png report*.md
+
 report: build install clean
 	poetry run env/main.py --fast --report -n 300 2>> errors_$(ldate).txt
+	pandoc -V geometry:margin=0.8in -o report_$(ldate).pdf report_$(ldate).md
+	rm -f *.png report*.md
+
+continuous: build install clean
+	poetry run env/main.py --red continuous --blue continuous --fast --report -n 300 2>> errors_$(ldate).txt
 	pandoc -o report_$(ldate).pdf report_$(ldate).md
 	rm -f *.png report*.md
 
