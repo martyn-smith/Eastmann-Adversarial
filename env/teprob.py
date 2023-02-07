@@ -1082,7 +1082,7 @@ class TEproc(gym.Env):
         elif self.red_type == "discrete":
             assert spaces.Discrete(64).contains(red_action)
             if red_action <= 40:
-                blue_xmeas = 0.
+                blue_xmeas[red_action] = 0.
             elif red_Action <= 49:
                 self.ctrlr.setpt[red_action - 40] *= 10.
             else:

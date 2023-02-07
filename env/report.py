@@ -151,6 +151,7 @@ class Logger:
             ax1.plot(
                 [m["blue action"] for m in self.memory],
                 color="blue",
+                label="blue action"
             )
         if red_type == "continuous":
             for j in range(len(self.setpt_key)):
@@ -158,7 +159,7 @@ class Logger:
                     [m["red action"][j] for m in self.memory],
                     label=self.setpt_key[j],
                     color="red",
-                    linestyle="--",
+                    linestyle="--"
                 )
         ax1.set_title(f"actions at episode {i}")
         ax1.set_xlabel("time")
@@ -332,8 +333,8 @@ class Logger:
 
         self.memory = []
 
-    def make_report(self, d, action_txt, reward_txt, intent):
-        with open(f"report_{d}.md", "w") as f:
+    def make_report(self, name, action_txt, reward_txt, intent):
+        with open(name, "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
             f.write(f"{action_txt}\n\n{reward_txt}\n\nred intent: {intent}\n\n")
             for i in range(len(self._summary)):

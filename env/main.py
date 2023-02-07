@@ -125,6 +125,7 @@ parser.add_argument(
 
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument("--report", help="generates report template", action="store_true")
+parser.add_argument("--adddate", help="add date to report name", action="store_true")
 parser.add_argument("--data", help="outputs structured data", action="store_true")
 parser.add_argument(
     "-v", "--verbose", help="displays debug info", action="count", default=0
@@ -255,7 +256,8 @@ if __name__ == "__main__":
     ###############################################################################################
 
     if args.report:
-        log.make_report(d, action_txt, reward_txt, args.intent)
+        name = f"report_{d}.md" if args.adddate else "report.md" 
+        log.make_report(name, action_txt, reward_txt, args.intent)
         log.close()
 
     ###############################################################################################
