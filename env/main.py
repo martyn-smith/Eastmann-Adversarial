@@ -257,7 +257,7 @@ if __name__ == "__main__":
 
     if args.report:
         name = f"report_{d}.md" if args.adddate else "report.md" 
-        log.make_report(name, action_txt, reward_txt, args.intent)
+        log.make_report(name, d, action_txt, reward_txt, args.intent)
         log.close()
 
     ###############################################################################################

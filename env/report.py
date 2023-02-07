@@ -333,7 +333,7 @@ class Logger:
 
         self.memory = []
 
-    def make_report(self, name, action_txt, reward_txt, intent):
+    def make_report(self, name, d, action_txt, reward_txt, intent):
         with open(name, "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
             f.write(f"{action_txt}\n\n{reward_txt}\n\nred intent: {intent}\n\n")
