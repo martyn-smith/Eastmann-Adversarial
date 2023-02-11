@@ -8,10 +8,10 @@ from tensorflow.keras.models import load_model
 
 
 class DefendAgent(Agent):
-    def __init__(self, load):
+    def __init__(self, load = True):
         self.id = "blue"
         self.load = load
-        self.stategenerator = load_model("./Pythonised/stategenerator")
+        self.stategenerator = load_model("env/agents/twin/stategenerator")
         np.set_printoptions(
             linewidth=1300,
             formatter={
@@ -63,7 +63,7 @@ class DefendAgent(Agent):
             exit(1)
 
     def learn(self, previous, reward, observation, done):
-        if not self.load:
+        if True:
             value = self.value(observation)
             value = tf.convert_to_tensor([value], dtype=tf.float32)
             # return super().learn(previous, reward, observation, done)
