@@ -24,10 +24,10 @@ class Agent:
     def __init__(self, n_actions):
         # create model here in child process
         self.memory = deque(maxlen=100_000)
-        self.batch_size = 64
+        self.batch_size = 100
         self.gamma = 1.0
         self.epsilon = 1.0
-        self.epsilon_min = 0.01
+        self.epsilon_min = 0.001
         self.epsilon_decay = 0.095
         self.n_actions = n_actions
         model = Sequential()
