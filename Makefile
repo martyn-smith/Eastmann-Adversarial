@@ -45,9 +45,6 @@ reports: build install clean
 	poetry run env/main.py --fast --report --blue discrete --red none -n 300 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_blue_discrete_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
-	poetry run env/main.py --fast --report --blue discrete --red continuous -n 300 2>> errors_$(ldate).txt
-	pandoc -V geometry:margin=0.8in -o report_blue_discrete_red_continuous_$(ldate).pdf report.md
-	rm -f *.png report.md
 	poetry run env/main.py --fast --report --blue discrete --red discrete -n 300 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_blue_discrete_red_discrete_$(ldate).pdf report.md
 	rm -f *.png report.md
@@ -58,7 +55,7 @@ reports: build install clean
 	pandoc  -V geometry:margin=0.8in -o report_blue_discrete_red_discrete_recipe_$(ldate).pdf report.md
 	rm -f *.png report.md
 	poetry run env/main.py --fast --report --blue continuous --red continuous -n 300 2>> errors_$(ldate).txt
-	pandoc  -V geometry:margin=0.8in -o report_blue_discrete_red_discrete_recipe_$(ldate).pdf report.md
+	pandoc  -V geometry:margin=0.8in -o report_blue_continuous_red_continuous__$(ldate).pdf report.md
 	rm -f *.png report.md
 
 report: build install clean
