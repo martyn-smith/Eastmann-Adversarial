@@ -26,8 +26,8 @@ class Agent:
         self.memory = deque(maxlen=100_000)
         self.batch_size = 100
         self.gamma = 1.0
-        self.epsilon = 1.0
-        self.epsilon_min = 0.001
+        self.epsilon = 0.999
+        self.epsilon_min = 0.00001
         self.epsilon_decay = 0.095
         self.n_actions = n_actions
         model = Sequential()
