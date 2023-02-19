@@ -151,14 +151,32 @@ class Logger:
             ax1.plot(
                 [m["blue action"] for m in self.memory],
                 color="blue",
+                alpha=0.8,
                 label="blue action"
             )
-        if red_type == "continuous":
+        elif blue_type == "continuous":
+            for j in range(len(self.setpt_key)):
+                ax1.plot(
+                    [m["blue action"][j] for m in self.memory],
+                    label=self.setpt_key[j],
+                    color="blue",
+                    alpha=0.8,
+                    linestyle="--"
+                )
+        if red_type == "discrete":
+            ax1.plot(
+                [m["red action"] for m in self.memory],
+                color="red",
+                alpha=0.8,
+                label="red action"
+            )
+        elif red_type == "continuous":
             for j in range(len(self.setpt_key)):
                 ax1.plot(
                     [m["red action"][j] for m in self.memory],
                     label=self.setpt_key[j],
                     color="red",
+                    alpha=0.8,
                     linestyle="--"
                 )
         ax1.set_title(f"actions at episode {i}")
@@ -218,7 +236,10 @@ class Logger:
         #streams
         fig, ax1 = plt.subplots()
         for j in range(len(self.streams_key)):
-            ax1.plot([m["true streams"][j] for m in self.memory], label=self.valves_key[j])
+            if j == 1 or j == 2:
+                ax1.plot([m["true streams"][j] / 100 for m in self.memory], label=self.valves_key[j])
+            else:
+                ax1.plot([m["true streams"][j] for m in self.memory], label=self.valves_key[j])
         ax1.set_title(f"measured variables at episode {i}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()

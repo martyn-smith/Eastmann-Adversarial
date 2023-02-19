@@ -32,8 +32,8 @@ class Agent:
         self.n_actions = n_actions
         model = Sequential()
         model.add(Input(shape=(42,)))
-        model.add(Dense(64, activation="tanh"))
-        model.add(Dense(64, activation="tanh"))
+        model.add(Dense(256, activation="tanh"))
+        model.add(Dense(256, activation="tanh"))
         model.add(Dense(n_actions, activation="relu"))
         opt = Adam(learning_rate=0.01)
         model.compile(loss="mae", optimizer="adam")

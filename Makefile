@@ -65,8 +65,8 @@ reports: build install clean
 	rm -f *.png report.md
 
 report: build install clean
-	poetry run env/main.py --fast --report --blue continuous --red continuous -n 300 2>> errors_$(ldate).txt
-	pandoc -V geometry:margin=0.8in -o report_$(ldate).pdf report_$(ldate).md
+	poetry run env/main.py --fast --report --blue continuous --red continuous -n 11 2>> errors_$(ldate).txt
+	pandoc -V geometry:margin=0.8in -o report_$(ldate).pdf report.md
 	rm -f *.png report*.md
 
 figures: build clean
