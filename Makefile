@@ -38,10 +38,14 @@ fuzzresults:
 clean:
 	rm -f *.mod *.png report*.md *.h5 *.dat errors*.txt  te_* tedbg_* __pycache__
 
-reports: build install clean
+#peaceful split into its own, not least to reassure that the artist() errors are ignorable.
+peaceful: build install clean
 	poetry run env/main.py --fast --report --blue none --red none -n 100 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_peaceful_$(ldate).pdf report.md
 	rm -f *.png report.md
+
+reports: build install clean
+	#discrete
 	poetry run env/main.py --fast --report --blue discrete --red none -n 300 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_blue_discrete_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
@@ -57,9 +61,11 @@ reports: build install clean
 	poetry run env/main.py --fast --report --blue discrete --red discrete --intent recipe -n 300 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_blue_discrete_red_discrete_recipe_$(ldate).pdf report.md
 	rm -f *.png report.md
+	#continuous
 	poetry run env/main.py --fast --report --blue continuous --red continuous -n 300 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_blue_continuous_red_continuous_$(ldate).pdf report.md
 	rm -f *.png report.md
+	#twin
 	poetry run env/main.py --fast --report --blue twin --red none -n 300 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_blue_twin_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
@@ -79,32 +85,5 @@ nored: build clean
 
 noblue: build clean
 	poetry run env/main.py --fast --blue none --report -n 300 2>> errors_$(ldate).txt
-	pandoc -o report_noblue_$(ldate).pdf report_$(ldate).md
-	rm -f *.png report*.md
-
-controls: build install clean
-	poetry run env/main.py --fast --report -n 300 2>> errors_$(ldate).txt
-	pandoc -o report_$(ldate).pdf report_$(ldate).md
-	rm -f *.png report*.md
-	poetry run env/main.py --fast --red none --report -n 300 2>> errors_$(ldate).txt
-	pandoc -o report_nored_$(ldate).pdf report_$(ldate).md
-	rm -f *.png report*.md
-	poetry run env/main.py --fast --blue none --report -n 300 2>> errors_$(ldate).txt
-	pandoc -o report_noblue_$(ldate).pdf report_$(ldate).md
-
-scenarios: build clean
-	poetry run env/main.py --fast --intent downtime --report 2>> errors_$(ldate).txt
-	pandoc -o report_downtime_$(ldate).pdf report_$(ldate).md
-	rm -f *.png report*.md
-	poetry run env/main.py --fast --intent recipe --report 2>> errors_$(ldate).txt
-	pandoc -o report_recipe_$(ldate).pdf report_$(ldate).md
-	rm -f *.png report*.md
-	poetry run env/main.py --fast --intent destruction --report 2>> errors_$(ldate).txt
-	pandoc -o report_destruction_$(ldate).pdf report_$(ldate).md
-	rm -f *.png report*.md
-	poetry run env/main.py --fast --red none --report 2>> errors_$(ldate).txt
-	pandoc -o report_nored_$(ldate).pdf report_$(ldate).md
-	rm -f *.png report*.md
-	poetry run env/main.py --fast --blue none --report 2>> errors_$(ldate).txt
 	pandoc -o report_noblue_$(ldate).pdf report_$(ldate).md
 	rm -f *.png report*.md

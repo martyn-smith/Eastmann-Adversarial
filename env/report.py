@@ -163,6 +163,13 @@ class Logger:
                     alpha=0.8,
                     linestyle="--"
                 )
+        elif blue_type == "twin":
+            ax1.plot(
+                [m["blue action"] for m in self.memory],
+                color="blue",
+                alpha=0.9,
+                label="blue action"
+            )
         if red_type == "discrete":
             ax1.plot(
                 [m["red action"] for m in self.memory],
@@ -176,7 +183,7 @@ class Logger:
                     [m["red action"][j] for m in self.memory],
                     label=self.setpt_key[j],
                     color="red",
-                    alpha=0.8,
+                    alpha=0.6,
                     linestyle="--"
                 )
         ax1.set_title(f"actions at episode {i}")
