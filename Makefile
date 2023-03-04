@@ -40,8 +40,8 @@ clean:
 
 #peaceful split into its own, not least to reassure that the artist() errors are ignorable.
 peaceful: build install clean
-	poetry run env/main.py --fast --report --blue none --red none -n 100 2>> errors_$(ldate).txt
-	pandoc -V geometry:margin=0.8in -o report_peaceful_$(ldate).pdf report.md
+	poetry run env/main.py --report --blue none --red none -n 100 2>> errors_$(ldate).txt
+	pandoc -V geometry:margin=0.8in -o report_peaceful_long_$(ldate).pdf report.md
 	rm -f *.png report.md
 
 reports: build install clean

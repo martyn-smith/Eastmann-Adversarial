@@ -842,7 +842,7 @@ class TEproc(gym.Env):
         """
         Convenience representation function. Should be harmonised with the Fortran output.
         """
-        return f""
+        return f"{self.state}"
 
     def step(
         self, action, burn_in = False
