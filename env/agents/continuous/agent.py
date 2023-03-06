@@ -23,6 +23,7 @@ from copy import deepcopy
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
 logging.getLogger("tensorflow").setLevel(logging.FATAL)
 
+
 class Agent:
     def __init__(self, n_out):
         # learning parameters

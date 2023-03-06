@@ -1,6 +1,6 @@
 from copy import deepcopy
 import numpy as np
-from constants import SETPT
+from constants import FXMEAS, SETPT
 
 
 class Dummy:
@@ -28,7 +28,7 @@ class Controller:
         self.taui = np.array([1.9, 23.0, 96.0, 50.0, 50.0, 39.0, 49.5, 30.1, 81.9])
         self.err = np.zeros(9)
         self.xmv = np.array(seed)
-        self.fxmeas = np.zeros(22)
+        self.fxmeas = deepcopy(FXMEAS)
         self.alpha = delta_t * 3600.0 / 5.0
         self.reset_times = np.zeros(12)
         self.xmv_map = {0: 5, 1: 1, 2: 8, 3: 6, 5: 7, 6: 3, 7: 4, 9: 0, 10: 2}

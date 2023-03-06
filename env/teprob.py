@@ -365,7 +365,6 @@ class GasVessel(Vessel):
 
 
 class Stream:
-
     # all streams weirdness:
     # set_H() initially called normally for 1,2,3,5,7,8 only
     # 9.H then copies 8.H so set_H() is never called
@@ -741,13 +740,13 @@ class TEproc(gym.Env):
         seed = deepcopy(
             {
                 # fmt: off
-                "R": [10.40491389, 4.363996017, 7.570059737, 0.4230042431, 24.15513437, 2.942597645, 154.3770655, 159.186596, 2.808522723],
-                "S": [63.75581199, 26.74026066, 46.38532432, 0.2464521543, 15.20484404, 1.852266172, 52.44639459, 41.20394008, 0.569931776],
-                "C": [0.4306056376, 0.0079906200783, 0.9056036089, 0.016054258216, 0.7509759687, 0.088582855955, 48.27726193, 39.38459028, 0.3755297257],
-                "V": [107.7562698, 29.77250546, 88.32481135, 23.03929507, 62.85848794, 5.546318688, 11.92244772, 5.555448243, 0.9218489762],
-                "Twr": 94.59927549,
-                "Tws": 77.29698353,
-                "vpos": [63.05263039, 53.97970677, 24.64355755, 61.30192144, 22.21, 40.06374673, 38.1003437, 46.53415582, 47.44573456, 41.10581288, 18.11349055, 50.0],
+                "R": [10.4069956, 4.36693860, 7.64945180, 0.421448731, 23.8633936, 2.91889520, 154.662226, 159.356357, 2.80961686],
+                "S": [63.7109445, 26.7341499, 46.8294493, 0.245125253, 14.9970194, 1.83438879, 52.5940897,  41.3112820, 0.570846620],
+                "C": [0.430691994, 0.00799222256, 0.905785223, 0.0158433233, 0.734868198, .0870353212, 48.2770755, 39.3842271, 0.376215647], 
+                "V": [107.719672, 29.7888200, 88.8192409, 23.0051126, 62.2553245, 5.49914487, 11.9870640, 5.58563311, 0.917906943],
+                "Twr": 94.5828274,
+                "Tws": 70.6438822,
+                "vpos" : [63.0545111, 53.9385848, 24.5524530, 61.3150577, 22.2100000, 40.0356780, 38.0197893, 46.5253564, 47.4457346, 41.1433741, 25.5093958, 50.0],
                 "vrng": [400.00, 400.00, 100.00, 1500.00, None, None, 1500.00, 1000.00, 0.03, 1000.0, 1200.0, None],
                 "vtau": [8.0, 8.0, 6.0, 9.0, 7.0, 5.0, 5.0, 5.0, 120.0, 5.0, 5.0, 5.0],
                 "sfr": [0.995, 0.991, 0.99, 0.916, 0.936, 0.938, 0.058, 0.0301],
@@ -845,7 +844,7 @@ class TEproc(gym.Env):
         return f"{self.state}"
 
     def step(
-        self, action, burn_in = False
+        self, action, burn_in=False
     ) -> tuple[tuple[np.ndarray, np.ndarray], tuple[float, float], bool, dict]:
         """
         main loop for the TE process
@@ -867,20 +866,19 @@ class TEproc(gym.Env):
             assert spaces.Discrete(14).contains(blue_action)
             self.ctrlr.reset_single(blue_action, self.time)
         elif self.blue_type == "singlecontinuous":
-            assert spaces.Box(low=-100., high=100., shape=(1,)).contains(blue_action)
+            assert spaces.Box(low=-100.0, high=100.0, shape=(1,)).contains(blue_action)
             xmv[3] += blue_action
-            np.clip(blue_action, 0., 100.)
+            np.clip(blue_action, 0.0, 100.0)
         elif self.blue_type == "continuous":
-            assert spaces.Box(low=-100., high=100., shape=(12,)).contains(blue_action)
-            for (a, x) in zip(blue_action, xmv):
+            assert spaces.Box(low=-100.0, high=100.0, shape=(12,)).contains(blue_action)
+            for a, x in zip(blue_action, xmv):
                 x += a
-                np.clip(x, 0., 100.)
+                np.clip(x, 0.0, 100.0)
         elif self.blue_type == "twin":
-            assert spaces.Box(low=-100., high=100., shape=(1,)).contains(blue_action)
+            assert spaces.Box(low=-100.0, high=100.0, shape=(1,)).contains(blue_action)
         # setting valves
         for mv, valve in zip(xmv, self.valves):
             valve.set(mv)
-
 
         ###########################################################################################
         # Reaction / process
@@ -1083,13 +1081,13 @@ class TEproc(gym.Env):
         elif self.red_type == "discrete":
             assert spaces.Discrete(64).contains(red_action)
             if red_action <= 40:
-                blue_xmeas[red_action] = 0.
+                blue_xmeas[red_action] = 0.0
             elif red_Action <= 49:
-                self.ctrlr.setpt[red_action - 40] *= 10.
+                self.ctrlr.setpt[red_action - 40] *= 10.0
             else:
                 pass
         elif self.red_type == "singlecontinuous":
-            assert spaces.Box(low=-100., high=100., shape=(1,)).contains(red_action)
+            assert spaces.Box(low=-100.0, high=100.0, shape=(1,)).contains(red_action)
             self.ctrly.setpt[6] += red_action
         elif self.red_type == "continuous":
             assert spaces.Box(low=-np.inf, high=np.inf, shape=(9,)).contains(red_action)
@@ -1105,7 +1103,7 @@ class TEproc(gym.Env):
         done = self.has_failed(xmeas, self.time)
         blue_reward = self.reward(reset, done, xmeas, self.ctrlr.xmv)
         if self.red_intent == "oppose":
-            red_reward = - blue_reward
+            red_reward = -blue_reward
         elif self.red_intent == "recipe":
             red_reward = -(self.production(red_xmeas) - self.utilities(red_xmeas))
         elif self.red_intent == "destruction":
@@ -1170,7 +1168,7 @@ class TEproc(gym.Env):
         else:
             reward = 0
         reward -= COST_CO2 * true_xmeas[20]
-        reward -= COST_CO2 * CO2_STEAM * true_xmeas[19] / 3600.
+        reward -= COST_CO2 * CO2_STEAM * true_xmeas[19] / 3600.0
         return reward
 
     @property
@@ -1282,7 +1280,7 @@ class TEproc(gym.Env):
         try:
             try:
                 for i in range(3600):
-                    observations, _, done, info = self.step((None, None), burn_in = True)
+                    observations, _, done, info = self.step((None, None), burn_in=True)
                     log.append([self.s.level * 100, self.ctrlr.xmv[10]])
                     self.has_failed_extra()
             except FloatingPointError as e:
@@ -1292,9 +1290,10 @@ class TEproc(gym.Env):
                 )
             except AssertionError as e:
                 raise ProcessError(
-                        f"assertion error: plant failed after {i}/{self.time} timesteps due to {e}!", log
+                    f"assertion error: plant failed after {i}/{self.time} timesteps due to {e}!",
+                    log,
                 )
-            return self.step((None, None), burn_in = True)
+            return self.step((None, None), burn_in=True)
         except ProcessError as e:
             exit()
 

@@ -5,6 +5,7 @@ plt.rcParams["figure.figsize"] = (5.0, 3.0)
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 8
 
+
 class Logger:
     setpt_key = [
         "reactor temperature",
@@ -39,7 +40,7 @@ class Logger:
         "E feed flow",
         "A and C feed flow",
         "Recycle flow",
-        "Reactor feed rate"
+        "Reactor feed rate",
     ]
 
     def __init__(self, config):
@@ -131,7 +132,9 @@ class Logger:
 
     def summary(self, t, info):
         try:
-            win_rate = sum(1 for w in self.wins if w[0]) / sum(1 for w in self.wins if w[1])
+            win_rate = sum(1 for w in self.wins if w[0]) / sum(
+                1 for w in self.wins if w[1]
+            )
         except ZeroDivisionError:
             win_rate = 1 if self.wins[0][0] else 0
         else:
@@ -142,7 +145,6 @@ class Logger:
         )
 
     def make_figures(self, i, d, blue_type, red_type):
-
         #######################################################################
         # Plot actions
         #######################################################################
@@ -152,7 +154,7 @@ class Logger:
                 [m["blue action"] for m in self.memory],
                 color="blue",
                 alpha=0.8,
-                label="blue action"
+                label="blue action",
             )
         elif blue_type == "continuous":
             for j in range(len(self.setpt_key)):
@@ -161,21 +163,21 @@ class Logger:
                     label=self.setpt_key[j],
                     color="blue",
                     alpha=0.8,
-                    linestyle="--"
+                    linestyle="--",
                 )
         elif blue_type == "twin":
             ax1.plot(
                 [m["blue action"] for m in self.memory],
                 color="blue",
                 alpha=0.9,
-                label="blue action"
+                label="blue action",
             )
         if red_type == "discrete":
             ax1.plot(
                 [m["red action"] for m in self.memory],
                 color="red",
                 alpha=0.8,
-                label="red action"
+                label="red action",
             )
         elif red_type == "continuous":
             for j in range(len(self.setpt_key)):
@@ -184,7 +186,7 @@ class Logger:
                     label=self.setpt_key[j],
                     color="red",
                     alpha=0.6,
-                    linestyle="--"
+                    linestyle="--",
                 )
         ax1.set_title(f"actions at episode {i}")
         ax1.set_xlabel("time")
@@ -230,7 +232,9 @@ class Logger:
 
         fig, ax1 = plt.subplots()
         for j in range(len(self.valves_key)):
-            ax1.plot([m["valves"][j].pos for m in self.memory], label=self.valves_key[j])
+            ax1.plot(
+                [m["valves"][j].pos for m in self.memory], label=self.valves_key[j]
+            )
         ax1.set_title(f"manipulated variables at episode {i}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
@@ -240,19 +244,25 @@ class Logger:
         # Plot key measured variables
         #######################################################################
 
-        #streams
+        # streams
         fig, ax1 = plt.subplots()
         for j in range(len(self.streams_key)):
             if j == 1 or j == 2:
-                ax1.plot([m["true streams"][j] / 100 for m in self.memory], label=self.valves_key[j])
+                ax1.plot(
+                    [m["true streams"][j] / 100 for m in self.memory],
+                    label=self.valves_key[j],
+                )
             else:
-                ax1.plot([m["true streams"][j] for m in self.memory], label=self.valves_key[j])
+                ax1.plot(
+                    [m["true streams"][j] for m in self.memory],
+                    label=self.valves_key[j],
+                )
         ax1.set_title(f"measured variables at episode {i}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
         plt.savefig(f"flows_{d}_ep{i}.png")
 
-        #reactor
+        # reactor
         fig, ax1 = plt.subplots()
         ax1.plot(
             [m["true reactor pressure"] for m in self.memory],
@@ -287,7 +297,7 @@ class Logger:
         fig.tight_layout()
         plt.savefig(f"r_parameters_{d}_ep{i}.png")
 
-        #separator
+        # separator
         fig, ax1 = plt.subplots()
         ax1.plot(
             [m["true separator temperature"] for m in self.memory],
@@ -337,7 +347,7 @@ class Logger:
         # plt.legend()
         # plt.savefig(f"flows_{d}_ep{i}.png")
 
-        #compressor
+        # compressor
         fig, ax1 = plt.subplots()
         ax1.plot(
             [m["compressor work"] for m in self.memory],

@@ -132,7 +132,6 @@ parser.add_argument(
 )
 
 if __name__ == "__main__":
-
     args = parser.parse_args()
     d = str(datetime.now().date())
 
@@ -146,7 +145,12 @@ if __name__ == "__main__":
         reward_threshold=195.0,
     )
 
-    env = gym.make("TennesseeEastmannContinous-v1", blue_type = args.blue, red_type = args.red, red_intent = args.intent)
+    env = gym.make(
+        "TennesseeEastmannContinous-v1",
+        blue_type=args.blue,
+        red_type=args.red,
+        red_intent=args.intent,
+    )
     if args.fast:
         env._max_episode_steps = 3600 + int(0.1 * 3600)
     log = Logger(args)
@@ -247,17 +251,17 @@ if __name__ == "__main__":
                 break
         if args.report and i % 10 == 0:
             log.summary(t, info)
-            log.make_figures( i, d, args.blue, args.red)
+            log.make_figures(i, d, args.blue, args.red)
         if args.blue == "discrete":
             blue.learn()
-        print(env)
+        print(env.ctrlr.fxmeas)
 
     ###############################################################################################
     # Report generation
     ###############################################################################################
 
     if args.report:
-        name = f"report_{d}.md" if args.adddate else "report.md" 
+        name = f"report_{d}.md" if args.adddate else "report.md"
         log.make_report(name, d, action_txt, reward_txt, args.intent)
         log.close()
 

@@ -8,7 +8,7 @@ from tensorflow.keras.models import load_model
 
 
 class DefendAgent(Agent):
-    def __init__(self, load = True):
+    def __init__(self, load=True):
         self.id = "blue"
         self.load = load
         self.stategenerator = load_model("env/agents/twin/stategenerator")

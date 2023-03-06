@@ -66,7 +66,8 @@ class Agent:
                 reward
                 if done
                 else reward
-                + self.gamma * np.max(self.model.predict(observation.reshape(1, 42), verbose=0)[0])
+                + self.gamma
+                * np.max(self.model.predict(observation.reshape(1, 42), verbose=0)[0])
             )
             x_batch.append(state)
             # print(f"{y_target=}")
