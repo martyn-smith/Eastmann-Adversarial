@@ -77,16 +77,6 @@ class Controller:
         """
         if xmeas is None:
             return self.xmv
-        #    reactor pressure control (reactor pressure -> A and C feed)
-        if self.reset_times[3] == 0 or time - self.reset_times[3] > 1.0:
-            err = self.setpt[6] - xmeas[7]
-            self.xmv[3] += self.gain[6] * (
-                (err - self.err[6]) + err * self.delta_t * 60.0 / self.taui[6]
-            )
-            self.err[6] = err
-            self.xmv[3] = np.clip(self.xmv[3], 0.0, 100.0)
-        # else:
-        #     print("xmv[3] open")
         #    reactor temperature control (reactor temperature -> reactor coolant flow)
         if self.reset_times[9] == 0 or time - self.reset_times[9] > 1.0:
             err = self.setpt[0] - xmeas[9]
@@ -147,6 +137,16 @@ class Controller:
             self.xmv[0] = np.clip(self.xmv[0], 0.0, 100.0)
         # else:
         #     print("xmv[0] open")
+        #    reactor pressure control (reactor pressure -> A and C feed)
+        if self.reset_times[3] == 0 or time - self.reset_times[3] > 1.0:
+            err = self.setpt[6] - xmeas[7]
+            self.xmv[3] += self.gain[6] * (
+                (err - self.err[6]) + err * self.delta_t * 60.0 / self.taui[6]
+            )
+            self.err[6] = err
+            self.xmv[3] = np.clip(self.xmv[3], 0.0, 100.0)
+        # else:
+        #     print("xmv[3] open")
         #    purge gas b component control (b -> purge)
         if self.reset_times[5] == 0 or time - self.reset_times[5] > 1.0:
             err = self.setpt[7] - xmeas[30]

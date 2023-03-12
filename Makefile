@@ -62,6 +62,9 @@ reports: build install clean
 	pandoc  -V geometry:margin=0.8in -o report_blue_discrete_red_discrete_recipe_$(ldate).pdf report.md
 	rm -f *.png report.md
 	#continuous
+	poetry run env/main.py --fast --report --blue none --red continuous -n 300 2>> errors_$(ldate).txt
+	pandoc  -V geometry:margin=0.8in -o report_red_continuous_baseline_$(ldate).pdf report.md
+	rm -f *.png report.md
 	poetry run env/main.py --fast --report --blue continuous --red continuous -n 300 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_blue_continuous_red_continuous_$(ldate).pdf report.md
 	rm -f *.png report.md
@@ -76,7 +79,7 @@ report: build install clean
 	rm -f *.png report*.md
 
 figures: build clean
-	poetry run env/main.py --fast --report -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py --fast --blue discrete --red discrete --report -n 11 2>> errors_$(ldate).txt
 
 nored: build clean
 	poetry run env/main.py --fast --red none --report -n 300 2>> errors_$(ldate).txt

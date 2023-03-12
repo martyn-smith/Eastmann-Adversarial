@@ -1103,13 +1103,13 @@ class TEproc(gym.Env):
         done = self.has_failed(xmeas, self.time)
         blue_reward = self.reward(reset, done, xmeas, self.ctrlr.xmv)
         if self.red_intent == "oppose":
-            red_reward = -blue_reward
+            red_reward = -self.reward(reset, done, red_xmeas, self.ctrlr.xmv)
         elif self.red_intent == "recipe":
             red_reward = -(self.production(red_xmeas) - self.utilities(red_xmeas))
         elif self.red_intent == "destruction":
             red_reward = -self.mechanical(red_xmeas)
         elif self.red_intent == "environmental":
-            red_reward = -self.mechanical(red_xmeas)
+            red_reward = -self.environmental(red_xmeas)
         self.time += DELTA_t
         self.time_since_gas += DELTA_t
         return (

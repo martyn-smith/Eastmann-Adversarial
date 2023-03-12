@@ -1,10 +1,9 @@
 import matplotlib.pyplot as plt
 from collections import deque
 
-plt.rcParams["figure.figsize"] = (5.0, 3.0)
+plt.rcParams["figure.figsize"] = (5.5, 3.0)
 plt.rcParams["figure.dpi"] = 300
-plt.rcParams["font.size"] = 8
-
+plt.rcParams["font.size"] = 6
 
 class Logger:
     setpt_key = [
@@ -41,6 +40,23 @@ class Logger:
         "A and C feed flow",
         "Recycle flow",
         "Reactor feed rate",
+    ]
+
+    blue_discrete_key = [
+        "product ratio",
+        "reactor level",
+        "reactor feed A",
+        "reactor pressure",
+        "-",
+        "purge gas B",
+        "stripper level",
+        "stripper underflow",
+        "-",
+        "reactor temperature",
+        "separator level",
+        "-",
+        "-",
+        "-"
     ]
 
     def __init__(self, config):
@@ -156,6 +172,8 @@ class Logger:
                 alpha=0.8,
                 label="blue action",
             )
+            ax1.set_ylim(0,14)
+            ax1.set_yticks([0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13.], labels = self.blue_discrete_key)
         elif blue_type == "continuous":
             for j in range(len(self.setpt_key)):
                 ax1.plot(
@@ -189,10 +207,10 @@ class Logger:
                     linestyle="--",
                 )
         ax1.set_title(f"actions at episode {i}")
-        ax1.set_xlabel("time")
+        ax1.set_xlabel("time (s)")
         ax1.set_ylabel("actions")
         fig.legend()
-        plt.savefig(f"actions_{d}_ep{i}.png")
+        plt.savefig(f"actions_{d}_ep{i}.png", bbox_inches="tight")
 
         #######################################################################
         # Plot rewards, learning parameters
@@ -222,9 +240,9 @@ class Logger:
         # )
         # ax2.set_ylabel("loss")
         ax1.set_title(f"rewards at episode {i}")
-        ax1.set_xlabel("time")
+        ax1.set_xlabel("time (s)")
         fig.legend()
-        plt.savefig(f"rewards_{d}_ep{i}.png")
+        plt.savefig(f"rewards_{d}_ep{i}.png", bbox_inches="tight")
 
         #######################################################################
         # Plot manipulated variables
@@ -292,7 +310,7 @@ class Logger:
         ax2.set_ylabel("temperature (degC)")
         ax2.set_ylim(90, 180)
         ax1.set_title(f"reactor parameters at episode {i}")
-        ax1.set_xlabel("time")
+        ax1.set_xlabel("time (s)")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
         plt.savefig(f"r_parameters_{d}_ep{i}.png")
@@ -325,7 +343,7 @@ class Logger:
         )
         ax2.set_ylabel("level (%)")
         ax1.set_title(f"separator parameters at episode {i}")
-        ax1.set_xlabel("time")
+        ax1.set_xlabel("time (s)")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
         plt.savefig(f"s_parameters_{d}_ep{i}.png")
@@ -362,7 +380,7 @@ class Logger:
             color="blue",
         )
         ax2.set_ylabel("cycles")
-        ax2.set_xlabel("time")
+        ax2.set_xlabel("time (s)")
         ax2.set_title(f"compressor features at episode {i}")
         fig.legend()
         fig.tight_layout()
