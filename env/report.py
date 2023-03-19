@@ -4,6 +4,7 @@ from collections import deque
 plt.rcParams["figure.figsize"] = (5.5, 3.0)
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 6
+RED_OFFSET = 0.5
 
 class Logger:
     setpt_key = [
@@ -156,7 +157,7 @@ class Logger:
         else:
             win_rate = "n/a"
         self._summary.append(
-            f"blue team win rate from last ten episodes: {win_rate}\n\n"
+            f"\n\nblue team win rate from last ten episodes: {win_rate}\n\n"
             + f"last failure condition: {info['failures']} after {t/3600.:1f} hrs ({t} timesteps): \n\n"
         )
 
@@ -206,9 +207,9 @@ class Logger:
                     alpha=0.6,
                     linestyle="--",
                 )
-        ax1.set_title(f"actions at episode {i}")
         ax1.set_xlabel("time (s)")
         ax1.set_ylabel("actions")
+        ax1.set_title(f"actions at episode {i}")
         fig.legend()
         plt.savefig(f"actions_{d}_ep{i}.png", bbox_inches="tight")
 
@@ -239,8 +240,8 @@ class Logger:
         #     linestyle="dashed",
         # )
         # ax2.set_ylabel("loss")
-        ax1.set_title(f"rewards at episode {i}")
         ax1.set_xlabel("time (s)")
+        ax1.set_title(f"rewards at episode {i}")
         fig.legend()
         plt.savefig(f"rewards_{d}_ep{i}.png", bbox_inches="tight")
 
@@ -253,10 +254,11 @@ class Logger:
             ax1.plot(
                 [m["valves"][j].pos for m in self.memory], label=self.valves_key[j]
             )
+        ax1.set_xlabel("time (s)")
+        ax1.set_ylabel("position (%)")
         ax1.set_title(f"manipulated variables at episode {i}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
-        fig.tight_layout()
-        plt.savefig(f"valve_positions_{d}_ep{i}.png")
+        plt.savefig(f"valve_positions_{d}_ep{i}.png", bbox_inches="tight")
 
         #######################################################################
         # Plot key measured variables
@@ -275,15 +277,17 @@ class Logger:
                     [m["true streams"][j] for m in self.memory],
                     label=self.valves_key[j],
                 )
+        ax1.set_xlabel("time (s)")
+        ax1.set_ylabel("a.u")
         ax1.set_title(f"measured variables at episode {i}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
-        plt.savefig(f"flows_{d}_ep{i}.png")
+        plt.savefig(f"flows_{d}_ep{i}.png", bbox_inches="tight")
 
         # reactor
         fig, ax1 = plt.subplots()
         ax1.plot(
-            [m["true reactor pressure"] for m in self.memory],
+            [m["true reactor pressure"] + RED_OFFSET for m in self.memory],
             label="real pressure",
             color="red",
         )
@@ -292,11 +296,12 @@ class Logger:
             label="reported pressure",
             color="blue",
         )
+        ax1.set_xlabel("time (s)")
         ax1.set_ylabel("pressure (kPag)")
         ax1.set_ylim(2700, 3000)
         ax2 = ax1.twinx()
         ax2.plot(
-            [m["true reactor temperature"] for m in self.memory],
+            [m["true reactor temperature"] + RED_OFFSET for m in self.memory],
             label="real temperature",
             color="red",
             linestyle="dashed",
@@ -310,15 +315,13 @@ class Logger:
         ax2.set_ylabel("temperature (degC)")
         ax2.set_ylim(90, 180)
         ax1.set_title(f"reactor parameters at episode {i}")
-        ax1.set_xlabel("time (s)")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
-        fig.tight_layout()
-        plt.savefig(f"r_parameters_{d}_ep{i}.png")
+        plt.savefig(f"r_parameters_{d}_ep{i}.png", bbox_inches="tight")
 
         # separator
         fig, ax1 = plt.subplots()
         ax1.plot(
-            [m["true separator temperature"] for m in self.memory],
+            [m["true separator temperature"] + RED_OFFSET for m in self.memory],
             label="real temperature",
             color="red",
         )
@@ -327,10 +330,12 @@ class Logger:
             label="reported temperature",
             color="blue",
         )
+        ax1.set_xlabel("time (s)")
         ax1.set_ylabel("temperature (degC)")
+        ax1.set_ylim(70, 100)
         ax2 = ax1.twinx()
         ax2.plot(
-            [m["true separator level"] for m in self.memory],
+            [m["true separator level"] + RED_OFFSET for m in self.memory],
             label="real level",
             color="red",
             linestyle="dashed",
@@ -342,11 +347,10 @@ class Logger:
             linestyle="dashed",
         )
         ax2.set_ylabel("level (%)")
+        ax2.set_ylim(0, 100)
         ax1.set_title(f"separator parameters at episode {i}")
-        ax1.set_xlabel("time (s)")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
-        fig.tight_layout()
-        plt.savefig(f"s_parameters_{d}_ep{i}.png")
+        plt.savefig(f"s_parameters_{d}_ep{i}.png", bbox_inches="tight")
 
         # fig, ax = plt.subplots()
         # ax.plot(

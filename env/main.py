@@ -254,7 +254,7 @@ if __name__ == "__main__":
             log.make_figures(i, d, args.blue, args.red)
         if args.blue == "discrete":
             blue.learn()
-        #print(env.ctrlr.fxmeas)
+        #print(env.ctrlr)
 
     ###############################################################################################
     # Report generation
