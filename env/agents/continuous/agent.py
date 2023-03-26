@@ -33,7 +33,9 @@ class Agent:
 
         # exploration noise and scaling
         self.rng = np.random.random
-        self.epsilon = 0.0001
+        self.epsilon = 0.01
+        self.epsilon_min = 0.000001
+        self.epsilon_decay = 0.095
         self.scale = 1.0
 
         # replay parameters
@@ -52,6 +54,8 @@ class Agent:
         observation = tf.convert_to_tensor([observation])
         action = self.actor(observation)
         self.action = action[0][0]
+        if self.epsilon >= self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
         return np.clip(
             (action.numpy()[0] + (self.epsilon * self.rng()) * 2.0 * self.scale),
             -self.scale,

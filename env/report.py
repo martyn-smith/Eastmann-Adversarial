@@ -1,10 +1,12 @@
 import matplotlib.pyplot as plt
+import numpy as np
 from collections import deque
 
 plt.rcParams["figure.figsize"] = (5.5, 3.0)
 plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 6
 RED_OFFSET = 0.5
+
 
 class Logger:
     setpt_key = [
@@ -57,8 +59,10 @@ class Logger:
         "separator level",
         "-",
         "-",
-        "-"
+        "-",
     ]
+
+    red_discrete_key = ["xmeas", "setpoints"]
 
     def __init__(self, config):
         self.wins = deque(maxlen=10)
@@ -129,6 +133,7 @@ class Logger:
                     red_observation[4],
                     red_observation[5],
                     red_observation[6],
+                    red_observation[17],
                 ],
                 "reported reactor pressure": blue_observation[7],
                 "reported reactor temperature": blue_observation[9],
@@ -173,8 +178,8 @@ class Logger:
                 alpha=0.8,
                 label="blue action",
             )
-            ax1.set_ylim(0,14)
-            ax1.set_yticks([0., 1., 2., 3., 4., 5., 6., 7., 8., 9., 10., 11., 12., 13.], labels = self.blue_discrete_key)
+            ax1.set_ylim(0, 14)
+            ax1.set_yticks(np.arange(0.0, 14.0, 1), labels=self.blue_discrete_key)
         elif blue_type == "continuous":
             for j in range(len(self.setpt_key)):
                 ax1.plot(
@@ -191,24 +196,27 @@ class Logger:
                 alpha=0.9,
                 label="blue action",
             )
+        ax1.set_xlabel("time (s)")
+        ax1.set_ylabel("actions")
+        ax2 = ax1.twinx()
         if red_type == "discrete":
-            ax1.plot(
+            ax2.plot(
                 [m["red action"] for m in self.memory],
                 color="red",
                 alpha=0.8,
                 label="red action",
             )
+            ax2.set_ylim(0, 50)
+            ax2.set_yticks([25.0, 45.0], labels=self.red_discrete_key)
         elif red_type == "continuous":
             for j in range(len(self.setpt_key)):
-                ax1.plot(
+                ax2.plot(
                     [m["red action"][j] for m in self.memory],
                     label=self.setpt_key[j],
                     color="red",
                     alpha=0.6,
                     linestyle="--",
                 )
-        ax1.set_xlabel("time (s)")
-        ax1.set_ylabel("actions")
         ax1.set_title(f"actions at episode {i}")
         fig.legend()
         plt.savefig(f"actions_{d}_ep{i}.png", bbox_inches="tight")
@@ -226,7 +234,8 @@ class Logger:
             [m["red reward"] for m in self.memory], label="red reward", color="red"
         )
         ax1.set_ylabel("reward")
-        # ax2 = ax1.twinx()
+        ax2 = ax1.twinx()
+        ax2.plot([m["true streams"][6] for m in self.memory], label="production")
         # ax2.plot(
         #     [m["blue loss"] for m in self.memory],
         #     label="blue loss",
