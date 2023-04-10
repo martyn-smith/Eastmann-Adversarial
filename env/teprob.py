@@ -875,7 +875,10 @@ class TEproc(gym.Env):
                 x += a
                 np.clip(x, 0.0, 100.0)
         elif self.blue_type == "twin":
-            assert spaces.Box(low=-100.0, high=100.0, shape=(1,)).contains(blue_action)
+            assert spaces.Box(low=-100.0, high=100.0, shape=(12,)).contains(blue_action)
+            for a, x in zip(blue_action, xmv):
+                x += a
+                np.clip(x, 0.0, 100.0)
         # setting valves
         for mv, valve in zip(xmv, self.valves):
             valve.set(mv)

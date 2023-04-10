@@ -105,6 +105,8 @@ class Logger:
         red_observation,
         blue_reward,
         red_reward,
+        blue_loss,
+        red_loss,
         env,
     ):
         self.memory.append(
@@ -115,8 +117,8 @@ class Logger:
                 "red action": red_action,
                 "blue reward": blue_reward,
                 "red reward": red_reward,
-                # "blue loss": blue_loss,
-                # "red loss": red_loss,
+                "blue loss": blue_loss,
+                "red loss": red_loss,
                 "valves": env.valves,
                 "reported streams": [
                     blue_observation[1],
@@ -190,12 +192,14 @@ class Logger:
                     linestyle="--",
                 )
         elif blue_type == "twin":
-            ax1.plot(
-                [m["blue action"] for m in self.memory],
-                color="blue",
-                alpha=0.9,
-                label="blue action",
-            )
+            for j in range(len(self.setpt_key)):
+                ax1.plot(
+                    [m["blue action"][j] for m in self.memory],
+                    label=self.setpt_key[j],
+                    color="blue",
+                    alpha=0.8,
+                    linestyle="--",
+                )
         ax1.set_xlabel("time (s)")
         ax1.set_ylabel("actions")
         ax2 = ax1.twinx()
@@ -235,19 +239,28 @@ class Logger:
         )
         ax1.set_ylabel("reward")
         ax2 = ax1.twinx()
-        ax2.plot([m["true streams"][6] for m in self.memory], label="production")
-        # ax2.plot(
-        #     [m["blue loss"] for m in self.memory],
-        #     label="blue loss",
-        #     color="blue",
-        #     linestyle="dashed",
-        # )
-        # ax2.plot(
-        #     [m["red loss"] for m in self.memory],
-        #     label="red loss",
-        #     color="red",
-        #     linestyle="dashed",
-        # )
+        ax2.plot([m["true streams"][6] for m in self.memory], label="production", color="grey")
+        if blue_type == "continuous":
+            ax1.plot(
+                 [m["blue loss"] for m in self.memory],
+                 label="blue loss",
+                 color="blue",
+                 linestyle="dashed",
+            )
+        elif blue_type == "twin":
+            ax1.plot(
+                 [m["blue loss"] for m in self.memory],
+                 label="blue loss",
+                 color="blue",
+                 linestyle="dashed",
+            )
+        if red_type == "continuous":
+            ax2.plot(
+                [m["red loss"] for m in self.memory],
+                label="red loss",
+                color="red",
+                linestyle="dashed",
+            )
         # ax2.set_ylabel("loss")
         ax1.set_xlabel("time (s)")
         ax1.set_title(f"rewards at episode {i}")

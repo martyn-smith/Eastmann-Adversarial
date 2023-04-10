@@ -19,7 +19,7 @@ class DefendAgent(Agent):
                 "int": lambda x: " " + str(x),
             },
         )
-        super().__init__(1)
+        super().__init__(12)
 
     def value(self, observation):
         """
@@ -41,7 +41,7 @@ class DefendAgent(Agent):
         Note that the Twin outputs to stderr ONLY if it fails to load the seed state.
         A successful load that results in plant failure still outputs to stdout.
         """
-        observation = observation.reshape(1, 53)
+        observation = observation.reshape(1, 42)
         state = self.stategenerator([observation]).numpy()[0]
         state = bytes(
             str(state[:50])[2:-1] + " " + str(state[50:].astype(int))[1:-1], "utf-8"

@@ -208,18 +208,28 @@ if __name__ == "__main__":
                     blue_observation[1:],
                     done,
                 )
+                blue_loss = None
             elif args.blue == "continuous":
                 blue_loss = blue.learn(
                     blue_previous[1:], blue_reward, blue_observation[1:], done
                 )
+            elif args.blue == "twin":
+                blue_loss = blue.learn(
+                    blue_previous[1:], blue_reward, blue_observation[1:], done
+                )
+            elif args.blue == "none":
+                blue_loss = None
             if args.red == "discrete":
                 red.remember(
                     prev_obvs[1][1:], red_action, red_reward, red_observation[1:], done
                 )
+                red_loss = None
             elif args.red == "continuous":
                 red_loss = red.learn(
                     red_previous[1:], red_reward, red_observation[1:], done
                 )
+            elif args.red == "none":
+                red_loss = None
             if args.render:
                 env.render()
             if args.report and i % 10 == 0:
@@ -232,7 +242,9 @@ if __name__ == "__main__":
                     red_observation,
                     blue_reward,
                     red_reward,
-                    env,
+                    blue_loss,
+                    red_loss,
+                    env
                 )
             if args.verbose >= 1:
                 print(
