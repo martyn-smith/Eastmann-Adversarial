@@ -4,7 +4,7 @@ from collections import deque
 
 plt.rcParams["figure.figsize"] = (5.5, 3.0)
 plt.rcParams["figure.dpi"] = 300
-plt.rcParams["font.size"] = 6
+plt.rcParams["font.size"] = 11
 RED_OFFSET = 0.5
 
 
