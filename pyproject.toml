@@ -6,6 +6,10 @@ authors = ["Martyn"]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.11"
+# note https://github.com/openai/gym/issues/3200 renders 0.21 impossible to support, somehow,
+# but some later version makes breaking changes to the .make() API
+# (0.22 already breaks rendering and includes pygame), and project is since deprecated
+# for gymnasium. Also marked WONTFIX by poetry in https://github.com/python-poetry/poetry/issues/4511
 gym = "0.22.0"
 numpy = "1.22.3"
 tensorflow = "2.9.0"
@@ -17,5 +21,7 @@ pygame = "^2.4.0"
 [tool.poetry.dev-dependencies]
 
 [build-system]
+# poetry install -vvv is broken, probably due to https://github.com/pypa/pip/pull/8687
+# export PYTHON_KEYRING_BACKEND=keyring.backends.fail.Keyring is *probably* the best workaround
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

@@ -1,4 +1,0 @@
-# WARNING: please use pyproject.toml instead if you possibly can. This file is only for tooling that *cannot* use the toml.
-
-pandoc=="2.17"
-gcc-gfortran=="^11.2"
