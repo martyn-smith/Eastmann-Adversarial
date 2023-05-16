@@ -12,6 +12,7 @@ python = ">=3.9,<3.11"
 # for gymnasium. Also marked WONTFIX by poetry in https://github.com/python-poetry/poetry/issues/4511
 gym = "0.22.0"
 numpy = "1.22.3"
+# n/b later versions of python won't download this via PyPI (?!). They'll claim it never existed.
 tensorflow = "2.9.0"
 matplotlib = "^3.5.0"
 pyglet = "1.5.0"
@@ -21,7 +22,8 @@ pygame = "^2.4.0"
 [tool.poetry.dev-dependencies]
 
 [build-system]
-# poetry install -vvv is broken, probably due to https://github.com/pypa/pip/pull/8687
+# poetry install -vvv is broken, probably due to https://github.com/python-poetry/poetry/issues/5250 and 
+# https://github.com/pypa/pip/pull/8687
 # export PYTHON_KEYRING_BACKEND=keyring.backends.fail.Keyring is *probably* the best workaround
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
