@@ -4,9 +4,8 @@ from collections import deque
 
 plt.rcParams["figure.figsize"] = (5.5, 3.0)
 plt.rcParams["figure.dpi"] = 300
-plt.rcParams["font.size"] = 11
+plt.rcParams["font.size"] = 10
 RED_OFFSET = 0.5
-
 
 class Logger:
     setpt_key = [
@@ -22,17 +21,17 @@ class Logger:
     ]
 
     valves_key = [
-        "A feed flow",
-        "D feed flow",
-        "E feed flow",
-        "A and C feed flow",
+        "A feed valve",
+        "D feed valve",
+        "E feed valve",
+        "A and C feed valve",
         "Compressor recycle valve",
         "Purge valve",
-        "Separator underflow",
-        "Stripper underflow",
-        "Stripper steam",
-        "Reactor coolant flow",
-        "Condensor coolant flow",
+        "Separator underflow valve",
+        "Stripper underflow valve",
+        "Stripper steam valve",
+        "Reactor coolant valve",
+        "Condensor coolant valve",
         "Agitator speed",
     ]
 
@@ -213,14 +212,28 @@ class Logger:
             ax2.set_ylim(0, 50)
             ax2.set_yticks([25.0, 45.0], labels=self.red_discrete_key)
         elif red_type == "continuous":
-            for j in range(len(self.setpt_key)):
-                ax2.plot(
-                    [m["red action"][j] for m in self.memory],
-                    label=self.setpt_key[j],
-                    color="red",
-                    alpha=0.6,
-                    linestyle="--",
-                )
+            ax2.plot(
+                [np.argmax(m["red action"]) for m in self.memory],
+                label="red action type",
+                color="red",
+                alpha=0.6,
+            )
+            ax2.plot(
+                [np.max(m["red action"]) / 10 for m in self.memory],
+                label="red action strength",
+                color="red",
+                alpha=0.6,
+                linestyle="--"
+            )
+            ax2.set_yticks(np.arange(0.0, 9.0, 1), labels=self.setpt_key)
+            #for j in range(len(self.setpt_key)):
+            #    ax2.plot(
+            #        [m["red action"][j] for m in self.memory],
+            #        label=self.setpt_key[j],
+            #        color="red",
+            #        alpha=0.6,
+            #        linestyle="--",
+            #    )
         ax1.set_title(f"actions at episode {i}")
         fig.legend()
         plt.savefig(f"actions_{d}_ep{i}.png", bbox_inches="tight")
@@ -238,8 +251,6 @@ class Logger:
             [m["red reward"] for m in self.memory], label="red reward", color="red"
         )
         ax1.set_ylabel("reward")
-        ax2 = ax1.twinx()
-        ax2.plot([m["true streams"][6] for m in self.memory], label="production", color="grey")
         if blue_type == "continuous":
             ax1.plot(
                  [m["blue loss"] for m in self.memory],
@@ -261,7 +272,6 @@ class Logger:
                 color="red",
                 linestyle="dashed",
             )
-        # ax2.set_ylabel("loss")
         ax1.set_xlabel("time (s)")
         ax1.set_title(f"rewards at episode {i}")
         fig.legend()
@@ -299,6 +309,7 @@ class Logger:
                     [m["true streams"][j] for m in self.memory],
                     label=self.valves_key[j],
                 )
+        ax1.plot([m["true streams"][6] for m in self.memory], label="production", color="grey")
         ax1.set_xlabel("time (s)")
         ax1.set_ylabel("a.u")
         ax1.set_title(f"measured variables at episode {i}")

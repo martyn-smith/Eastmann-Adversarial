@@ -82,5 +82,5 @@ twin: clean gymenv te
 	pandoc  -V geometry:margin=0.8in -o report_blue_twin_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
 
-figures: clean gymenv te
-	poetry run env/main.py --fast --blue discrete --red discrete --report -n 11 2>> errors_$(ldate).txt
+test: clean gymenv te
+	poetry run env/main.py --fast --blue discrete --red continuous --report -n 11 2>> errors_$(ldate).txt
