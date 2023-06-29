@@ -22,7 +22,7 @@ class Controller:
         #   set controller parameters
         #   r.tc, r.level, s.level, c.level, s.under, g/h, r.pg, purge.b, r.a
         #   xmvs actually used: 0,1,2, 3,5, 6,7, 9,10
-        #   so 4, 8, 11 unused (compressor recycly, stripper steam, agitator respectively)
+        #   so 4, 8, 11 unused (compressor recycle, stripper steam, agitator respectively)
         self.setpt = deepcopy(SETPT)
         self.gain = np.array([-10.3, 0.8, 1.4, 5.0, 1.2, 7.1, 1.1, -14.5, 4.1])
         self.taui = np.array([1.9, 23.0, 96.0, 50.0, 50.0, 39.0, 49.5, 30.1, 81.9])

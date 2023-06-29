@@ -7,6 +7,7 @@ plt.rcParams["figure.dpi"] = 300
 plt.rcParams["font.size"] = 10
 RED_OFFSET = 0.5
 
+
 class Logger:
     setpt_key = [
         "reactor temperature",
@@ -182,14 +183,28 @@ class Logger:
             ax1.set_ylim(0, 14)
             ax1.set_yticks(np.arange(0.0, 14.0, 1), labels=self.blue_discrete_key)
         elif blue_type == "continuous":
-            for j in range(len(self.setpt_key)):
-                ax1.plot(
-                    [m["blue action"][j] for m in self.memory],
-                    label=self.setpt_key[j],
-                    color="blue",
-                    alpha=0.8,
-                    linestyle="--",
-                )
+            ax1.plot(
+                [np.argmax(m["blue action"]) for m in self.memory],
+                label="blue action type",
+                color="blue",
+                alpha=0.6,
+            )
+            ax1.plot(
+                [np.max(m["blue action"]) / 10 for m in self.memory],
+                label="blue action strength",
+                color="blue",
+                alpha=0.6,
+                linestyle="--",
+            )
+            ax1.set_yticks(np.arange(0.0, 12.0, 1), labels=self.valves_key)
+            # for j in range(len(self.setpt_key)):
+            # ax1.plot(
+            #     [m["blue action"][j] for m in self.memory],
+            #     label=self.setpt_key[j],
+            #     color="blue",
+            #     alpha=0.8,
+            #     linestyle="--",
+            # )
         elif blue_type == "twin":
             for j in range(len(self.setpt_key)):
                 ax1.plot(
@@ -200,7 +215,8 @@ class Logger:
                     linestyle="--",
                 )
         ax1.set_xlabel("time (s)")
-        ax1.set_ylabel("actions")
+        if blue_type != "none":
+            ax1.set_ylabel("actions")
         ax2 = ax1.twinx()
         if red_type == "discrete":
             ax2.plot(
@@ -223,10 +239,10 @@ class Logger:
                 label="red action strength",
                 color="red",
                 alpha=0.6,
-                linestyle="--"
+                linestyle="--",
             )
             ax2.set_yticks(np.arange(0.0, 9.0, 1), labels=self.setpt_key)
-            #for j in range(len(self.setpt_key)):
+            # for j in range(len(self.setpt_key)):
             #    ax2.plot(
             #        [m["red action"][j] for m in self.memory],
             #        label=self.setpt_key[j],
@@ -250,20 +266,13 @@ class Logger:
         ax1.plot(
             [m["red reward"] for m in self.memory], label="red reward", color="red"
         )
-        ax1.set_ylabel("reward")
-        if blue_type == "continuous":
-            ax1.plot(
-                 [m["blue loss"] for m in self.memory],
-                 label="blue loss",
-                 color="blue",
-                 linestyle="dashed",
-            )
-        elif blue_type == "twin":
-            ax1.plot(
-                 [m["blue loss"] for m in self.memory],
-                 label="blue loss",
-                 color="blue",
-                 linestyle="dashed",
+        ax2 = ax1.twinx()
+        if blue_type == "continuous" or blue_type == "twin":
+            ax2.plot(
+                [m["blue loss"] for m in self.memory],
+                label="blue loss",
+                color="blue",
+                linestyle="dashed",
             )
         if red_type == "continuous":
             ax2.plot(
@@ -273,6 +282,8 @@ class Logger:
                 linestyle="dashed",
             )
         ax1.set_xlabel("time (s)")
+        ax1.set_ylabel("reward (a.u)")
+        ax2.set_ylabel("loss (a.u)")
         ax1.set_title(f"rewards at episode {i}")
         fig.legend()
         plt.savefig(f"rewards_{d}_ep{i}.png", bbox_inches="tight")
@@ -309,7 +320,11 @@ class Logger:
                     [m["true streams"][j] for m in self.memory],
                     label=self.valves_key[j],
                 )
-        ax1.plot([m["true streams"][6] for m in self.memory], label="production", color="grey")
+        ax1.plot(
+            [m["true streams"][6] for m in self.memory],
+            label="production",
+            color="grey",
+        )
         ax1.set_xlabel("time (s)")
         ax1.set_ylabel("a.u")
         ax1.set_title(f"measured variables at episode {i}")

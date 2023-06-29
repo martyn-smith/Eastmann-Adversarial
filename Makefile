@@ -45,10 +45,10 @@ peaceful: clean gymenv te
 
 reports: clean gymenv te
 	#validation
-	poetry run env/main.py --fast --report --blue discrete --red none -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py --fast --report --blue discrete --red none -n 100 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_blue_discrete_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
-	poetry run env/main.py --fast --report --blue continuous --red none -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py --fast --report --blue continuous --red none -n 100 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_blue_discrete_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
 	#baseline
@@ -79,8 +79,10 @@ twin: clean gymenv te
 	pandoc  -V geometry:margin=0.8in -o report_blue_twin_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
 	poetry run env/main.py --fast --report --blue twin --red continuous -n 100 2>> errors_$(ldate).txt
-	pandoc  -V geometry:margin=0.8in -o report_blue_twin_validation_$(ldate).pdf report.md
+	pandoc  -V geometry:margin=0.8in -o report_blue_twin_red_continuous_$(ldate).pdf report.md
 	rm -f *.png report.md
 
 test: clean gymenv te
-	poetry run env/main.py --fast --blue discrete --red continuous --report -n 11 2>> errors_$(ldate).txt
+	poetry run env/main.py --fast --blue continuous --red discrete --report -n 20 2>> errors_$(ldate).txt
+	pandoc  -V geometry:margin=0.8in -o report_test_$(ldate).pdf report.md
+	rm -f *.png report.md

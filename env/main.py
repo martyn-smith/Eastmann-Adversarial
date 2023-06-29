@@ -244,7 +244,7 @@ if __name__ == "__main__":
                     red_reward,
                     blue_loss,
                     red_loss,
-                    env
+                    env,
                 )
             if args.verbose >= 1:
                 print(

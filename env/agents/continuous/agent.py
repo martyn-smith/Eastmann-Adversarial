@@ -126,8 +126,9 @@ class Agent:
 class Actor(keras.Model):
     def __init__(self, n_actions):
         super().__init__()
-        self.layer_1 = Dense(256, activation="relu")
-        self.layer_2 = Dense(256, activation="relu")
+        self.layer_1 = Dense(512, activation="relu")
+        self.layer_2 = Dense(512, activation="sigmoid")
+        self.layer_2 = Dense(512, activation="relu")
         self.mu = Dense(n_actions, activation="sigmoid")
 
     def __call__(self, observation):
@@ -137,11 +138,17 @@ class Actor(keras.Model):
 class Critic(keras.Model):
     def __init__(self):
         super().__init__()
-        self.layer_1 = Dense(256, activation="relu")
-        self.layer_2 = Dense(256, activation="relu")
+        self.layer_1 = Dense(512, activation="relu")
+        self.layer_2 = Dense(512, activation="sigmoid")
+        self.layer_3 = Dense(512, activation="relu")
+        self.layer_4 = Dense(512, activation="sigmoid")
         self.q = Dense(1, activation=None)
 
     def __call__(self, observation, action):
         return self.q(
-            self.layer_2(self.layer_1(tf.concat([observation, action], axis=1)))
+            self.layer_4(
+                self.layer_3(
+                    self.layer_2(self.layer_1(tf.concat([observation, action], axis=1)))
+                )
+            )
         )
