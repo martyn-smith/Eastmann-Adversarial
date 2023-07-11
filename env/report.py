@@ -182,7 +182,8 @@ class Logger:
             )
             ax1.set_ylim(0, 14)
             ax1.set_yticks(np.arange(0.0, 14.0, 1), labels=self.blue_discrete_key)
-        elif blue_type == "continuous":
+            ax1.set_ylabel("actions")
+        elif blue_type == "continuous" or blue_type == "twin":
             ax1.plot(
                 [np.argmax(m["blue action"]) for m in self.memory],
                 label="blue action type",
@@ -196,27 +197,18 @@ class Logger:
                 alpha=0.6,
                 linestyle="--",
             )
+        #    for j in range(len(self.setpt_key)):
+        #        ax1.plot(
+        #            [m["blue action"][j] for m in self.memory],
+        #            label=self.setpt_key[j],
+        #            color="blue",
+        #            alpha=0.8,
+        #            linestyle="--",
+        #        )
             ax1.set_yticks(np.arange(0.0, 12.0, 1), labels=self.valves_key)
-            # for j in range(len(self.setpt_key)):
-            # ax1.plot(
-            #     [m["blue action"][j] for m in self.memory],
-            #     label=self.setpt_key[j],
-            #     color="blue",
-            #     alpha=0.8,
-            #     linestyle="--",
-            # )
-        elif blue_type == "twin":
-            for j in range(len(self.setpt_key)):
-                ax1.plot(
-                    [m["blue action"][j] for m in self.memory],
-                    label=self.setpt_key[j],
-                    color="blue",
-                    alpha=0.8,
-                    linestyle="--",
-                )
-        ax1.set_xlabel("time (s)")
-        if blue_type != "none":
             ax1.set_ylabel("actions")
+        elif blue_type == "none":
+            ax1.set_yticks([])
         ax2 = ax1.twinx()
         if red_type == "discrete":
             ax2.plot(
@@ -227,6 +219,7 @@ class Logger:
             )
             ax2.set_ylim(0, 50)
             ax2.set_yticks([25.0, 45.0], labels=self.red_discrete_key)
+            ax2.set_ylabel("actions")
         elif red_type == "continuous":
             ax2.plot(
                 [np.argmax(m["red action"]) for m in self.memory],
@@ -241,15 +234,19 @@ class Logger:
                 alpha=0.6,
                 linestyle="--",
             )
+        #    for j in range(len(self.setpt_key)):
+        #       ax2.plot(
+        #           [m["red action"][j] for m in self.memory],
+        #           label=self.setpt_key[j],
+        #           color="red",
+        #           alpha=0.6,
+        #           linestyle="--",
+        #       )
             ax2.set_yticks(np.arange(0.0, 9.0, 1), labels=self.setpt_key)
-            # for j in range(len(self.setpt_key)):
-            #    ax2.plot(
-            #        [m["red action"][j] for m in self.memory],
-            #        label=self.setpt_key[j],
-            #        color="red",
-            #        alpha=0.6,
-            #        linestyle="--",
-            #    )
+            ax2.set_ylabel("actions")
+        elif red_type == "none":
+            ax2.set_yticks([])
+        ax1.set_xlabel("time (s)")
         ax1.set_title(f"actions at episode {i}")
         fig.legend()
         plt.savefig(f"actions_{d}_ep{i}.png", bbox_inches="tight")

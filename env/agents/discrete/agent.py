@@ -26,9 +26,9 @@ class Agent:
         self.memory = deque(maxlen=100_000)
         self.batch_size = 100
         self.gamma = 1.0
-        self.epsilon = 0.999
+        self.epsilon = 0.99
         self.epsilon_min = 0.00001
-        self.epsilon_decay = 0.095
+        self.epsilon_decay = 0.1
         self.n_actions = n_actions
         model = Sequential()
         model.add(Input(shape=(42,)))
@@ -43,7 +43,6 @@ class Agent:
         self.memory.append((state, action, reward, observation, done))
 
     def __call__(self, observation):
-        # TODO: pick action_space
         if random() >= self.epsilon:
             q = self.model.predict(observation.reshape(1, 42), verbose=0)[0]
             try:

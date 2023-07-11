@@ -17,7 +17,7 @@ import numpy as np
 class ThreatAgent(Agent):
     def __init__(self):
         self.id = "red"
-        super().__init__(64)
+        super().__init__(50)
 
     def encode(self, action):
         if action == 0:

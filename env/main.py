@@ -171,9 +171,9 @@ if __name__ == "__main__":
     if args.red == "none":
         red = DummyAgent()
     elif args.red == "discrete":
-        red = DiscreteDefendAgent()
+        red = DiscreteThreatAgent()
     elif args.red == "singlecontinuous":
-        red = ContinuousDefendAgent(n_actions=1)
+        red = ContinuousThreatAgent(n_actions=1)
     elif args.red == "continuous":
         red = ContinuousThreatAgent()
 
