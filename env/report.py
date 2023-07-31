@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import deque
+from copy import deepcopy
+
+import constants
 
 plt.rcParams["figure.figsize"] = (5.5, 3.0)
 plt.rcParams["figure.dpi"] = 300
@@ -43,6 +46,18 @@ class Logger:
         "A and C feed flow",
         "Recycle flow",
         "Reactor feed rate",
+    ]
+
+    ctrl_key = [
+        "Reactor temp control",
+        "Reactor level control",
+        "Product separator control",
+        "Stripper level control",
+        "Stripper underflow control",
+        "G/H ratio control",
+        "Reactor pressure control (A and C feed)",
+        "Purge gas B component",
+        "Reactor feed A component",
     ]
 
     blue_discrete_key = [
@@ -119,7 +134,8 @@ class Logger:
                 "red reward": red_reward,
                 "blue loss": blue_loss,
                 "red loss": red_loss,
-                "valves": env.valves,
+                "valves": deepcopy(env.valves),
+                "errs": env.ctrlr.err,
                 "reported streams": [
                     blue_observation[1],
                     blue_observation[2],
@@ -168,7 +184,7 @@ class Logger:
             + f"last failure condition: {info['failures']} after {t/3600.:1f} hrs ({t} timesteps): \n\n"
         )
 
-    def make_figures(self, i, d, blue_type, red_type):
+    def make_figures(self, episode, d, blue_type, red_type):
         #######################################################################
         # Plot actions
         #######################################################################
@@ -197,14 +213,14 @@ class Logger:
                 alpha=0.6,
                 linestyle="--",
             )
-        #    for j in range(len(self.setpt_key)):
-        #        ax1.plot(
-        #            [m["blue action"][j] for m in self.memory],
-        #            label=self.setpt_key[j],
-        #            color="blue",
-        #            alpha=0.8,
-        #            linestyle="--",
-        #        )
+            #    for j in range(len(self.setpt_key)):
+            #        ax1.plot(
+            #            [m["blue action"][j] for m in self.memory],
+            #            label=self.setpt_key[j],
+            #            color="blue",
+            #            alpha=0.8,
+            #            linestyle="--",
+            #        )
             ax1.set_yticks(np.arange(0.0, 12.0, 1), labels=self.valves_key)
             ax1.set_ylabel("actions")
         elif blue_type == "none":
@@ -234,22 +250,22 @@ class Logger:
                 alpha=0.6,
                 linestyle="--",
             )
-        #    for j in range(len(self.setpt_key)):
-        #       ax2.plot(
-        #           [m["red action"][j] for m in self.memory],
-        #           label=self.setpt_key[j],
-        #           color="red",
-        #           alpha=0.6,
-        #           linestyle="--",
-        #       )
+            #    for j in range(len(self.setpt_key)):
+            #       ax2.plot(
+            #           [m["red action"][j] for m in self.memory],
+            #           label=self.setpt_key[j],
+            #           color="red",
+            #           alpha=0.6,
+            #           linestyle="--",
+            #       )
             ax2.set_yticks(np.arange(0.0, 9.0, 1), labels=self.setpt_key)
             ax2.set_ylabel("actions")
         elif red_type == "none":
             ax2.set_yticks([])
         ax1.set_xlabel("time (s)")
-        ax1.set_title(f"actions at episode {i}")
+        ax1.set_title(f"actions at episode {episode}")
         fig.legend()
-        plt.savefig(f"actions_{d}_ep{i}.png", bbox_inches="tight")
+        plt.savefig(f"actions_{d}_ep{episode}.png", bbox_inches="tight")
 
         #######################################################################
         # Plot rewards, learning parameters
@@ -281,24 +297,40 @@ class Logger:
         ax1.set_xlabel("time (s)")
         ax1.set_ylabel("reward (a.u)")
         ax2.set_ylabel("loss (a.u)")
-        ax1.set_title(f"rewards at episode {i}")
+        ax1.set_title(f"rewards at episode {episode}")
         fig.legend()
-        plt.savefig(f"rewards_{d}_ep{i}.png", bbox_inches="tight")
+        plt.savefig(f"rewards_{d}_ep{episode}.png", bbox_inches="tight")
 
         #######################################################################
         # Plot manipulated variables
         #######################################################################
 
         fig, ax1 = plt.subplots()
-        for j in range(len(self.valves_key)):
+        for i in range(len(constants.VPOS)):
             ax1.plot(
-                [m["valves"][j].pos for m in self.memory], label=self.valves_key[j]
+                # [np.log(1 + np.abs(m["valves"][i].pos - self.valve_seed[i]))
+                # * np.sign(m["valves"][i].pos - self.valve_seed[i])
+                [m["valves"][i].pos - constants.VPOS[i] for m in self.memory],
+                label=self.valves_key[i],
             )
+        # ax2 = ax1.twinx()
+        # for i in range(len(self.ctrl_key)):
+        #     ax2.plot(
+        #         [np.log(1 + np.abs(m["errs"][i]))
+        #         * np.sign(m["errs"][i])
+        #         for m in self.memory],
+        #         label = self.ctrl_key[i],
+        #         linestyle = "dashed"
+        #     )
         ax1.set_xlabel("time (s)")
-        ax1.set_ylabel("position (%)")
-        ax1.set_title(f"manipulated variables at episode {i}")
+        ax1.set_xscale("log")
+        ax1.set_ylabel("Δposition (a.u.)")
+        ax1.set_ylim(-100, 100)
+        # ax2.set_ylabel("err (signed log)")
+        # ax2.set_ylim(-3, 3)
+        ax1.set_title(f"manipulated variables at episode {episode}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
-        plt.savefig(f"valve_positions_{d}_ep{i}.png", bbox_inches="tight")
+        plt.savefig(f"valve_positions_{d}_ep{episode}.png", bbox_inches="tight")
 
         #######################################################################
         # Plot key measured variables
@@ -306,16 +338,16 @@ class Logger:
 
         # streams
         fig, ax1 = plt.subplots()
-        for j in range(len(self.streams_key)):
-            if j == 1 or j == 2:
+        for i in range(len(self.streams_key)):
+            if i == 1 or i == 2:
                 ax1.plot(
-                    [m["true streams"][j] / 100 for m in self.memory],
-                    label=self.valves_key[j],
+                    [m["true streams"][i] / 100 for m in self.memory],
+                    label=self.valves_key[i],
                 )
             else:
                 ax1.plot(
-                    [m["true streams"][j] for m in self.memory],
-                    label=self.valves_key[j],
+                    [m["true streams"][i] for m in self.memory],
+                    label=self.valves_key[i],
                 )
         ax1.plot(
             [m["true streams"][6] for m in self.memory],
@@ -324,10 +356,10 @@ class Logger:
         )
         ax1.set_xlabel("time (s)")
         ax1.set_ylabel("a.u")
-        ax1.set_title(f"measured variables at episode {i}")
+        ax1.set_title(f"measured variables at episode {episode}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
         fig.tight_layout()
-        plt.savefig(f"flows_{d}_ep{i}.png", bbox_inches="tight")
+        plt.savefig(f"flows_{d}_ep{episode}.png", bbox_inches="tight")
 
         # reactor
         fig, ax1 = plt.subplots()
@@ -359,9 +391,9 @@ class Logger:
         )
         ax2.set_ylabel("temperature (degC)")
         ax2.set_ylim(90, 180)
-        ax1.set_title(f"reactor parameters at episode {i}")
+        ax1.set_title(f"reactor parameters at episode {episode}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
-        plt.savefig(f"r_parameters_{d}_ep{i}.png", bbox_inches="tight")
+        plt.savefig(f"r_parameters_{d}_ep{episode}.png", bbox_inches="tight")
 
         # separator
         fig, ax1 = plt.subplots()
@@ -393,9 +425,9 @@ class Logger:
         )
         ax2.set_ylabel("level (%)")
         ax2.set_ylim(0, 100)
-        ax1.set_title(f"separator parameters at episode {i}")
+        ax1.set_title(f"separator parameters at episode {episode}")
         fig.legend(bbox_to_anchor=(0.85, 0.9))
-        plt.savefig(f"s_parameters_{d}_ep{i}.png", bbox_inches="tight")
+        plt.savefig(f"s_parameters_{d}_ep{episode}.png", bbox_inches="tight")
 
         # fig, ax = plt.subplots()
         # ax.plot(
@@ -428,12 +460,13 @@ class Logger:
             label="compressor cycles",
             color="blue",
         )
-        ax2.set_ylabel("cycles")
         ax2.set_xlabel("time (s)")
-        ax2.set_title(f"compressor features at episode {i}")
+        ax2.set_ylabel("cycles")
+        ax2.set_ylim(0, 500)
+        ax2.set_title(f"compressor features at episode {episode}")
         fig.legend()
         fig.tight_layout()
-        plt.savefig(f"compressor_{d}_ep{i}.png")
+        plt.savefig(f"compressor_{d}_ep{episode}.png")
         plt.close("all")
 
         self.memory = []

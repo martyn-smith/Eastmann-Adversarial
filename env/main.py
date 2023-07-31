@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-"""
-
 from argparse import Action as ArgAction, ArgumentParser, RawTextHelpFormatter
 from collections import deque
 from copy import deepcopy
@@ -9,7 +6,7 @@ from datetime import datetime
 import logging
 import os
 from os import system
-from random import choice  # , uniform
+from random import choice
 from statistics import mode
 import sys
 
@@ -25,6 +22,7 @@ from teprob import TEproc
 from report import Logger
 import gym
 
+import constants
 from agents.discrete.blue import DefendAgent as DiscreteDefendAgent
 from agents.discrete.red import ThreatAgent as DiscreteThreatAgent
 from agents.continuous.blue import DefendAgent as ContinuousDefendAgent
@@ -192,8 +190,6 @@ if __name__ == "__main__":
             )
             blue_previous, red_previous = (blue_observation, red_observation)
             actions = (blue_action, red_action)
-            if args.verbose >= 2:
-                print(actions)
             if args.data:
                 log.log_to_file(env, t, blue_observation, red_observation)
             observations, rewards, done, info = env.step(actions)
@@ -246,7 +242,7 @@ if __name__ == "__main__":
                     red_loss,
                     env,
                 )
-            if args.verbose >= 1:
+            if args.verbose == 1:
                 print(
                     f"time = {env.time}: reactor P, T, PVs = {env.r.pg}, {env.r.tc}, {info['failures']}, {blue_reward=}, {red_reward=}"
                 )
@@ -266,7 +262,6 @@ if __name__ == "__main__":
             log.make_figures(i, d, args.blue, args.red)
         if args.blue == "discrete":
             blue.learn()
-        # print(env.ctrlr)
 
     ###############################################################################################
     # Report generation

@@ -83,6 +83,6 @@ twin: clean gymenv te
 	rm -f *.png report.md
 
 test: clean gymenv te
-	poetry run env/main.py --fast --blue discrete --red none --report -n 20 2>> errors_$(ldate).txt
+	poetry run env/main.py --fast --blue none --red none --report -n 20 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_test_$(ldate).pdf report.md
 	rm -f *.png report.md
