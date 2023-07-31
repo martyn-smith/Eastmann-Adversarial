@@ -208,8 +208,10 @@ Requirements
 
 Most of the dependencies are specified in pyproject.toml.
 
-Tested on x64 linux (kernels 5.13.19 and 6.3), with python-poetry (1.42), pandoc (^=3.0) and gcc-gfortran (^=13.0).
-We also recommend using pyenv, then run `pyenv local 3.10`
+Tested on x64 linux (kernels 5.13, 5.15 and 6.3), with python-poetry (1.42), pandoc (^=3.0) and gcc-gfortran (^=13.0). 
+A Dockerfile based on ubuntu 22.04 is provided.
+
+You could also using pyenv, setting local version to 3.10.
 
 Further work
 ---
