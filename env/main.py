@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
+"""
+Driver module for the Adversarial RL Tennessee Eastmann challenge.
+For more details, see the README.md, description and action text below,
+or individual modules.
+"""
 from argparse import Action as ArgAction, ArgumentParser, RawTextHelpFormatter
-from collections import deque
-from copy import deepcopy
 from datetime import datetime
 import logging
 import os
@@ -10,19 +13,16 @@ from random import choice
 from statistics import mode
 import sys
 
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
-logging.getLogger("tensorflow").setLevel(logging.FATAL)
-
 import numpy as np
 from colorpy.blackbody import blackbody_color
 from matplotlib import pyplot as plt
 
-from constants import *
 from teprob import TEproc
-from report import Logger
+from report import Report
 import gym
 
-import constants
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
+logging.getLogger("tensorflow").setLevel(logging.FATAL)
 from agents.discrete.blue import DefendAgent as DiscreteDefendAgent
 from agents.discrete.red import ThreatAgent as DiscreteThreatAgent
 from agents.continuous.blue import DefendAgent as ContinuousDefendAgent
@@ -31,13 +31,14 @@ from agents.twin.blue import DefendAgent as TwinBasedDefendAgent
 from agents.dummy import DummyAgent
 
 np.seterr(all="raise")
+LOG_FREQUENCY = 10
 
 ##################################################################################################
 # ArgParse preamble
 ##################################################################################################
 
 description = """
-    Tennessee Eastmann Adversarial Control Challenge - Single Continunous Control version.
+    Tennessee Eastmann Adversarial Control Challenge
 """
 
 action_txt = """
@@ -92,27 +93,30 @@ parser = ArgumentParser(
     description=description + "\n" + action_txt, formatter_class=RawTextHelpFormatter
 )
 parser.add_argument(
-    "--fast", help="runs for fewer timesteps per episode", action="store_true"
-)
-parser.add_argument(
-    "--intent",
-    help="sets red team intent",
-    default="oppose",
-    choices=["oppose", "recipe", "destruction", "environmental"],
-)
-parser.add_argument(
     "-n",
     "--num_episodes",
     help="number of episodes (default 100)",
     type=int,
     default=100,
 )
-
+parser.add_argument(
+    "-t" "--time",
+    help="sets number of timesteps per episode",
+    default="48h",
+    choices=["1h", "48h"],
+    dest="time",
+)
 parser.add_argument(
     "--red",
     help="red team agent type",
     default="continuous",
     choices=["none", "discrete", "singlecontinuous", "continuous"],
+)
+parser.add_argument(
+    "--intent",
+    help="sets red team intent",
+    default="oppose",
+    choices=["oppose", "recipe", "destruction", "environmental"],
 )
 parser.add_argument(
     "--blue",
@@ -122,8 +126,9 @@ parser.add_argument(
 )
 
 parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
-parser.add_argument("--report", help="generates report template", action="store_true")
-parser.add_argument("--adddate", help="add date to report name", action="store_true")
+parser.add_argument(
+    "--report", help="generates report template with specified period", type=int, default=0
+)
 parser.add_argument("--data", help="outputs structured data", action="store_true")
 parser.add_argument(
     "-v", "--verbose", help="displays debug info", action="count", default=0
@@ -131,30 +136,22 @@ parser.add_argument(
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    d = str(datetime.now().date())
 
-    if args.report:
-        memory = []
-
+    #setting up environment
     gym.envs.registration.register(
         id="TennesseeEastmannContinous-v1",
         entry_point="teprob:TEproc",
-        max_episode_steps=int(DEFAULT_RUNTIME),
+        max_episode_steps=int(3600 * int(args.time[:-1])),
         reward_threshold=195.0,
     )
-
     env = gym.make(
         "TennesseeEastmannContinous-v1",
         blue_type=args.blue,
         red_type=args.red,
         red_intent=args.intent,
     )
-    if args.fast:
-        env._max_episode_steps = 3600 + int(0.1 * 3600)
-    log = Logger(args)
 
-    # logging stuff
-
+    #setting up agents
     if args.blue == "none":
         blue = DummyAgent()
     elif args.blue == "discrete":
@@ -175,14 +172,22 @@ if __name__ == "__main__":
     elif args.red == "continuous":
         red = ContinuousThreatAgent()
 
+    d = str(datetime.now().date())
+    report = Report(args)
+
     observations, _, __, ___ = env.reset()
-    actions = (None, None)
+    #actions = (None, None)
 
     for i in range(args.num_episodes):
         prev_obvs = observations
         env.reset()
+        # currently we need both t (discrete timesteps) and env.time (float).
+        # this could be refactored. Or just delineated better?
         for t in range(env._max_episode_steps):
-            # separating observations. We also strip out time.
+            #####################################################################################
+            # Agent actions pre-step
+            #####################################################################################
+            # Separate out observations, and remove time.
             blue_observation, red_observation = (observations[0], observations[1])
             blue_action, red_action = (
                 blue(blue_observation[1:].reshape(1, 42))[0],
@@ -190,12 +195,17 @@ if __name__ == "__main__":
             )
             blue_previous, red_previous = (blue_observation, red_observation)
             actions = (blue_action, red_action)
-            if args.data:
-                log.log_to_file(env, t, blue_observation, red_observation)
+
+            #####################################################################################
+            # Step
+            #####################################################################################
             observations, rewards, done, info = env.step(actions)
+
+            ######################################################################################
+            # Agent learning post-step.
+            ######################################################################################
             blue_observation, red_observation = (observations[0], observations[1])
             blue_reward, red_reward = (rewards[0], rewards[1])
-
             if args.blue == "discrete":
                 blue.remember(
                     prev_obvs[1][1:],
@@ -226,10 +236,14 @@ if __name__ == "__main__":
                 )
             elif args.red == "none":
                 red_loss = None
+
+            #######################################################################################
+            #reporting / rendering
+            #######################################################################################
             if args.render:
                 env.render()
-            if args.report and i % 10 == 0:
-                log.log(
+            if args.report and i % args.report == 0:
+                report.log(
                     i,
                     t,
                     blue_action,
@@ -242,24 +256,21 @@ if __name__ == "__main__":
                     red_loss,
                     env,
                 )
+            if args.data:
+                report.log_to_file(env, t, blue_observation, red_observation)
             if args.verbose == 1:
-                print(
-                    f"time = {env.time}: reactor P, T, PVs = {env.r.pg}, {env.r.tc}, {info['failures']}, {blue_reward=}, {red_reward=}"
-                )
+                report.verbose(env, info, blue_reward, red_reward)
             if done:
-                print(
-                    f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
-                    + (
-                        f"red team wins: {info['failures']}"
-                        if info["failures"]
-                        else "blue team wins"
-                    )
-                )
-                log.wins.append((0, 1) if info["failures"] else (1, 0))
+                report.verbose_summary(i, t, info)
+                report.wins.append((0, 1) if info["failures"] else (1, 0))
                 break
-        if args.report and i % 10 == 0:
-            log.summary(t, info)
-            log.make_figures(i, d, args.blue, args.red)
+
+        ###########################################################################################
+        # end of episode actions
+        ###########################################################################################
+        if args.report and i % args.report == 0:
+            report.summary(t, info)
+            report.make_figures(i, d, args.blue, args.red)
         if args.blue == "discrete":
             blue.learn()
 
@@ -268,9 +279,8 @@ if __name__ == "__main__":
     ###############################################################################################
 
     if args.report:
-        name = f"report_{d}.md" if args.adddate else "report.md"
-        log.make_report(name, d, action_txt, reward_txt, args.intent)
-        log.close()
+        report.make_report(d, action_txt, reward_txt)
+        report.close()
 
     ###############################################################################################
     # Cleanup

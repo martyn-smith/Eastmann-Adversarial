@@ -39,50 +39,49 @@ clean:
 
 #peaceful split into its own, not least to reassure that the artist() errors are ignorable.
 peaceful: clean gymenv te
-	poetry run env/main.py --report --blue none --red none -n 11 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 10 --blue none --red none --report 10 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_peaceful_long_$(ldate).pdf report.md
 	rm -f *.png report.md
 
 reports: clean gymenv te
 	#validation
-	poetry run env/main.py --fast --report --blue discrete --red none -n 100 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 100 -t 1h --blue discrete --red none --report 10 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_blue_discrete_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
-	poetry run env/main.py --fast --report --blue continuous --red none -n 100 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 100 -t 1h --blue continuous --red none --report 10 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_blue_continuous_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
 	#baseline
-	poetry run env/main.py --fast --report --blue none --red discrete -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 300 -t 1h --blue none --red discrete --report 10 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_red_discrete_baseline_$(ldate).pdf report.md
 	rm -f *.png report.md
-	poetry run env/main.py --fast --report --blue none --red continuous -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 300 -t 1h --blue none --red continuous --report 10 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_red_continuous_baseline_$(ldate).pdf report.md
 	rm -f *.png report.md
 	#discrete
-	poetry run env/main.py --fast --report --blue discrete --red discrete -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 300 -t 1h --blue discrete --red discrete --report 10 2>> errors_$(ldate).txt
 	pandoc -V geometry:margin=0.8in -o report_blue_discrete_red_discrete_$(ldate).pdf report.md
 	rm -f *.png report.md
-	poetry run env/main.py --fast --report --blue discrete --red discrete --intent destruction -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 300 -t 1h --blue discrete --red discrete --intent destruction --report 10 2>> errors_$(ldate).txt
 	pandoc -o report_blue_discrete_red_discrete_destruction_$(ldate).pdf report.md
 	rm -f *.png report.md
-	poetry run env/main.py --fast --report --blue discrete --red discrete --intent recipe -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 300 -t 1h --blue discrete --red discrete --intent recipe --report 10 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_blue_discrete_red_discrete_recipe_$(ldate).pdf report.md
 	rm -f *.png report.md
 	#continuous
-	poetry run env/main.py --fast --report --blue continuous --red continuous -n 300 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 300 -t 1h --blue continuous --red continuous --report 10 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_blue_continuous_red_continuous_$(ldate).pdf report.md
 	rm -f *.png report.md
 
 # twin run separately due to its time demands
 twin: clean gymenv te
-	poetry run env/main.py --fast --report --blue twin --red none -n 100 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 100 -t 1h --blue twin --red none --report 10 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_blue_twin_validation_$(ldate).pdf report.md
 	rm -f *.png report.md
-	poetry run env/main.py --fast --report --blue twin --red continuous -n 100 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 100 -t 1h --blue twin --red continuous --report 10 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_blue_twin_red_continuous_$(ldate).pdf report.md
 	rm -f *.png report.md
 
 test: clean gymenv te
-	poetry run env/main.py --fast --blue none --red none --report -n 20 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 20 -t 1h --red continuous --blue continuous --report 10 2>> errors_$(ldate).txt
 	pandoc  -V geometry:margin=0.8in -o report_test_$(ldate).pdf report.md
-	rm -f *.png report.md

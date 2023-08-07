@@ -5,23 +5,23 @@ from copy import deepcopy
 
 import constants
 
-plt.rcParams["figure.figsize"] = (5.5, 3.0)
+plt.rcParams["figure.constrained_layout.use"] = True
 plt.rcParams["figure.dpi"] = 300
-plt.rcParams["font.size"] = 10
+plt.rcParams["font.size"] = 5
 RED_OFFSET = 0.5
 
 
-class Logger:
+class Report:
     setpt_key = [
-        "reactor temperature",
-        "reactor level",
-        "separator level",
-        "stripper level",
-        "stripper underflow",
-        "G:H ratio",
-        "reactor pressure",
-        "purge gas b fraction",
-        "reactor feed a component",
+        "reactor temperature setpoint",
+        "reactor level setpoint",
+        "separator level setpoint",
+        "stripper level setpoint",
+        "stripper underflow setpoint",
+        "G:H ratio setpoint",
+        "reactor pressure setpoint",
+        "purge gas b fraction setpoint",
+        "reactor feed a component setpoint",
     ]
 
     valves_key = [
@@ -85,6 +85,8 @@ class Logger:
         self.losses = []
         self.memory = []
         self.data = config.data
+        self.intent = config.intent
+        self.num_episodes = config.num_episodes
         if self.data:
             self.state_log = open("state.dat", "w")
             self.blue_xmeas_log = open("blue_xmeas.dat", "w")
@@ -112,7 +114,7 @@ class Logger:
 
     def log(
         self,
-        i,
+        episode,
         t,
         blue_action,
         red_action,
@@ -126,7 +128,7 @@ class Logger:
     ):
         self.memory.append(
             {
-                "episode": i,
+                "episode": episode,
                 "time": t,
                 "blue action": blue_action,
                 "red action": red_action,
@@ -135,7 +137,7 @@ class Logger:
                 "blue loss": blue_loss,
                 "red loss": red_loss,
                 "valves": deepcopy(env.valves),
-                "errs": env.ctrlr.err,
+                "errs": deepcopy(env.ctrlr.err),
                 "reported streams": [
                     blue_observation[1],
                     blue_observation[2],
@@ -185,249 +187,229 @@ class Logger:
         )
 
     def make_figures(self, episode, d, blue_type, red_type):
+        fig, axs = plt.subplots(3, 2, gridspec_kw={"wspace": 1.8, "hspace": 0.9})
         #######################################################################
         # Plot actions
         #######################################################################
-        fig, ax1 = plt.subplots()
         if blue_type == "discrete":
-            ax1.plot(
+            axs[0, 0].plot(
                 [m["blue action"] for m in self.memory],
                 color="blue",
                 alpha=0.8,
                 label="blue action",
             )
-            ax1.set_ylim(0, 14)
-            ax1.set_yticks(np.arange(0.0, 14.0, 1), labels=self.blue_discrete_key)
-            ax1.set_ylabel("actions")
+            axs[0, 0].set_ylim(0, 14)
+            axs[0, 0].set_yticks(np.arange(0.0, 14.0, 1), labels=self.blue_discrete_key)
+            axs[0, 0].set_ylabel("actions")
         elif blue_type == "continuous" or blue_type == "twin":
-            ax1.plot(
+            axs[0, 0].plot(
                 [np.argmax(m["blue action"]) for m in self.memory],
                 label="blue action type",
                 color="blue",
                 alpha=0.6,
             )
-            ax1.plot(
+            axs[0, 0].plot(
                 [np.max(m["blue action"]) / 10 for m in self.memory],
                 label="blue action strength",
                 color="blue",
                 alpha=0.6,
                 linestyle="--",
             )
+            # deprecated code for plotting all actions.
+            # disused because the figure becomes a mess.
             #    for j in range(len(self.setpt_key)):
-            #        ax1.plot(
+            #        axs[0,0].plot(
             #            [m["blue action"][j] for m in self.memory],
             #            label=self.setpt_key[j],
             #            color="blue",
             #            alpha=0.8,
             #            linestyle="--",
             #        )
-            ax1.set_yticks(np.arange(0.0, 12.0, 1), labels=self.valves_key)
-            ax1.set_ylabel("actions")
+            axs[0, 0].set_yticks(np.arange(0.0, 12.0, 1), labels=self.valves_key)
+            axs[0, 0].set_ylabel("actions", color="blue")
         elif blue_type == "none":
-            ax1.set_yticks([])
-        ax2 = ax1.twinx()
+            axs[0, 0].set_yticks([])
+        axs[0, 0].set_xlabel("time (s)")
+        axa = axs[0, 0].twinx()
         if red_type == "discrete":
-            ax2.plot(
+            axa.plot(
                 [m["red action"] for m in self.memory],
                 color="red",
                 alpha=0.8,
                 label="red action",
             )
-            ax2.set_ylim(0, 50)
-            ax2.set_yticks([25.0, 45.0], labels=self.red_discrete_key)
-            ax2.set_ylabel("actions")
+            axa.set_ylim(0, 50)
+            axa.set_yticks([25.0, 45.0], labels=self.red_discrete_key)
+            axa.set_ylabel("actions")
         elif red_type == "continuous":
-            ax2.plot(
+            axa.plot(
                 [np.argmax(m["red action"]) for m in self.memory],
                 label="red action type",
                 color="red",
                 alpha=0.6,
             )
-            ax2.plot(
+            axa.plot(
                 [np.max(m["red action"]) / 10 for m in self.memory],
                 label="red action strength",
                 color="red",
                 alpha=0.6,
                 linestyle="--",
             )
-            #    for j in range(len(self.setpt_key)):
-            #       ax2.plot(
-            #           [m["red action"][j] for m in self.memory],
-            #           label=self.setpt_key[j],
-            #           color="red",
-            #           alpha=0.6,
-            #           linestyle="--",
-            #       )
-            ax2.set_yticks(np.arange(0.0, 9.0, 1), labels=self.setpt_key)
-            ax2.set_ylabel("actions")
+            axa.set_yticks(np.arange(0.0, 9.0, 1), labels=self.setpt_key)
+            axa.set_ylabel("actions", color="red")
         elif red_type == "none":
-            ax2.set_yticks([])
-        ax1.set_xlabel("time (s)")
-        ax1.set_title(f"actions at episode {episode}")
-        fig.legend()
-        plt.savefig(f"actions_{d}_ep{episode}.png", bbox_inches="tight")
+            axa.set_yticks([])
+        axs[0, 0].set_title(f"actions at episode {episode}")
+        axs[0, 0].legend()
+        axa.legend()
+        # fig.tight_layout()
+        # plt.savefig(f"actions_{d}_ep{episode}.png", bbox_inches="tight")
 
         #######################################################################
         # Plot rewards, learning parameters
         #######################################################################
-        fig, ax1 = plt.subplots()
-        ax1.plot(
+        axs[0, 1].plot(
             [m["blue reward"] for m in self.memory],
             label="blue reward",
             color="blue",
         )
-        ax1.plot(
+        axs[0, 1].plot(
             [m["red reward"] for m in self.memory], label="red reward", color="red"
         )
-        ax2 = ax1.twinx()
+        axs[0, 1].set_xlabel("time (s)")
+        axs[0, 1].set_ylabel("reward (a.u)")
+        axs[0, 1].set_ylabel("loss (a.u)")
+        axa = axs[0, 1].twinx()
         if blue_type == "continuous" or blue_type == "twin":
-            ax2.plot(
+            axa.plot(
                 [m["blue loss"] for m in self.memory],
                 label="blue loss",
                 color="blue",
                 linestyle="dashed",
             )
         if red_type == "continuous":
-            ax2.plot(
+            axa.plot(
                 [m["red loss"] for m in self.memory],
                 label="red loss",
                 color="red",
                 linestyle="dashed",
             )
-        ax1.set_xlabel("time (s)")
-        ax1.set_ylabel("reward (a.u)")
-        ax2.set_ylabel("loss (a.u)")
-        ax1.set_title(f"rewards at episode {episode}")
-        fig.legend()
-        plt.savefig(f"rewards_{d}_ep{episode}.png", bbox_inches="tight")
+        axs[0, 1].set_title(f"rewards at episode {episode}")
 
         #######################################################################
         # Plot manipulated variables
         #######################################################################
 
-        fig, ax1 = plt.subplots()
         for i in range(len(constants.VPOS)):
-            ax1.plot(
+            axs[1, 0].plot(
                 # [np.log(1 + np.abs(m["valves"][i].pos - self.valve_seed[i]))
                 # * np.sign(m["valves"][i].pos - self.valve_seed[i])
                 [m["valves"][i].pos - constants.VPOS[i] for m in self.memory],
                 label=self.valves_key[i],
             )
-        # ax2 = ax1.twinx()
-        # for i in range(len(self.ctrl_key)):
-        #     ax2.plot(
-        #         [np.log(1 + np.abs(m["errs"][i]))
-        #         * np.sign(m["errs"][i])
-        #         for m in self.memory],
-        #         label = self.ctrl_key[i],
-        #         linestyle = "dashed"
-        #     )
-        ax1.set_xlabel("time (s)")
-        ax1.set_xscale("log")
-        ax1.set_ylabel("Δposition (a.u.)")
-        ax1.set_ylim(-100, 100)
-        # ax2.set_ylabel("err (signed log)")
+        axs[1, 0].set_xlabel("time (s)")
+        axs[1, 0].set_ylabel("Δposition (a.u.)")
+        axs[1, 0].set_ylim(-100, 100)
+        axa = axs[1, 0].twinx()
+        for i in range(len(self.ctrl_key)):
+            axa.plot(
+                [
+                    np.log(1 + np.abs(m["errs"][i])) * np.sign(m["errs"][i])
+                    for m in self.memory
+                ],
+                label=self.ctrl_key[i],
+                linestyle="dashed",
+            )
+        # ax3a.set_ylabel("err (signed log)")
         # ax2.set_ylim(-3, 3)
-        ax1.set_title(f"manipulated variables at episode {episode}")
-        fig.legend(bbox_to_anchor=(0.85, 0.9))
-        plt.savefig(f"valve_positions_{d}_ep{episode}.png", bbox_inches="tight")
+        axs[1, 0].set_title(f"manipulated variables at episode {episode}")
 
         #######################################################################
         # Plot key measured variables
         #######################################################################
 
         # streams
-        fig, ax1 = plt.subplots()
         for i in range(len(self.streams_key)):
             if i == 1 or i == 2:
-                ax1.plot(
+                axs[1, 1].plot(
                     [m["true streams"][i] / 100 for m in self.memory],
                     label=self.valves_key[i],
                 )
             else:
-                ax1.plot(
+                axs[1, 1].plot(
                     [m["true streams"][i] for m in self.memory],
                     label=self.valves_key[i],
                 )
-        ax1.plot(
+        axs[1, 1].plot(
             [m["true streams"][6] for m in self.memory],
             label="production",
             color="grey",
         )
-        ax1.set_xlabel("time (s)")
-        ax1.set_ylabel("a.u")
-        ax1.set_title(f"measured variables at episode {episode}")
-        fig.legend(bbox_to_anchor=(0.85, 0.9))
-        fig.tight_layout()
-        plt.savefig(f"flows_{d}_ep{episode}.png", bbox_inches="tight")
+        axs[1, 1].set_xlabel("time (s)")
+        axs[1, 1].set_ylabel("a.u")
+        axs[1, 1].set_title(f"measured variables at episode {episode}")
 
         # reactor
-        fig, ax1 = plt.subplots()
-        ax1.plot(
+        axs[2, 0].plot(
             [m["true reactor pressure"] + RED_OFFSET for m in self.memory],
             label="real pressure",
             color="red",
         )
-        ax1.plot(
+        axs[2, 0].plot(
             [m["reported reactor pressure"] for m in self.memory],
             label="reported pressure",
             color="blue",
         )
-        ax1.set_xlabel("time (s)")
-        ax1.set_ylabel("pressure (kPag)")
-        ax1.set_ylim(2700, 3000)
-        ax2 = ax1.twinx()
-        ax2.plot(
+        axs[2, 0].set_xlabel("time (s)")
+        axs[2, 0].set_ylabel("pressure (kPag)")
+        axs[2, 0].set_ylim(2700, 3000)
+        axa = axs[2, 0].twinx()
+        axa.plot(
             [m["true reactor temperature"] + RED_OFFSET for m in self.memory],
             label="real temperature",
             color="red",
             linestyle="dashed",
         )
-        ax2.plot(
+        axa.plot(
             [m["reported reactor temperature"] for m in self.memory],
             label="reported temperature",
             color="blue",
             linestyle="dashed",
         )
-        ax2.set_ylabel("temperature (degC)")
-        ax2.set_ylim(90, 180)
-        ax1.set_title(f"reactor parameters at episode {episode}")
-        fig.legend(bbox_to_anchor=(0.85, 0.9))
-        plt.savefig(f"r_parameters_{d}_ep{episode}.png", bbox_inches="tight")
+        axa.set_ylabel("temperature (degC)")
+        axa.set_ylim(90, 180)
+        axs[2, 0].set_title(f"reactor parameters at episode {episode}")
 
         # separator
-        fig, ax1 = plt.subplots()
-        ax1.plot(
+        axs[2, 1].plot(
             [m["true separator temperature"] + RED_OFFSET for m in self.memory],
             label="real temperature",
             color="red",
         )
-        ax1.plot(
+        axs[2, 1].plot(
             [m["reported separator temperature"] for m in self.memory],
             label="reported temperature",
             color="blue",
         )
-        ax1.set_xlabel("time (s)")
-        ax1.set_ylabel("temperature (degC)")
-        ax1.set_ylim(70, 100)
-        ax2 = ax1.twinx()
-        ax2.plot(
+        axs[2, 1].set_xlabel("time (s)")
+        axs[2, 1].set_ylabel("temperature (degC)")
+        axs[2, 1].set_ylim(70, 100)
+        axa = axs[2, 1].twinx()
+        axa.plot(
             [m["true separator level"] + RED_OFFSET for m in self.memory],
             label="real level",
             color="red",
             linestyle="dashed",
         )
-        ax2.plot(
+        axa.plot(
             [m["reported separator level"] for m in self.memory],
             label="reported level",
             color="blue",
             linestyle="dashed",
         )
-        ax2.set_ylabel("level (%)")
-        ax2.set_ylim(0, 100)
-        ax1.set_title(f"separator parameters at episode {episode}")
-        fig.legend(bbox_to_anchor=(0.85, 0.9))
-        plt.savefig(f"s_parameters_{d}_ep{episode}.png", bbox_inches="tight")
+        axa.set_ylabel("level (%)")
+        axa.set_ylim(0, 100)
+        axs[2, 1].set_title(f"separator parameters at episode {episode}")
 
         # fig, ax = plt.subplots()
         # ax.plot(
@@ -447,57 +429,63 @@ class Logger:
         # plt.savefig(f"flows_{d}_ep{i}.png")
 
         # compressor
-        fig, ax1 = plt.subplots()
-        ax1.plot(
-            [m["compressor work"] for m in self.memory],
-            label="compressor load",
-            color="red",
-        )
-        ax1.set_ylabel("load (kW)")
-        ax2 = ax1.twinx()
-        ax2.plot(
-            [m["compressor cycles"] for m in self.memory],
-            label="compressor cycles",
-            color="blue",
-        )
-        ax2.set_xlabel("time (s)")
-        ax2.set_ylabel("cycles")
-        ax2.set_ylim(0, 500)
-        ax2.set_title(f"compressor features at episode {episode}")
-        fig.legend()
-        fig.tight_layout()
-        plt.savefig(f"compressor_{d}_ep{episode}.png")
+        # fig, ax1 = plt.subplots()
+        # ax1.plot(
+        #     [m["compressor work"] for m in self.memory],
+        #     label="compressor load",
+        #     color="red",
+        # )
+        # ax1.set_ylabel("load (kW)")
+        # ax2 = ax1.twinx()
+        # ax2.plot(
+        #     [m["compressor cycles"] for m in self.memory],
+        #     label="compressor cycles",
+        #     color="blue",
+        # )
+        # ax2.set_xlabel("time (s)")
+        # ax2.set_ylabel("cycles")
+        # ax2.set_ylim(0, 500)
+        # ax2.set_title(f"compressor features at episode {episode}")
+        # fig.legend()
+        # fig.tight_layout()
+        # plt.savefig(f"compressor_{d}_ep{episode}.png")
+        plt.savefig(f"params_{d}_episode_{episode}.png", bbox_inches="tight")
         plt.close("all")
-
         self.memory = []
 
-    def make_report(self, name, d, action_txt, reward_txt, intent):
-        with open(name, "w") as f:
+    def verbose(self, env, info, blue_reward, red_reward):
+        print(
+            f"""\
+time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
+{env.r.tc}, \
+{info['failures']}, \
+{blue_reward=}, \
+{red_reward=}
+                     """
+        )
+
+    def verbose_summary(self, i, t, info):
+        print(
+            f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
+            + (
+                f"red team wins: {info['failures']}"
+                if info["failures"]
+                else "blue team wins"
+            )
+        )
+
+    def make_report(self, d, action_txt, reward_txt):
+        with open("report.md", "w") as f:
             f.write(f"wargame of TE process generated on {d}\n===\n")
-            f.write(f"{action_txt}\n\n{reward_txt}\n\nred intent: {intent}\n\n")
-            for i in range(len(self._summary)):
+            f.write(f"{action_txt}\n\n{reward_txt}\n\nred intent: {self.intent}\n\n")
+            for i, s in zip(
+                range(0, self.num_episodes, self.num_episodes // len(self._summary)),
+                self._summary,
+            ):
                 f.write("\\newpage\n")
-                f.write(f"episode {10*i}\n===\n")
+                f.write(f"episode {i}\n===\n")
                 f.write(
-                    f"![Actions at episode {10*i}](actions_{d}_ep{10*i}.png){{width=320px}}\\ "
+                    f"![Parameters at episode {i}](params_{d}_episode_{i}.png){{width=640px}}\\ "
                 )
-                f.write(
-                    f"![Rewards at episode {10*i}](rewards_{d}_ep{10*i}.png){{width=320px}}\n"
-                )
-                f.write(
-                    f"![Valve positions at episode {10*i}](valve_positions_{d}_ep{10*i}.png){{width=320px}}\\ "
-                )
-                f.write(
-                    f"![Stream readings at episode {10*i}](flows_{d}_ep{10*i}.png){{width=320px}}\n"
-                )
-                f.write(
-                    f"![Reactor parameters at episode {10*i}](r_parameters_{d}_ep{10*i}.png){{width=320px}}\\ "
-                )
-                f.write(
-                    f"![Separator parameters at episode {10*i}](s_parameters_{d}_ep{10*i}.png){{width=320px}}\n"
-                )
-                f.write(
-                    f"![Compressor parameters at episode {10*i}](compressor_{d}_ep{10*i}.png){{width=320px}}\n"
-                )
-                f.write(self._summary[i])
+                f.write(s)
                 f.write("\\newpage\n")

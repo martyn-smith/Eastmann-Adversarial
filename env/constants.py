@@ -49,5 +49,4 @@ COST_CO2 = 0.3  # $ kg-1
 CO2_STEAM = 0.14  # kg . kg-1, assuming nat gas (56 g / MJ CO2) as input and 20 degC water
 
 DELTA_t = 1.0 / 3600.0
-DEFAULT_RUNTIME = 48 * 3600.0
 # fmt: on
