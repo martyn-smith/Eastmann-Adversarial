@@ -187,7 +187,7 @@ class Report:
         )
 
     def make_figures(self, episode, d, blue_type, red_type):
-        fig, axs = plt.subplots(3, 2, gridspec_kw={"wspace": 1.2, "hspace": 0.5})
+        fig, axs = plt.subplots(3, 2, gridspec_kw={"wspace": 0.25, "hspace": 0.15})
 
         #######################################################################
         # Plot actions
@@ -351,7 +351,7 @@ class Report:
         axs[1, 1].set_xlabel("time (s)")
         axs[1, 1].set_ylabel("a.u")
         axs[1, 1].set_title(f"measured variables at episode {episode}")
-        axs[1, 1].legend()
+        axs[1, 1].legend(fontsize = "4")
 
         # reactor
         axs[2, 0].plot(
