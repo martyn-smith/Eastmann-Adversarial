@@ -187,7 +187,8 @@ class Report:
         )
 
     def make_figures(self, episode, d, blue_type, red_type):
-        fig, axs = plt.subplots(3, 2, gridspec_kw={"wspace": 1.8, "hspace": 0.9})
+        fig, axs = plt.subplots(3, 2, gridspec_kw={"wspace": 1.7, "hspace": 0.8})
+
         #######################################################################
         # Plot actions
         #######################################################################
@@ -299,7 +300,6 @@ class Report:
         #######################################################################
         # Plot manipulated variables
         #######################################################################
-
         for i in range(len(constants.VPOS)):
             axs[1, 0].plot(
                 # [np.log(1 + np.abs(m["valves"][i].pos - self.valve_seed[i]))
@@ -320,14 +320,13 @@ class Report:
                 label=self.ctrl_key[i],
                 linestyle="dashed",
             )
-        # ax3a.set_ylabel("err (signed log)")
-        # ax2.set_ylim(-3, 3)
+        axa.set_ylabel("err (signed log)")
+        axa.set_ylim(-3, 3)
         axs[1, 0].set_title(f"manipulated variables at episode {episode}")
 
         #######################################################################
         # Plot key measured variables
         #######################################################################
-
         # streams
         for i in range(len(self.streams_key)):
             if i == 1 or i == 2:
