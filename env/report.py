@@ -13,15 +13,15 @@ RED_OFFSET = 0.5
 
 class Report:
     setpt_key = [
-        "reactor temperature setpoint",
-        "reactor level setpoint",
-        "separator level setpoint",
-        "stripper level setpoint",
-        "stripper underflow setpoint",
+        "reactor temperature",
+        "reactor level",
+        "separator level",
+        "stripper level",
+        "stripper underflow",
         "G:H ratio setpoint",
-        "reactor pressure setpoint",
-        "purge gas b fraction setpoint",
-        "reactor feed a component setpoint",
+        "reactor pressure",
+        "purge gas b fraction",
+        "reactor feed a component",
     ]
 
     valves_key = [
@@ -187,7 +187,7 @@ class Report:
         )
 
     def make_figures(self, episode, d, blue_type, red_type):
-        fig, axs = plt.subplots(3, 2, gridspec_kw={"wspace": 1.7, "hspace": 0.8})
+        fig, axs = plt.subplots(3, 2, gridspec_kw={"wspace": 1.2, "hspace": 0.5})
 
         #######################################################################
         # Plot actions
@@ -279,7 +279,6 @@ class Report:
         )
         axs[0, 1].set_xlabel("time (s)")
         axs[0, 1].set_ylabel("reward (a.u)")
-        axs[0, 1].set_ylabel("loss (a.u)")
         axa = axs[0, 1].twinx()
         if blue_type == "continuous" or blue_type == "twin":
             axa.plot(
@@ -295,7 +294,10 @@ class Report:
                 color="red",
                 linestyle="dashed",
             )
+        axa.set_ylabel("loss (a.u)")
         axs[0, 1].set_title(f"rewards at episode {episode}")
+        axs[0, 1].legend()
+        axa.legend()
 
         #######################################################################
         # Plot manipulated variables
@@ -310,19 +312,21 @@ class Report:
         axs[1, 0].set_xlabel("time (s)")
         axs[1, 0].set_ylabel("Δposition (a.u.)")
         axs[1, 0].set_ylim(-100, 100)
-        axa = axs[1, 0].twinx()
-        for i in range(len(self.ctrl_key)):
-            axa.plot(
-                [
-                    np.log(1 + np.abs(m["errs"][i])) * np.sign(m["errs"][i])
-                    for m in self.memory
-                ],
-                label=self.ctrl_key[i],
-                linestyle="dashed",
-            )
-        axa.set_ylabel("err (signed log)")
-        axa.set_ylim(-3, 3)
+        # axa = axs[1, 0].twinx()
+        # for i in range(len(self.ctrl_key)):
+        #     axa.plot(
+        #         [
+        #             np.log(1 + np.abs(m["errs"][i])) * np.sign(m["errs"][i])
+        #             for m in self.memory
+        #         ],
+        #         label=self.ctrl_key[i],
+        #         linestyle="dashed",
+        #     )
+        # axa.set_ylabel("err (signed log)")
+        # axa.set_ylim(-3, 3)
         axs[1, 0].set_title(f"manipulated variables at episode {episode}")
+        axs[1, 0].legend(fontsize = "3")
+        # axa.legend()
 
         #######################################################################
         # Plot key measured variables
@@ -347,6 +351,7 @@ class Report:
         axs[1, 1].set_xlabel("time (s)")
         axs[1, 1].set_ylabel("a.u")
         axs[1, 1].set_title(f"measured variables at episode {episode}")
+        axs[1, 1].legend()
 
         # reactor
         axs[2, 0].plot(
@@ -378,6 +383,8 @@ class Report:
         axa.set_ylabel("temperature (degC)")
         axa.set_ylim(90, 180)
         axs[2, 0].set_title(f"reactor parameters at episode {episode}")
+        axs[2, 0].legend()
+        axa.legend()
 
         # separator
         axs[2, 1].plot(
@@ -409,6 +416,8 @@ class Report:
         axa.set_ylabel("level (%)")
         axa.set_ylim(0, 100)
         axs[2, 1].set_title(f"separator parameters at episode {episode}")
+        axs[2, 1].legend()
+        axa.legend(loc = "lower right")
 
         # fig, ax = plt.subplots()
         # ax.plot(
