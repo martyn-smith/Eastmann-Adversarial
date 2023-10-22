@@ -11,6 +11,7 @@ plt.rcParams["figure.constrained_layout.use"] = True
 plt.rcParams["figure.dpi"] = 500
 plt.rcParams["font.size"] = 5
 plt.rcParams["lines.linewidth"] = 0.4
+plt.rcParams["legend.framealpha"] = 0
 RED_OFFSET = 0.5
 
 
@@ -232,37 +233,30 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
             )
             ax.set_ylabel("actions")
         elif self.blue == "continuous" or self.blue == "twin":
+            # Old code for plotting all actions:
+            #    for j in range(len(self.setpt_key)):
+            #        ax.plot([m["blue action"][j] for m in self.memory], ...)
             ax.plot(
                 [np.argmax(m["blue action"]) for m in self.memory],
                 label="blue action type",
                 color="blue",
                 alpha=0.6,
             )
-            axa = ax.twinx()
-            axa.set_frame_on(True)
-            axa.spines["right"].set_visible(False)
-            axa.spines["left"].set_position(("axes", -0.4)) # red one
-            axa.spines["left"].set_visible(True)
-            axa.yaxis.set_label_position('left')
-            axa.yaxis.set_ticks_position('left')
-            axa.yaxis.label.set_color("blue")
-            axa.plot(
+            # axa = ax.twinx()
+            # axa.set_frame_on(True)
+            # axa.spines["right"].set_visible(False)
+            # axa.spines["left"].set_position(("axes", -0.4)) # red one
+            # axa.spines["left"].set_visible(True)
+            # axa.yaxis.set_label_position('left')
+            # axa.yaxis.set_ticks_position('left')
+            # axa.yaxis.label.set_color("blue")
+            ax.plot(
                 [np.max(m["blue action"]) / 10 for m in self.memory],
                 label="blue action strength",
                 color="blue",
                 alpha=0.6,
                 linestyle="--",
             )
-            # deprecated code for plotting all actions.
-            # disused because the figure becomes a mess.
-            #    for j in range(len(self.setpt_key)):
-            #        axs[0,0].plot(
-            #            [m["blue action"][j] for m in self.memory],
-            #            label=self.setpt_key[j],
-            #            color="blue",
-            #            alpha=0.8,
-            #            linestyle="--",
-            #        )
             ax.set_yticks(np.arange(0.0, 12.0, 1), labels=self.valves_key, fontsize=3)
             ax.set_ylabel("actions", color="blue")
         elif self.blue == "none":
@@ -299,10 +293,8 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
             axa.set_yticks([])
         ax.set_xlabel("time (s)")
         ax.set_title(f"actions at episode {episode}")
-        ax.legend(loc="upper right")
-        axa.legend(loc="lower right")
-        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
-            fancybox=True, shadow=True, ncol=5)
+        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(-0.3, -0.28))
+        axa.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.3, -0.28))
         # fig.tight_layout()
         # plt.savefig(f"actions_{d}_ep{episode}.png", bbox_inches="tight")
 
@@ -336,8 +328,8 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
             )
         axa.set_ylabel("loss (a.u)")
         ax.set_title(f"rewards at episode {episode}")
-        ax.legend(loc="upper left")
-        axa.legend(loc="lower left")
+        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(-0.25, -0.28))
+        axa.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.25, -0.28))
 
         #######################################################################
         # Plot manipulated variables
@@ -354,7 +346,7 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         ax.set_ylabel("Δposition (a.u.)")
         ax.set_ylim(-100, 100)
         ax.set_title(f"manipulated variables at episode {episode}")
-        ax.legend(fontsize="3")
+        ax.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.42, -0.05))
 
         #######################################################################
         # Plot key measured variables
@@ -380,7 +372,7 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         ax.set_xlabel("time (s)")
         ax.set_ylabel("a.u")
         ax.set_title(f"measured variables at episode {episode}")
-        ax.legend(fontsize="4")
+        ax.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.42, 0.0))
 
         # reactor
         ax = axs[2, 0]
@@ -413,8 +405,8 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         axa.set_ylabel("temperature (degC)")
         axa.set_ylim(90, 180)
         ax.set_title(f"reactor parameters at episode {episode}")
-        ax.legend(loc="upper right")
-        axa.legend(loc="lower right")
+        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(-0.28, -0.28))
+        axa.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.37, -0.28))
 
         # separator
         ax = axs[2, 1]
@@ -447,8 +439,8 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         axa.set_ylabel("level (%)")
         axa.set_ylim(0, 100)
         ax.set_title(f"separator parameters at episode {episode}")
-        ax.legend(loc="upper right")
-        axa.legend(loc="lower right")
+        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(-0.36, -0.3))
+        axa.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.3, -0.3))
 
         # fig, ax = plt.subplots()
         # ax.plot(
@@ -482,7 +474,7 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         ax.set_ylabel("err (signed log)")
         ax.set_ylim(-3, 3)
         ax.set_title(f"control errors at episode {episode}")
-        ax.legend(fontsize="3")
+        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(0.98, 0.0))
 
         # compressor
         ax = axs[3, 1]

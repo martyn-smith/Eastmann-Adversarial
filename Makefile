@@ -47,9 +47,7 @@ twin: clean gymenv te
 		-o data/blue_twin_red_continuous_$(ldate) 2>> errors_$(ldate).txt
 
 test: clean gymenv te
-	poetry run env/main.py -n 20 -t 1h --blue continuous --red continuous --report 10 2>> errors_$(ldate).txt
-	pandoc -V geometry:margin=0.5in -o report_test_$(ldate).pdf report.md
-	rm -f *.png report.md
+	poetry run env/main.py -n 20 -t 1h --blue discrete --red discrete --figures 10 2>> errors_$(ldate).txt
 
 reports: clean gymenv te
 	#validation

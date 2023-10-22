@@ -33,9 +33,9 @@ class Agent:
 
         # exploration noise and scaling
         self.rng = np.random.random
-        self.epsilon = 0.01
+        self.epsilon = 0.1
         self.epsilon_min = 0.000001
-        self.epsilon_decay = 0.095
+        self.epsilon_decay = 0.1
         self.scale = 1.0
 
         # replay parameters
