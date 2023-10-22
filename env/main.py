@@ -11,6 +11,7 @@ import os
 from os import system
 from random import choice
 from statistics import mode
+import ctypes
 import sys
 
 import numpy as np
@@ -18,7 +19,7 @@ from colorpy.blackbody import blackbody_color
 from matplotlib import pyplot as plt
 
 from teprob import TEproc
-from report import Report
+from report import Logger
 import gym
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
@@ -31,7 +32,6 @@ from agents.twin.blue import DefendAgent as TwinBasedDefendAgent
 from agents.dummy import DummyAgent
 
 np.seterr(all="raise")
-LOG_FREQUENCY = 10
 
 ##################################################################################################
 # ArgParse preamble
@@ -125,19 +125,33 @@ parser.add_argument(
     choices=["none", "discrete", "singlecontinuous", "continuous", "twin"],
 )
 
-parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 parser.add_argument(
-    "--report", help="generates report template with specified period", type=int, default=0
+    "--data", help="outputs structured data with specified pertiod", type=int, default=0
 )
-parser.add_argument("--data", help="outputs structured data", action="store_true")
+parser.add_argument(
+    "--figures",
+    help="outputs figures and text with specified period",
+    type=int,
+    default=0,
+)
+parser.add_argument(
+    "--report",
+    help="outputs report template with specified period",
+    type=int,
+    default=0,
+)
+parser.add_argument(
+    "--output-dir", "-o", help="outputs to directory", default=None
+)
 parser.add_argument(
     "-v", "--verbose", help="displays debug info", action="count", default=0
 )
+parser.add_argument("--render", help="live visualisations (slow)", action="store_true")
 
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    #setting up environment
+    # setting up environment
     gym.envs.registration.register(
         id="TennesseeEastmannContinous-v1",
         entry_point="teprob:TEproc",
@@ -151,7 +165,7 @@ if __name__ == "__main__":
         red_intent=args.intent,
     )
 
-    #setting up agents
+    # setting up agents
     if args.blue == "none":
         blue = DummyAgent()
     elif args.blue == "discrete":
@@ -173,10 +187,10 @@ if __name__ == "__main__":
         red = ContinuousThreatAgent()
 
     d = str(datetime.now().date())
-    report = Report(args)
+    logger = Logger(args, d, action_txt, reward_txt)
 
     observations, _, __, ___ = env.reset()
-    #actions = (None, None)
+    # actions = (None, None)
 
     for i in range(args.num_episodes):
         prev_obvs = observations
@@ -238,12 +252,14 @@ if __name__ == "__main__":
                 red_loss = None
 
             #######################################################################################
-            #reporting / rendering
+            # reporting / rendering
             #######################################################################################
             if args.render:
                 env.render()
-            if args.report and i % args.report == 0:
-                report.log(
+            if (args.report and i % args.report == 0) or (
+                args.figures and i % args.figures == 0
+            ):
+                logger.log_figures(
                     i,
                     t,
                     blue_action,
@@ -256,21 +272,23 @@ if __name__ == "__main__":
                     red_loss,
                     env,
                 )
-            if args.data:
-                report.log_to_file(env, t, blue_observation, red_observation)
+            if args.data and i % args.data == 0:
+                logger.log_data(env, t, blue_observation, red_observation)
             if args.verbose == 1:
-                report.verbose(env, info, blue_reward, red_reward)
+                logger.verbose(env, info, blue_reward, red_reward)
             if done:
-                report.verbose_summary(i, t, info)
-                report.wins.append((0, 1) if info["failures"] else (1, 0))
+                logger.summary(i, t, info)
+                logger.wins.append((0, 1) if info["failures"] else (1, 0))
                 break
 
         ###########################################################################################
         # end of episode actions
         ###########################################################################################
         if args.report and i % args.report == 0:
-            report.summary(t, info)
-            report.make_figures(i, d, args.blue, args.red)
+            logger.make_figures(i, t, info)
+            # report.summary(t, info)
+        if args.figures and i % args.figures == 0:
+            logger.make_figures(i, t, info)
         if args.blue == "discrete":
             blue.learn()
 
@@ -278,12 +296,9 @@ if __name__ == "__main__":
     # Report generation
     ###############################################################################################
 
-    if args.report:
-        report.make_report(d, action_txt, reward_txt)
-        report.close()
+    logger.close()
 
     ###############################################################################################
     # Cleanup
     ###############################################################################################
-
     env.close()

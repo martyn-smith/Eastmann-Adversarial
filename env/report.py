@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import os
 import numpy as np
 from collections import deque
 from copy import deepcopy
@@ -6,13 +7,14 @@ from copy import deepcopy
 import constants
 
 plt.rcParams["figure.constrained_layout.use"] = True
-plt.rcParams["figure.dpi"] = 400
+#plt.rcParams["figure.figaspect"] = 2.0
+plt.rcParams["figure.dpi"] = 500
 plt.rcParams["font.size"] = 5
-plt.rcParams['lines.linewidth'] = 0.5
+plt.rcParams["lines.linewidth"] = 0.4
 RED_OFFSET = 0.5
 
 
-class Report:
+class Logger:
     setpt_key = [
         "reactor temperature",
         "reactor level",
@@ -80,26 +82,42 @@ class Report:
 
     red_discrete_key = ["xmeas", "setpoints"]
 
-    def __init__(self, config):
+    def __init__(self, config, date, action_txt, reward_txt):
         self.wins = deque(maxlen=10)
         self._summary = []
         self.losses = []
         self.memory = []
-        self.data = config.data
+        self.action_txt = action_txt
+        self.reward_txt = reward_txt
+        self.blue = config.blue
+        self.red = config.red
         self.intent = config.intent
         self.num_episodes = config.num_episodes
+        self.date = date
+        self.data = config.data
+        self.figures = config.figures
+        self.report = config.report
+        self.dir = config.output_dir
+        if self.dir:
+            os.makedirs(self.dir, exist_ok = True)
+        else:
+            self.dir = "."
         if self.data:
-            self.state_log = open("state.dat", "w")
-            self.blue_xmeas_log = open("blue_xmeas.dat", "w")
-            self.red_xmeas_log = open("red_xmeas.dat", "w")
+            self.state_log = open(f"{dir}/state.dat", "w")
+            self.blue_xmeas_log = open(f"{dir}/blue_xmeas.dat", "w")
+            self.red_xmeas_log = open(f"{dir}/red_xmeas.dat", "w")
 
     def close(self):
         if self.data:
             self.state_log.close()
             self.blue_xmeas_log.close()
             self.red_xmeas_log.close()
+        if self.figures:
+            self.make_txt()
+        if self.report:
+            self.make_report()
 
-    def log_to_file(self, env, t, blue_observation, red_observation):
+    def log_data(self, env, t, blue_observation, red_observation):
         out = f"  {t / 3600.:.15E}"
         for o in [env.r, env.s, env.c, env.j, env.r.cl, env.s.cl]:
             out += f"{o}"
@@ -113,7 +131,7 @@ class Report:
             red_out = "  ".join(f"{x:.15E}" for x in red_observation)
             self.red_xmeas_log.write(f"{red_out}\n")
 
-    def log(
+    def log_figures(
         self,
         episode,
         t,
@@ -173,28 +191,35 @@ class Report:
             }
         )
 
-    def summary(self, t, info):
-        try:
-            win_rate = sum(1 for w in self.wins if w[0]) / sum(
-                1 for w in self.wins if w[1]
-            )
-        except ZeroDivisionError:
-            win_rate = 1 if self.wins[0][0] else 0
-        else:
-            win_rate = "n/a"
-        self._summary.append(
-            f"\n\nblue team win rate from last ten episodes: {win_rate}\n\n"
-            + f"last failure condition: {info['failures']} after {t/3600.:1f} hrs ({t} timesteps): \n\n"
+    def verbose(self, env, info, blue_reward, red_reward):
+        print(
+            f"""\
+time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
+{env.r.tc}, \
+{info['failures']}, \
+{blue_reward=}, \
+{red_reward=}
+                     """
         )
 
-    def make_figures(self, episode, d, blue_type, red_type):
+    def summary(self, i, t, info):
+        print(
+            f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
+            + (
+                f"red team wins: {info['failures']}"
+                if info["failures"]
+                else "blue team wins"
+            )
+        )
+
+    def make_figures(self, episode, t, info):
         fig, axs = plt.subplots(4, 2)
 
         #######################################################################
         # Plot actions
         #######################################################################
         ax = axs[0, 0]
-        if blue_type == "discrete":
+        if self.blue == "discrete":
             ax.plot(
                 [m["blue action"] for m in self.memory],
                 color="blue",
@@ -202,16 +227,26 @@ class Report:
                 label="blue action",
             )
             ax.set_ylim(0, 14)
-            ax.set_yticks(np.arange(0.0, 14.0, 1), labels=self.blue_discrete_key, fontsize = 3)
+            ax.set_yticks(
+                np.arange(0.0, 14.0, 1), labels=self.blue_discrete_key, fontsize=3
+            )
             ax.set_ylabel("actions")
-        elif blue_type == "continuous" or blue_type == "twin":
+        elif self.blue == "continuous" or self.blue == "twin":
             ax.plot(
                 [np.argmax(m["blue action"]) for m in self.memory],
                 label="blue action type",
                 color="blue",
                 alpha=0.6,
             )
-            ax.plot(
+            axa = ax.twinx()
+            axa.set_frame_on(True)
+            axa.spines["right"].set_visible(False)
+            axa.spines["left"].set_position(("axes", -0.4)) # red one
+            axa.spines["left"].set_visible(True)
+            axa.yaxis.set_label_position('left')
+            axa.yaxis.set_ticks_position('left')
+            axa.yaxis.label.set_color("blue")
+            axa.plot(
                 [np.max(m["blue action"]) / 10 for m in self.memory],
                 label="blue action strength",
                 color="blue",
@@ -228,12 +263,13 @@ class Report:
             #            alpha=0.8,
             #            linestyle="--",
             #        )
-            ax.set_yticks(np.arange(0.0, 12.0, 1), labels=self.valves_key, fontsize = 3)
+            ax.set_yticks(np.arange(0.0, 12.0, 1), labels=self.valves_key, fontsize=3)
             ax.set_ylabel("actions", color="blue")
-        elif blue_type == "none":
+        elif self.blue == "none":
             ax.set_yticks([])
+
         axa = ax.twinx()
-        if red_type == "discrete":
+        if self.red == "discrete":
             axa.plot(
                 [m["red action"] for m in self.memory],
                 color="red",
@@ -241,9 +277,9 @@ class Report:
                 label="red action",
             )
             axa.set_ylim(0, 50)
-            axa.set_yticks([25.0, 45.0], labels=self.red_discrete_key, fontsize = 3)
+            axa.set_yticks([25.0, 45.0], labels=self.red_discrete_key, fontsize=3)
             axa.set_ylabel("actions")
-        elif red_type == "continuous":
+        elif self.red == "continuous":
             axa.plot(
                 [np.argmax(m["red action"]) for m in self.memory],
                 label="red action type",
@@ -257,14 +293,16 @@ class Report:
                 alpha=0.6,
                 linestyle="--",
             )
-            axa.set_yticks(np.arange(0.0, 9.0, 1), labels=self.setpt_key, fontsize = 3)
+            axa.set_yticks(np.arange(0.0, 9.0, 1), labels=self.setpt_key, fontsize=3)
             axa.set_ylabel("actions", color="red")
-        elif red_type == "none":
+        elif self.red == "none":
             axa.set_yticks([])
         ax.set_xlabel("time (s)")
         ax.set_title(f"actions at episode {episode}")
-        ax.legend(loc = "upper right")
-        axa.legend(loc = "lower right")
+        ax.legend(loc="upper right")
+        axa.legend(loc="lower right")
+        ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.05),
+            fancybox=True, shadow=True, ncol=5)
         # fig.tight_layout()
         # plt.savefig(f"actions_{d}_ep{episode}.png", bbox_inches="tight")
 
@@ -277,20 +315,19 @@ class Report:
             label="blue reward",
             color="blue",
         )
-        ax.plot(
-            [m["red reward"] for m in self.memory], label="red reward", color="red"
-        )
+        ax.plot([m["red reward"] for m in self.memory], label="red reward", color="red")
         ax.set_xlabel("time (s)")
         ax.set_ylabel("reward (a.u)")
         axa = ax.twinx()
-        if blue_type == "continuous" or blue_type == "twin":
+        if self.blue == "continuous" or self.blue == "twin":
             axa.plot(
                 [m["blue loss"] for m in self.memory],
                 label="blue loss",
                 color="blue",
                 linestyle="dashed",
             )
-        if red_type == "continuous":
+            axa.set_yscale("log")
+        if self.red == "continuous":
             axa.plot(
                 [m["red loss"] for m in self.memory],
                 label="red loss",
@@ -299,8 +336,8 @@ class Report:
             )
         axa.set_ylabel("loss (a.u)")
         ax.set_title(f"rewards at episode {episode}")
-        ax.legend(loc = "upper left")
-        axa.legend(loc = "lower left")
+        ax.legend(loc="upper left")
+        axa.legend(loc="lower left")
 
         #######################################################################
         # Plot manipulated variables
@@ -317,7 +354,7 @@ class Report:
         ax.set_ylabel("Δposition (a.u.)")
         ax.set_ylim(-100, 100)
         ax.set_title(f"manipulated variables at episode {episode}")
-        ax.legend(fontsize = "3")
+        ax.legend(fontsize="3")
 
         #######################################################################
         # Plot key measured variables
@@ -343,7 +380,7 @@ class Report:
         ax.set_xlabel("time (s)")
         ax.set_ylabel("a.u")
         ax.set_title(f"measured variables at episode {episode}")
-        ax.legend(fontsize = "4")
+        ax.legend(fontsize="4")
 
         # reactor
         ax = axs[2, 0]
@@ -376,8 +413,8 @@ class Report:
         axa.set_ylabel("temperature (degC)")
         axa.set_ylim(90, 180)
         ax.set_title(f"reactor parameters at episode {episode}")
-        ax.legend(loc = "upper right")
-        axa.legend(loc = "lower right")
+        ax.legend(loc="upper right")
+        axa.legend(loc="lower right")
 
         # separator
         ax = axs[2, 1]
@@ -410,8 +447,8 @@ class Report:
         axa.set_ylabel("level (%)")
         axa.set_ylim(0, 100)
         ax.set_title(f"separator parameters at episode {episode}")
-        ax.legend(loc = "upper right")
-        axa.legend(loc = "lower right")
+        ax.legend(loc="upper right")
+        axa.legend(loc="lower right")
 
         # fig, ax = plt.subplots()
         # ax.plot(
@@ -445,7 +482,7 @@ class Report:
         ax.set_ylabel("err (signed log)")
         ax.set_ylim(-3, 3)
         ax.set_title(f"control errors at episode {episode}")
-        ax.legend(fontsize = "3")
+        ax.legend(fontsize="3")
 
         # compressor
         ax = axs[3, 1]
@@ -465,38 +502,33 @@ class Report:
         axa.set_ylabel("cycles")
         axa.set_ylim(0, 500)
         ax.set_title(f"compressor features at episode {episode}")
-        ax.legend(loc = "upper right")
-        axa.legend(loc = "lower right")
+        ax.legend(loc="upper right")
+        axa.legend(loc="lower right")
 
-        plt.savefig(f"params_{d}_episode_{episode}.png", bbox_inches="tight")
+        plt.savefig(f"{self.dir}/params_{self.date}_episode_{episode}.png", bbox_inches="tight")
         plt.close("all")
+
+        #######################################################################
+        # Storing internal text summary data
+        #######################################################################
         self.memory = []
-
-    def verbose(self, env, info, blue_reward, red_reward):
-        print(
-            f"""\
-time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
-{env.r.tc}, \
-{info['failures']}, \
-{blue_reward=}, \
-{red_reward=}
-                     """
-        )
-
-    def verbose_summary(self, i, t, info):
-        print(
-            f"Episode {i} finished after {t/3600.:1f} hrs ({t} timesteps): "
-            + (
-                f"red team wins: {info['failures']}"
-                if info["failures"]
-                else "blue team wins"
+        try:
+            win_rate = sum(1 for w in self.wins if w[0]) / sum(
+                1 for w in self.wins if w[1]
             )
+        except ZeroDivisionError:
+            win_rate = 1 if self.wins[0][0] else 0
+        else:
+            win_rate = "n/a"
+        self._summary.append(
+            f"\n\nblue team win rate from last episodes: {win_rate}\n\n"
+            + f"last failure condition: {info['failures']} after {t/3600.:1f} hrs ({t} timesteps): \n\n"
         )
 
-    def make_report(self, d, action_txt, reward_txt):
-        with open("report.md", "w") as f:
-            f.write(f"wargame of TE process generated on {d}\n===\n")
-            f.write(f"{action_txt}\n\n{reward_txt}\n\nred intent: {self.intent}\n\n")
+    def make_report(self):
+        with open(f"{self.dir}/report.md", "w") as f:
+            f.write(f"wargame of TE process generated on {self.date}\n===\n")
+            f.write(f"{self.action_txt}\n\n{self.reward_txt}\n\nred intent: {self.intent}\n\n")
             for i, s in zip(
                 range(0, self.num_episodes, self.num_episodes // len(self._summary)),
                 self._summary,
@@ -504,7 +536,13 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
                 f.write("\\newpage\n")
                 f.write(f"episode {i}\n===\n")
                 f.write(
-                    f"![Parameters at episode {i}](params_{d}_episode_{i}.png){{width=640px}}\\ "
+                    f"![Parameters at episode {i}](params_{self.date}_episode_{i}.png){{width=640px}}\\ "
                 )
                 f.write(s)
                 f.write("\\newpage\n")
+
+    def make_txt(self):
+        with open(f"{self.dir}/summary.txt", "w") as f:
+            f.write(f"wargame of TE process generated on {self.date}\n===\n")
+            f.write(self._summary[0])
+            f.write(self._summary[-1])
