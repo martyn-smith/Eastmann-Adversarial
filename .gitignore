@@ -2,6 +2,13 @@ Oxidised/target/
 builds/
 reference/
 data/
+Pythonised/stategenerator/
+Pythonised/actorcritic*
+Pythonised/checkpoint
+__pycache__/
+poetry.lock
+.python-version
+errors*.txt
 *.dat
 *.mod
 *.so
