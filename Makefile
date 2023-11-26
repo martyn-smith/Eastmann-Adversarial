@@ -46,8 +46,10 @@ twin: clean gymenv te
 	poetry run env/main.py -n 100 -t 1h --blue twin --red continuous --figures 10 \
 		-o data/blue_twin_red_continuous_$(ldate) 2>> errors_$(ldate).txt
 
+# sensitivity
 test: clean gymenv te
-	poetry run env/main.py -n 20 -t 1h --blue discrete --red discrete --figures 10 2>> errors_$(ldate).txt
+	poetry run env/main.py -n 100 -t 1h --blue continuous --red none --figures 100 \
+		-o data/blue_continuous_high_eps_$(ldate) 2>> errors_$(ldate).txt
 
 reports: clean gymenv te
 	#validation

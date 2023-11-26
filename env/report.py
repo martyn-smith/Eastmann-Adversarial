@@ -7,7 +7,7 @@ from copy import deepcopy
 import constants
 
 plt.rcParams["figure.constrained_layout.use"] = True
-#plt.rcParams["figure.figaspect"] = 2.0
+# plt.rcParams["figure.figaspect"] = 2.0
 plt.rcParams["figure.dpi"] = 500
 plt.rcParams["font.size"] = 5
 plt.rcParams["lines.linewidth"] = 0.4
@@ -100,7 +100,7 @@ class Logger:
         self.report = config.report
         self.dir = config.output_dir
         if self.dir:
-            os.makedirs(self.dir, exist_ok = True)
+            os.makedirs(self.dir, exist_ok=True)
         else:
             self.dir = "."
         if self.data:
@@ -192,16 +192,17 @@ class Logger:
             }
         )
 
-    def verbose(self, env, info, blue_reward, red_reward):
+    def env(self, env, info):
         print(
             f"""\
 time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
 {env.r.tc}, \
 {info['failures']}, \
-{blue_reward=}, \
-{red_reward=}
                      """
         )
+
+    def agents(self, blue_reward, red_reward, blue_action, red_action):
+        print(f"{blue_reward=}, {red_reward=}\n{blue_action=}\n{red_action=}")
 
     def summary(self, i, t, info):
         print(
@@ -293,8 +294,8 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
             axa.set_yticks([])
         ax.set_xlabel("time (s)")
         ax.set_title(f"actions at episode {episode}")
-        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(-0.3, -0.28))
-        axa.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.3, -0.28))
+        ax.legend(loc="lower left", fontsize=3, bbox_to_anchor=(-0.3, -0.28))
+        axa.legend(loc="lower right", fontsize=3, bbox_to_anchor=(1.3, -0.28))
         # fig.tight_layout()
         # plt.savefig(f"actions_{d}_ep{episode}.png", bbox_inches="tight")
 
@@ -328,8 +329,8 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
             )
         axa.set_ylabel("loss (a.u)")
         ax.set_title(f"rewards at episode {episode}")
-        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(-0.25, -0.28))
-        axa.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.25, -0.28))
+        ax.legend(loc="lower left", fontsize=3, bbox_to_anchor=(-0.25, -0.28))
+        axa.legend(loc="lower right", fontsize=3, bbox_to_anchor=(1.25, -0.28))
 
         #######################################################################
         # Plot manipulated variables
@@ -346,7 +347,7 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         ax.set_ylabel("Δposition (a.u.)")
         ax.set_ylim(-100, 100)
         ax.set_title(f"manipulated variables at episode {episode}")
-        ax.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.42, -0.05))
+        ax.legend(loc="lower right", fontsize=3, bbox_to_anchor=(1.42, -0.05))
 
         #######################################################################
         # Plot key measured variables
@@ -372,7 +373,7 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         ax.set_xlabel("time (s)")
         ax.set_ylabel("a.u")
         ax.set_title(f"measured variables at episode {episode}")
-        ax.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.42, 0.0))
+        ax.legend(loc="lower right", fontsize=3, bbox_to_anchor=(1.42, 0.0))
 
         # reactor
         ax = axs[2, 0]
@@ -405,8 +406,8 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         axa.set_ylabel("temperature (degC)")
         axa.set_ylim(90, 180)
         ax.set_title(f"reactor parameters at episode {episode}")
-        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(-0.28, -0.28))
-        axa.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.37, -0.28))
+        ax.legend(loc="lower left", fontsize=3, bbox_to_anchor=(-0.28, -0.28))
+        axa.legend(loc="lower right", fontsize=3, bbox_to_anchor=(1.37, -0.28))
 
         # separator
         ax = axs[2, 1]
@@ -439,8 +440,8 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         axa.set_ylabel("level (%)")
         axa.set_ylim(0, 100)
         ax.set_title(f"separator parameters at episode {episode}")
-        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(-0.36, -0.3))
-        axa.legend(loc="lower right", fontsize = 3, bbox_to_anchor=(1.3, -0.3))
+        ax.legend(loc="lower left", fontsize=3, bbox_to_anchor=(-0.36, -0.3))
+        axa.legend(loc="lower right", fontsize=3, bbox_to_anchor=(1.3, -0.3))
 
         # fig, ax = plt.subplots()
         # ax.plot(
@@ -474,7 +475,7 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         ax.set_ylabel("err (signed log)")
         ax.set_ylim(-3, 3)
         ax.set_title(f"control errors at episode {episode}")
-        ax.legend(loc="lower left", fontsize = 3, bbox_to_anchor=(0.98, 0.0))
+        ax.legend(loc="lower left", fontsize=3, bbox_to_anchor=(0.98, 0.0))
 
         # compressor
         ax = axs[3, 1]
@@ -497,7 +498,9 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
         ax.legend(loc="upper right")
         axa.legend(loc="lower right")
 
-        plt.savefig(f"{self.dir}/params_{self.date}_episode_{episode}.png", bbox_inches="tight")
+        plt.savefig(
+            f"{self.dir}/params_{self.date}_episode_{episode}.png", bbox_inches="tight"
+        )
         plt.close("all")
 
         #######################################################################
@@ -520,7 +523,9 @@ time = {env.time}: reactor P, T, PVs = {env.r.pg}, \
     def make_report(self):
         with open(f"{self.dir}/report.md", "w") as f:
             f.write(f"wargame of TE process generated on {self.date}\n===\n")
-            f.write(f"{self.action_txt}\n\n{self.reward_txt}\n\nred intent: {self.intent}\n\n")
+            f.write(
+                f"{self.action_txt}\n\n{self.reward_txt}\n\nred intent: {self.intent}\n\n"
+            )
             for i, s in zip(
                 range(0, self.num_episodes, self.num_episodes // len(self._summary)),
                 self._summary,

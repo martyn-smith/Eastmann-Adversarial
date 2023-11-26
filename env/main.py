@@ -140,9 +140,7 @@ parser.add_argument(
     type=int,
     default=0,
 )
-parser.add_argument(
-    "--output-dir", "-o", help="outputs to directory", default=None
-)
+parser.add_argument("--output-dir", "-o", help="outputs to directory", default=None)
 parser.add_argument(
     "-v", "--verbose", help="displays debug info", action="count", default=0
 )
@@ -274,8 +272,10 @@ if __name__ == "__main__":
                 )
             if args.data and i % args.data == 0:
                 logger.log_data(env, t, blue_observation, red_observation)
-            if args.verbose == 1:
-                logger.verbose(env, info, blue_reward, red_reward)
+            if args.verbose >= 1:
+                logger.env(env, info)
+            if args.verbose >= 2:
+                logger.agents(blue_reward, red_reward, blue_action, red_action)
             if done:
                 logger.summary(i, t, info)
                 logger.wins.append((0, 1) if info["failures"] else (1, 0))
