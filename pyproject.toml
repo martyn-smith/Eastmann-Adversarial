@@ -3,6 +3,7 @@ name = "TEgym"
 version = "0.1.0"
 description = "Tennessee Eastman module for OpenAIgym"
 authors = ["Martyn"]
+package-mode = false
 
 [tool.poetry.dependencies]
 # tensorflow <2.12 is not found using PyPI for newer than 3.10,
@@ -10,6 +11,9 @@ authors = ["Martyn"]
 # and tensorflow 2.12 breaks deepcopy (!!!. We're too *special* to respect python fundamentals - Google).
 python = ">=3.9,<3.11"
 tensorflow = "2.9.0"
+# horrible errors deep in tensorflow (TypeError: Descriptors cannot be created directly) 
+# if you run any later tool.
+protobuf = "3.20.0"
 # https://github.com/openai/gym/issues/3200 renders 0.21 impossible to support, somehow,
 # but some later version makes breaking changes to the .make() API
 # (0.22 already breaks rendering and includes pygame), and entire project is since deprecated
