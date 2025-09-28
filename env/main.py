@@ -157,7 +157,7 @@ if __name__ == "__main__":
         reward_threshold=195.0,
     )
     env = gym.make(
-        "TennesseeEastmannContinous-v1",
+        "TennesseeEastmann-v1",
         blue_type=args.blue,
         red_type=args.red,
         red_intent=args.intent,

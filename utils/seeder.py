@@ -1,7 +1,8 @@
 """
-Generates a random seed in the correct format for the TE process. Nothing more, 
+Generates a random seed in the correct format for the TE process. Nothing more,
 and it will almost certainly fail given it is random input.
 """
+
 from datetime import date
 from random import random, randint
 from subprocess import Popen, run, PIPE

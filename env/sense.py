@@ -26,15 +26,15 @@ class Sensors:
         )  # Reactor Feed Rate  (stream 6)         kscmh
         xmeas[7] = t.r.pg  # Reactor Pressure                   kPa gauge
         xmeas[8] = t.r.level * 100.0  #                     %
-        xmeas[
-            9
-        ] = t.r.tc  # Reactor Temperature                                      deg C
+        xmeas[9] = (
+            t.r.tc
+        )  # Reactor Temperature                                      deg C
         xmeas[10] = (
             t.sm[9].ftm * 0.359 / 35.3145
         )  # purge rate (stream 9)               kscmh
-        xmeas[
-            11
-        ] = t.s.tc  # product sep temp                                        deg c
+        xmeas[11] = (
+            t.s.tc
+        )  # product sep temp                                        deg c
         xmeas[12] = t.s.level * 100.0  # product sep level                    %
         xmeas[13] = (
             (t.s.pt - 760.0) / 760.0 * 101.325
@@ -51,21 +51,21 @@ class Sensors:
         xmeas[17] = (
             t.sm[12].ftm / t.c.density / 35.3145
         )  # stripper underflow (stream 11, aka production) m3/hr
-        xmeas[
-            18
-        ] = t.c.tc  # stripper temperature                                    deg c
+        xmeas[18] = (
+            t.c.tc
+        )  # stripper temperature                                    deg c
         xmeas[19] = (
             t.c.qu * 1.04e3 * 0.454
         )  # stripper steam flow                        kg/hr
         xmeas[20] = (
             t.cmpsr.work * 0.29307e3
         )  # compressor work, again??                kwh
-        xmeas[
-            21
-        ] = t.r.cl.T_out  # reactor cooling water outlet temp                 deg c
-        xmeas[
-            22
-        ] = t.s.cl.T_out  # separator cooling water outlet temp               deg c
+        xmeas[21] = (
+            t.r.cl.T_out
+        )  # reactor cooling water outlet temp                 deg c
+        xmeas[22] = (
+            t.s.cl.T_out
+        )  # separator cooling water outlet temp               deg c
 
         if idv(16):
             if xmeas_tgt == 0:
