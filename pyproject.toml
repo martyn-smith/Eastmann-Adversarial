@@ -1,42 +1,18 @@
-[tool.poetry]
+[project]
 name = "TEgym"
 version = "0.1.0"
 description = "Tennessee Eastman module for OpenAIgym"
-authors = ["Martyn"]
-package-mode = false
-
-[tool.poetry.dependencies]
-# tensorflow <2.12 is not found using PyPI for newer than 3.10,
-# gcs-io-filesystem (which is pulled in why?!?!) requires <3.11,
-# and tensorflow 2.12 breaks deepcopy (!!!. We're too *special* to respect python fundamentals - Google).
-python = ">=3.9,<3.11"
-tensorflow = "2.9.0"
-# horrible errors deep in tensorflow (TypeError: Descriptors cannot be created directly) 
-# if you run any later tool.
-protobuf = "3.20.0"
-# https://github.com/openai/gym/issues/3200 renders 0.21 impossible to support, somehow,
-# but some later version makes breaking changes to the .make() API
-# (0.22 already breaks rendering and includes pygame), and entire project is since deprecated
-# for gymnasium. Lovely.
-# Also inability to use specific verion of setuptools (see 3200) is marked WONTFIX
-# by poetry in https://github.com/python-poetry/poetry/issues/4511, because compatibility and versioning
-# isn't the point of poetry, is it?
-gym = "0.22.0"
-# upgrading to 1.23.5 is safe, 1.24 breaks pylab (brought it by colorpy,
-# which is now also probably redundant).
-numpy = "1.22.3"
-matplotlib = "^3.5.0"
-pyglet = "1.5.0"
-colorpy = { git = "https://github.com/martyn-smith/colorpy.git", branch = "master"}
-pygame = "^2.4.0"
-
-[tool.poetry.dev-dependencies]
-
-[build-system]
-# poetry install -vvv is broken, probably due to https://github.com/python-poetry/poetry/issues/5250
-# and https://github.com/pypa/pip/pull/8687
-# export PYTHON_KEYRING_BACKEND=keyring.backends.fail.Keyring is *probably* the best workaround
-# if you encounter this issue, expect either no errors at all or the souls of the damned
-# to leap from the screen.
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+authors = [
+    {name = "Martyn", email = "1931150@brunel.ac.uk"},
+]
+requires-python = ">=3.9,<3.11"
+dependencies = [
+"tensorflow == 2.9.0",
+"protobuf == 3.20.0",
+"gym == 0.22.0",
+"numpy == 1.22.3",
+"matplotlib >= 3.5.0",
+"pyglet == 1.5.0",
+"colorpy @  git+https://github.com/martyn-smith/colorpy.git",
+"pygame >= 2.4.0",
+]

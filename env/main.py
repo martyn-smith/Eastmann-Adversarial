@@ -151,7 +151,7 @@ if __name__ == "__main__":
 
     # setting up environment
     gym.envs.registration.register(
-        id="TennesseeEastmannContinous-v1",
+        id="TennesseeEastmann-v1",
         entry_point="teprob:TEproc",
         max_episode_steps=int(3600 * int(args.time[:-1])),
         reward_threshold=195.0,
