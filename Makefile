@@ -6,7 +6,7 @@ cdate := $(shell date +"%d%m%C")
 .PHONY: clean figures gym peaceful reports twin telib
 
 te:
-	cd Eastmann-95 && make te
+	cd Eastmann-95 && make lib # && cp telib.so /usr/lib
 
 gymenv:
 	poetry install

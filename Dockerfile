@@ -8,4 +8,5 @@ COPY pyproject.toml .
 #RUN export PATH="~/.local/bin:$PATH"
 COPY env ./env
 COPY Makefile .
+# RUN chmod -R +x ./env
 #RUN poetry install
