@@ -514,11 +514,7 @@ class Reactor(Vessel):
 
     def set_heat_transfer(self, agtatr):
         uarlev = np.clip((1.0 / 312.0) * (self.vl - 78.0), 0.0, 1.0)
-        ua = (
-            uarlev
-            * (-0.5 * agtatr.speed**2 + 2.75 * agtatr.speed - 2.5)
-            * 855490.0e-6
-        )
+        ua = uarlev * (-0.5 * agtatr.speed**2 + 2.75 * agtatr.speed - 2.5) * 855490.0e-6
         self.qu = ua * (self.cl.T_out - self.tc)
 
     def react(self):
