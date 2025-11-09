@@ -20,7 +20,7 @@ from matplotlib import pyplot as plt
 
 from teprob import TEproc
 from report import Logger
-import gym
+import gymnasium as gym
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"  # FATAL only
 logging.getLogger("tensorflow").setLevel(logging.FATAL)

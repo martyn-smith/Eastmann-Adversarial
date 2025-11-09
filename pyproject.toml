@@ -5,14 +5,13 @@ description = "Tennessee Eastman module for OpenAIgym"
 authors = [
     {name = "Martyn", email = "1931150@brunel.ac.uk"},
 ]
-requires-python = ">=3.9,<3.11"
+requires-python = ">=3.11"
 dependencies = [
-"tensorflow == 2.9.0",
-"protobuf == 3.20.0",
-"gym == 0.22.0",
-"numpy == 1.22.3",
-"matplotlib >= 3.5.0",
-"pyglet == 1.5.0",
-"colorpy @  git+https://github.com/martyn-smith/colorpy.git",
-"pygame >= 2.4.0",
+    "tensorflow == 2.20.0",
+    "numpy == 2.3.0",
+    "matplotlib >= 3.5.0",
+    "pyglet == 1.5.0",
+    "colorpy @  git+https://github.com/martyn-smith/colorpy.git",
+    "pygame >= 2.4.0",
+    "gymnasium>=1.2.2",
 ]
